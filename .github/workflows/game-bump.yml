@@ -1,0 +1,101 @@
+name: Game bump
+
+# Opens a pull request that moves the game (the chupathingyce submodule) to
+# the game's current main, when this repository is behind it, every night and
+# by hand. There is one bump pull request at a time: the branch bump/game is
+# made again from main at the game's newest commit and the open pull request
+# is updated, and when the game is not ahead any more it is closed. A person
+# merges it. The pull request's checks are started here by hand, because
+# pushes and pull requests made with the workflow's own token do not start
+# workflows. There is no nightly build here: the console build needs the
+# console SDK, which never comes near this repository or its runners.
+on:
+  schedule:
+    - cron: '41 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: game-bump
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      GAME_REPO: ChupathingyCE/chupathingyce
+      BRANCH: bump/game
+      CHECKS: port-tests.yml
+    steps:
+      # (the submodule is not fetched: only its recorded commit changes)
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: main
+
+      - name: Bump
+        run: |
+          current="$(git rev-parse HEAD:chupathingyce)"
+          game="$(gh api "repos/$GAME_REPO/commits/main" --jq .sha)"
+          open="$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')"
+
+          if [ "$current" = "$game" ] || \
+             [ "$(gh api "repos/$GAME_REPO/compare/$current...$game" --jq .status)" != ahead ]; then
+            echo "main has the game's main (or newer): nothing to bump."
+            if [ -n "$open" ]; then
+              gh pr close "$open" --delete-branch --comment "The game's main is no longer ahead of this repository's main, so this bump is not needed."
+            fi
+            exit 0
+          fi
+
+          short="${game:0:7}"
+          gh api "repos/$GAME_REPO/compare/$current...$game" \
+            --jq '.commits | reverse | .[] | "- " + .sha[0:7] + " " + (.commit.message | split("\n")[0])' | head -60 > commits.txt || true
+          total="$(gh api "repos/$GAME_REPO/compare/$current...$game" --jq .total_commits)"
+
+          if [ -n "$open" ]; then
+            git fetch --quiet origin "$BRANCH"
+            if [ "$(git rev-parse "origin/$BRANCH:chupathingyce")" = "$game" ] && \
+               [ "$(git merge-base origin/main "origin/$BRANCH")" = "$(git rev-parse origin/main)" ]; then
+              echo "The open bump (#$open) is at the game's main already."
+              exit 0
+            fi
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -q -B "$BRANCH"
+          git update-index --cacheinfo "160000,$game,chupathingyce"
+          {
+            echo "Game: move to $short"
+            echo
+            echo "The game's main, $total commits ahead:"
+            echo
+            cat commits.txt
+          } > message.txt
+          git commit -q -F message.txt
+          git push --force origin "$BRANCH"
+
+          {
+            echo "Moves the game to its current main, $short ($total commits):"
+            echo
+            cat commits.txt
+            echo
+            echo "Opened by the nightly game bump. The checks run on this branch; merge when they pass."
+          } > body.txt
+          title="Game: move to $short"
+          if [ -n "$open" ]; then
+            gh pr edit "$open" --title "$title" --body-file body.txt
+          else
+            gh pr create --base main --head "$BRANCH" --title "$title" --body-file body.txt
+          fi
+
+          for workflow in $CHECKS; do
+            gh workflow run "$workflow" --ref "$BRANCH"
+          done
