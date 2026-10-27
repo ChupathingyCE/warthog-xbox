@@ -6,7 +6,8 @@
 #                                        settings record and game type state
 #                                        layouts', console.join's and the memory
 #                                        class's, XLink's, the log tags' and the
-#                                        co-op names' tests, tools/xbox_package.py's
+#                                        co-op names' tests, which hosts it
+#                                        joins, tools/xbox_package.py's
 #                                        devkit flag,
 #                                        the console's config.toml, and 200,000
 #                                        mutations
@@ -91,6 +92,18 @@ $CC -std=gnu11 -Wall -Wextra -Werror $SAN -DHALO_XBOX_CONSOLE -DHALO_CONSOLE_PLA
 	$G/port/linux/src/delta_wire.c $G/port/third_party/monocypher/monocypher.c \
 	$G/port/third_party/monocypher/monocypher-ed25519.c -o "$OUT/delta_console_test"
 "$OUT/delta_console_test"
+# which hosts the console joins: a Delta host by its wire and range, whatever
+# number it announces (delta_compat.c as the console builds it), and the
+# game's join check on the console's gates
+$CC -std=c89 -pedantic -Wall -Wextra -Werror $SAN -DHALO_XBOX_CONSOLE -DHALO_CONSOLE_PLAYERS=16 -DHALO_CONSOLE_DELTA \
+	-I$G/port/linux/src -idirafter $G/port/linux/include port/xbox/tests/delta_join_test.c \
+	$G/port/linux/src/delta_compat.c -o "$OUT/delta_join_test"
+"$OUT/delta_join_test"
+grep -q '^#if defined(HALO_GAME_BROWSER) || defined(HALO_CONSOLE_DELTA) || defined(HALO_CONSOLE_ONLINE_GAMES)$' \
+	$G/source/networking/network_client_manager.c || {
+	echo "$0: the game's join check does not take the Delta wire path on the console" >&2
+	exit 1
+}
 # the console's signed platform claim (p2p_crypto.c as the console builds it,
 # beside empty stand-ins for the platform layer's headers)
 rm -rf "$OUT/claim"
