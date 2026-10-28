@@ -116,6 +116,7 @@ SUPPORT_FLAGS = [
 # claim and the player key. Monocypher alone goes from 83 KB to 18 KB
 COLD_FLAGS = ["-Os"]
 COLD_SOURCES = (
+    "console_link.c", "qrcodegen.c", "xbox_console_link.c",
     "xbox_claim.c", "xbox_claim_run.c", "xbox_config.c", "xbox_coop_name.c", "xbox_direct_join.c",
     "xbox_game_list_fetch.c", "xbox_game_list_parse.c", "xbox_game_list_text.c", "xbox_log_tag.c",
     "xbox_memory.c", "xbox_player_key.c", "xbox_stack.c", "xbox_xlink.c",
@@ -156,6 +157,11 @@ P2P_SOURCES = [
 DELTA_SOURCES = [LINUX_SRC / "delta_wire.c", LINUX_SRC / "delta_peer.c", LINUX_SRC / "delta_chat.c", LINUX_SRC / "delta_chat_words.c",
                  LINUX_SRC / "delta_chat_bridge.c",
                  LINUX_SRC / "delta_peer_game.c", LINUX_SRC / "delta_compat.c"]
+# Link Profile with the console's own key (the game's port/console/link:
+# console_link.c over port/xbox/src/xbox_console_link.c's hooks, the panel
+# over Online Games, game/xbox_browser_screen.c), and the QR code it shows
+CONSOLE_LINK_DIR = Path("port/console/link")
+QRCODEGEN_DIR = Path("port/third_party/qrcodegen")
 # the settings, D:\config.toml: the desktop builds' port_config.c and its
 # TOML parser (tools/linux_build.py's TOML_DIR)
 CONFIG_SOURCE = LINUX_SRC / "port_config.c"
@@ -384,16 +390,25 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
     for name in XBOX_PORT_GAME_SOURCES:
         add_object(game / PORT_LINUX_GAME / name, f"-std=gnu89 {game_cflags}", [semantics_header, prefix_header])
 
-    # the console's own game code: its Online Games screen
+    # the console's own game code: its Online Games screen, and the Delta
+    # profile panel over it
+    link_include = f"-I{_quote(game / CONSOLE_LINK_DIR)}"
     for source in sorted((PORT_DIR / "game").glob("*.c")):
-        add_object(source, f"-std=gnu89 {game_cflags}", [semantics_header, prefix_header])
+        add_object(source, f"-std=gnu89 {game_cflags} {link_include}", [semantics_header, prefix_header])
+    add_object(game / CONSOLE_LINK_DIR / "console_link_panel.c", f"-std=gnu89 {game_cflags} {link_include}",
+               [semantics_header, prefix_header])
 
-    support_cflags = " ".join([*SUPPORT_FLAGS, players_flag, f"-iquote {_quote(game)}", f"-I{_quote(xdk / 'include')}"])
+    support_cflags = " ".join([*SUPPORT_FLAGS, players_flag, f"-iquote {_quote(game)}", link_include,
+                               f"-I{_quote(xdk / 'include')}"])
     for source in sorted((PORT_DIR / "src").glob("*.c")):
         add_object(source, " ".join([support_cflags, *(COLD_FLAGS if source.name in COLD_SOURCES else [])]))
     add_object(stamp_source, support_cflags)
     for source in sorted((PORT_DIR / "src").glob("*.cpp")):
         add_object(source, " ".join([support_cflags, *SUPPORT_CXX_FLAGS]))
+    link_cflags = " ".join([*SUPPORT_FLAGS, *COLD_FLAGS, "-std=gnu11", link_include,
+                            f"-I{_quote(game / QRCODEGEN_DIR)}", f"-I{_quote(xdk / 'include')}"])
+    for source in (game / CONSOLE_LINK_DIR / "console_link.c", game / QRCODEGEN_DIR / "qrcodegen.c"):
+        add_object(source, link_cflags)
     for kind, source in (("common", game / LINUX_SRC / "halo_linker_common.c"), ("bink", game / LINUX_SRC / "bink_null.c")):
         generated = gen_dir / f"xbox_{source.name}"
         n.build(outputs=generated, rule="xbox_source", inputs=source, implicit=[TOOLS_DIR / "xbox_sources.py"],
@@ -421,7 +436,8 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
     # (HALO_XBOX_CONSOLE), the C99 calls its C runtime lacks, and the port's
     # headers (delta.h, halo_port_limits.h) after the SDK's
     # (-Os: the console's 64 MB keeps every byte of its code)
-    delta_cflags = " ".join([p2p_cflags, "-Os", "-DHALO_XBOX_CONSOLE", "-DHALO_CONSOLE_DELTA", f'-DHALO_VERSION=\\"{version()}\\"',
+    # (PROFILE carries console_profile_id: the identity file, else the link)
+    delta_cflags = " ".join([p2p_cflags, "-Os", "-DHALO_XBOX_CONSOLE", "-DHALO_CONSOLE_DELTA", "-DHALO_CONSOLE_PROFILE_ID", f'-DHALO_VERSION=\\"{version()}\\"',
                              f"-include {_quote(PORT_DIR / 'p2p' / 'xbox_stdio.h')}",
                              f"-idirafter {_quote(game / PORT_LINUX_INCLUDE)}"])
     for source in DELTA_SOURCES:
