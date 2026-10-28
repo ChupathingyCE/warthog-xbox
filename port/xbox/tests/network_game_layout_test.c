@@ -167,11 +167,62 @@ int main(void)
 	player(record, PC, 40)[NETWORK_GAME_LAYOUT_PLAYER_LIST_INDEX] = 40;
 	CHECK(fold(record, console) == NETWORK_GAME_LAYOUT_PLAYER_SLOT);
 	free(record);
-	/* (a used player naming a machine or team past 16) */
+	/* (a used player naming a machine past 16 that is in the game) */
 	record = pc_record(3, 3);
+	machine(record, PC, 30)[NETWORK_GAME_LAYOUT_MACHINE_INDEX] = 30;
 	player(record, PC, 1)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] = 30;
+	CHECK(fold(record, console) == NETWORK_GAME_LAYOUT_MACHINE_SLOT);
+	free(record);
+	/* (players of no machine past 16, as a host's bots, from #113 up: given
+	the free indices from the top, the same one for each of a machine's) */
+	record = pc_record(3, 6);
+	player(record, PC, 0)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] = 113;
+	player(record, PC, 1)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] = 114;
+	player(record, PC, 4)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] = 113;
+	CHECK(fold(record, console) == NETWORK_GAME_LAYOUT_OK);
+	CHECK(player(console, CONSOLE_M, 0)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] == 16);
+	CHECK(player(console, CONSOLE_M, 1)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] == 15);
+	CHECK(player(console, CONSOLE_M, 4)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] == 16);
+	CHECK(player(console, CONSOLE_M, 2)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] == 2);
+	CHECK(machine(console, CONSOLE_M, 16)[NETWORK_GAME_LAYOUT_MACHINE_INDEX] == 0xFF);
+	free(record);
+	/* (... each keeping its index from one record to the next, while it is
+	free, and a player of such a machine joining in progress given it too) */
+	{
+		struct network_game_layout_machine_map kept;
+		unsigned char used[CONSOLE_M];
+
+		network_game_layout_machine_map_reset(&kept);
+		record = pc_record(3, 4);
+		player(record, PC, 0)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] = 114;
+		CHECK(network_game_layout_convert_mapped(record, PC, PC, console, CONSOLE_M, CONSOLE_P, NULL, &kept) ==
+			NETWORK_GAME_LAYOUT_OK);
+		CHECK(player(console, CONSOLE_M, 0)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] == 16);
+		/* (machine #113's player comes first now: #114's keeps 16) */
+		player(record, PC, 3)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] = 113;
+		memcpy(player(record, PC, 3), player(record, PC, 0), NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX);
+		player(record, PC, 0)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] = 113;
+		player(record, PC, 3)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] = 114;
+		CHECK(network_game_layout_convert_mapped(record, PC, PC, console, CONSOLE_M, CONSOLE_P, NULL, &kept) ==
+			NETWORK_GAME_LAYOUT_OK);
+		CHECK(player(console, CONSOLE_M, 3)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] == 16);
+		CHECK(player(console, CONSOLE_M, 0)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] == 15);
+		free(record);
+		memset(used, 0, sizeof(used));
+		used[0] = used[1] = used[2] = used[15] = used[16] = 1;
+		CHECK(network_game_layout_machine_map_index(&kept, 114, used, CONSOLE_M) == 14);
+		used[14] = 1;
+		CHECK(network_game_layout_machine_map_index(&kept, 114, used, CONSOLE_M) == 13);
+		CHECK(network_game_layout_machine_map_index(&kept, 2, used, CONSOLE_M) == 2);
+		memset(used, 1, sizeof(used));
+		CHECK(network_game_layout_machine_map_index(&kept, 120, used, CONSOLE_M) == -1);
+	}
+	/* (... with no index free: every one a machine's) */
+	record = pc_record(17, 3);
+	player(record, PC, 1)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] = 113;
 	CHECK(fold(record, console) == NETWORK_GAME_LAYOUT_INDEX);
 	free(record);
+	/* (a used player naming a team past 16) */
 	record = pc_record(3, 3);
 	player(record, PC, 1)[NETWORK_GAME_LAYOUT_PLAYER_TEAM_INDEX] = 99;
 	CHECK(fold(record, console) == NETWORK_GAME_LAYOUT_INDEX);
