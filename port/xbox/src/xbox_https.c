@@ -6,7 +6,9 @@ HTTPS on the console (xbox_https.h): the game's shared client
 looked up with XNet's DNS (game_list_resolve), random numbers from
 XNetRandom, and a critical section so that one request runs at a time. The
 game list (xbox_game_list.c), the signed legacy table (the game's delta.c)
-and the console link call through here, each on a thread of its own.
+and the console link call through here, each on a thread of its own. The
+site's key pins are kept current by the game's signed pin document, fetched
+over plain HTTP from the list's host and kept in D:\console_pins.signed.
 
 The log names the host and what went wrong, never an address.
 */
@@ -135,10 +137,26 @@ static void https_log(const char *text)
 	platform_log("%s", text);
 }
 
+/* the pin document's plain HTTP GET (it is signed), as the plain list asks:
+game_list_request on port 80 */
+static int https_plain_get(const char *host, const char *path, char *response, unsigned long size,
+	unsigned long *received, unsigned long timeout_ms)
+{
+	unsigned long address;
+
+	*received = 0;
+	if (game_list_resolve(host, &address) != GAME_LIST_OK)
+		return 0;
+	return game_list_request(address, 80, host, path, NULL, response, size, received, timeout_ms) == GAME_LIST_OK &&
+		*received > 0;
+}
+
 static const struct console_https_port xbox_https_port =
 {
 	https_connect, https_send, https_receive, https_close, https_random, https_milliseconds,
 	https_lock_enter, https_lock_leave, https_log, "Warthog/1",
+	/* (the pin document: plain HTTP from the list's host, kept on D:\) */
+	https_plain_get, "D:\\console_pins.signed",
 };
 
 void xbox_https_start(void)
