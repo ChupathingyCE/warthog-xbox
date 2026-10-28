@@ -58,6 +58,8 @@ boolean ui_online_games_start_network(void);
 /* (network_client_manager.c's: the game whose host's identifier the invite
 starts with, joined once it is advertised) */
 long network_game_client_join_invite_host(char const *invite);
+/* (and why the host's game was refused, one short line) */
+char const *network_game_client_refusal(void);
 boolean create_global_network_game_client(void);
 void game_connection_set(short connection);
 /* (internet play's, port/linux/src/p2p.c: the tunnel to an invite's host) */
@@ -315,9 +317,14 @@ static void wait_for_host(
 	}
 	else if (joined < 0)
 	{
+		char const *reason = network_game_client_refusal();
+
 		browser_screen.connecting = FALSE;
-		set_status("That game can't be joined from this version.");
-		error(_error_log, "online games: the host's game is not one this version joins");
+		/* (the reason, as the host's advertisement says it: its game wire,
+		or its network version for a host without Delta) */
+		set_status(reason && reason[0] ? reason : "That game can't be joined from this version.");
+		error(_error_log, "online games: the host's game is not one this version joins (%s)",
+			reason && reason[0] ? reason : "no reason given");
 	}
 	else if (system_milliseconds() - browser_screen.connecting_time > CONNECT_TIMEOUT)
 	{
