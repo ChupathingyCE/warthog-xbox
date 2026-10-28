@@ -2,9 +2,10 @@
 XBOX_GAME_LIST.C
 
 The game list on the console (xbox_game_list.h): once the game's network is
-up (transport_initialize), a thread of its own resolves the list's host,
-fetches GET /v1/console/games over plain HTTP (the console has no TLS),
-and parses it; the main loop then takes it (xbox_game_list_get) for the
+up (transport_initialize), a thread of its own fetches GET
+/v1/console/games over HTTPS from stats.chupathingy.org (xbox_https.c, the
+site's key pinned), or, when that fails, over plain HTTP from the list's
+host, and parses it; the main loop then takes it (xbox_game_list_get) for the
 Multiplayer menu's ONLINE GAMES (port/xbox/game/xbox_browser_screen.c),
 which asks again on X, and logs it to debug.txt. Nothing waits on it: the
 game goes on as if there were no list. Joining comes later (the top level
@@ -12,6 +13,9 @@ README, "Online Games on the Xbox").
 
 No address is ever logged: the host's name, or "console.game_list_server's"
 (D:\config.toml), only.
+
+The same thread then fetches the signed legacy table when it is due
+(xbox_https_table_refresh), so its stack has room for HTTPS.
 */
 
 #include <xtl.h>
@@ -21,6 +25,9 @@ No address is ever logged: the host's name, or "console.game_list_server's"
 
 #include "../include/xbox_config.h"
 #include "../include/xbox_game_list.h"
+#include "../include/xbox_https.h"
+#include "port/console/https/console_https.h"
+#include "port/linux/include/delta.h"
 #include "port/linux/src/port_config.h"
 
 ULONG __cdecl DbgPrint(PCSTR format, ...);
@@ -35,6 +42,7 @@ extern unsigned char transport_initialized;
 #define FETCH_TIMEOUT 15000
 #define ATTEMPTS 3
 #define RETRY_WAIT 10000
+#define LIST_THREAD_STACK (48 * 1024 + CONSOLE_HTTPS_STACK_SIZE + DELTA_REFRESH_STACK_SIZE)
 
 enum
 {
@@ -52,12 +60,18 @@ static int list_taken = 1;
 static struct game_list fetched;
 static int list_error;
 static int list_status;
+/* the list came over HTTPS; HTTPS was refused for good (a key or a name) */
+static int list_secure;
+static int https_refused;
 /* the main thread's (xbox_game_list_get): the last list that came, kept
 while a refresh fails */
 static struct game_list shown;
 static int shown_lists;
 static int shown_error;
 static int shown_state = XBOX_GAME_LIST_NONE;
+/* (whether the list being taken came over HTTPS: the fetch's thread writes
+it before the state) */
+static int shown_secure_next;
 
 /* (a locked store: what was written before it is seen before it) */
 static void set_state(LONG state)
@@ -102,7 +116,42 @@ int xbox_game_list_server(unsigned long *address, char *host, int host_size, uns
 	return 1;
 }
 
-static int fetch_once(char *buffer)
+/* the list over HTTPS from the site (its key pinned: docs/console-https.md):
+GAME_LIST_OK and the list, or another result and the plain HTTP list is
+asked instead */
+static int fetch_https(char *buffer)
+{
+	struct game_list_response response;
+	unsigned long received = 0;
+	int result;
+
+	result = console_https_request(CONSOLE_HTTPS_SITE, GAME_LIST_PATH, NULL, NULL, buffer, GAME_LIST_RESPONSE_SIZE,
+		&received, FETCH_TIMEOUT);
+	if (result != CONSOLE_HTTPS_OK)
+	{
+		DbgPrint("halo: game list: HTTPS: %s; asking over plain HTTP\n", console_https_error_string(result));
+		/* (a key or a name refused is refused again: plain HTTP for the rest
+		of this run) */
+		if (result == CONSOLE_HTTPS_ERROR_KEY || result == CONSOLE_HTTPS_ERROR_NAME)
+			https_refused = 1;
+		return GAME_LIST_ERROR_CONNECT;
+	}
+	result = game_list_parse_response(buffer, received, &response);
+	if (result != GAME_LIST_OK)
+		return result;
+	list_status = response.status;
+	if (response.status != 200)
+	{
+		DbgPrint("halo: game list: HTTPS: status %d; asking over plain HTTP\n", response.status);
+		return GAME_LIST_ERROR_HTTP;
+	}
+	result = game_list_parse(response.body, response.body_size, &fetched);
+	if (result == GAME_LIST_OK)
+		list_secure = 1;
+	return result;
+}
+
+static int fetch_once(char *buffer, int attempt)
 {
 	struct game_list_response response;
 	unsigned long address, received;
@@ -111,6 +160,16 @@ static int fetch_once(char *buffer)
 	int result;
 
 	list_status = 0;
+	list_secure = 0;
+	/* (HTTPS first, on each refresh's first try; a list that came over it
+	ends the fetch, anything else falls back) */
+	if (attempt == 1 && !https_refused && console_https_available())
+	{
+		result = fetch_https(buffer);
+		if (result == GAME_LIST_OK || result == GAME_LIST_ERROR_FORMAT)
+			return result;
+		list_status = 0;
+	}
 	if (!xbox_game_list_server(&address, host, sizeof(host), &port))
 		return GAME_LIST_ERROR_RESOLVE;
 	result = game_list_fetch(address, port, host, GAME_LIST_PATH, buffer, GAME_LIST_RESPONSE_SIZE, &received,
@@ -148,10 +207,12 @@ static unsigned long __stdcall game_list_thread(void *parameter)
 		set_state(_list_failed);
 		return 0;
 	}
-	DbgPrint("halo: game list: getting http://%s%s\n", GAME_LIST_HOST, GAME_LIST_PATH);
+	xbox_https_start();
+	DbgPrint("halo: game list: getting %s%s\n", https_refused ? "http://" GAME_LIST_HOST : "https://" CONSOLE_HTTPS_SITE,
+		GAME_LIST_PATH);
 	for (attempt = 1; attempt <= ATTEMPTS; attempt++)
 	{
-		result = fetch_once(buffer);
+		result = fetch_once(buffer, attempt);
 		if (result == GAME_LIST_OK || result == GAME_LIST_ERROR_FORMAT)
 			break;
 		DbgPrint("halo: game list: try %d of %d: %s%s\n", attempt, ATTEMPTS, game_list_error_string(result),
@@ -162,8 +223,8 @@ static unsigned long __stdcall game_list_thread(void *parameter)
 	list_error = result;
 	if (result == GAME_LIST_OK)
 	{
-		DbgPrint("halo: game list: %d games (format %d)%s\n", fetched.count, fetched.format,
-			fetched.skipped ? ", some lines left out" : "");
+		DbgPrint("halo: game list: %d games (format %d) over %s%s\n", fetched.count, fetched.format,
+			list_secure ? "HTTPS" : "plain HTTP", fetched.skipped ? ", some lines left out" : "");
 	}
 	else if (result == GAME_LIST_ERROR_CONNECT || result == GAME_LIST_ERROR_RESOLVE || result == GAME_LIST_ERROR_TIMEOUT)
 	{
@@ -171,7 +232,11 @@ static unsigned long __stdcall game_list_thread(void *parameter)
 			DbgPrint("halo: game list: (the internet needs XNet's insecure mode: console.bypass_security = true "
 				"in D:\\config.toml)\n");
 	}
+	shown_secure_next = list_secure;
 	set_state(result == GAME_LIST_OK ? _list_done : _list_failed);
+	/* (the signed legacy table, when it is due: after the list, so that the
+	list is never held up by it) */
+	xbox_https_table_refresh();
 	return 0;
 }
 
@@ -186,12 +251,16 @@ void xbox_game_list_request(void)
 	list_taken = 0;
 	shown_state = XBOX_GAME_LIST_FETCHING;
 	set_state(_list_fetching);
+	/* (the signed table's cache, and the network rules told of it: once) */
+	xbox_https_table_start();
 	/* (a stack of its own size: 0 is the main thread's, the XBE's 1 MB, all
 	of it committed memory on the Xbox; 48 KB holds the response's buffer
-	and the fetch's frames, and is given back when the thread ends) */
-	thread = CreateThread(NULL, 48 * 1024, game_list_thread, NULL, 0, NULL);
+	and the fetch's frames, CONSOLE_HTTPS_STACK_SIZE more the TLS
+	session's arena and Mbed TLS's frames, and DELTA_REFRESH_STACK_SIZE the
+	signed table's document; all of it given back when the thread ends) */
+	thread = CreateThread(NULL, LIST_THREAD_STACK, game_list_thread, NULL, 0, NULL);
 	if (thread)
-		xbox_memory_heap_allocation("xbox_game_list.c (thread stack)", 0, 48 * 1024, thread);
+		xbox_memory_heap_allocation("xbox_game_list.c (thread stack)", 0, LIST_THREAD_STACK, thread);
 	if (!thread)
 	{
 		list_error = GAME_LIST_ERROR_CONNECT;
@@ -220,7 +289,8 @@ void xbox_game_list_update(void)
 	memcpy(&shown, &fetched, sizeof(shown));
 	shown_error = GAME_LIST_OK;
 	shown_state = XBOX_GAME_LIST_READY;
-	error(ERROR_LOG, "game list: %d games from %s", shown.count, GAME_LIST_HOST);
+	error(ERROR_LOG, "game list: %d games from %s", shown.count,
+		shown_secure_next ? CONSOLE_HTTPS_SITE " (HTTPS)" : GAME_LIST_HOST " (plain HTTP)");
 	/* (each game the first time; a refresh's count alone) */
 	if (!shown_lists++)
 	{

@@ -107,6 +107,22 @@ int pthread_mutex_unlock(pthread_mutex_t *mutex)
 	return 0;
 }
 
+int pthread_once(pthread_once_t *once, void (*function)(void))
+{
+	long expected = 0;
+
+	/* (the first caller runs it; the others wait until it has) */
+	if (__atomic_compare_exchange_n(once, &expected, 1, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST))
+	{
+		function();
+		__atomic_store_n(once, 2, __ATOMIC_SEQ_CST);
+		return 0;
+	}
+	while (__atomic_load_n(once, __ATOMIC_SEQ_CST) != 2)
+		Sleep(0);
+	return 0;
+}
+
 struct thread_start
 {
 	void *(*start)(void *);

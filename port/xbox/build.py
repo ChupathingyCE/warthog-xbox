@@ -40,7 +40,7 @@ import shlex
 from pathlib import Path
 from typing import Any, List, Optional
 
-from tools.console_build import ConsolePort, console_defines, relative
+from tools.console_build import ConsolePort, console_defines, console_https_flags, console_https_sources, relative
 from tools.ninja_syntax import Writer
 from tools.version import version
 from tools.windows_build import COMMENT, EXPORTED_INLINE
@@ -118,7 +118,7 @@ COLD_FLAGS = ["-Os"]
 COLD_SOURCES = (
     "xbox_claim.c", "xbox_claim_run.c", "xbox_config.c", "xbox_coop_name.c", "xbox_direct_join.c",
     "xbox_game_list_fetch.c", "xbox_game_list_parse.c", "xbox_game_list_text.c", "xbox_log_tag.c",
-    "xbox_memory.c", "xbox_player_key.c", "xbox_stack.c", "xbox_xlink.c",
+    "xbox_https.c", "xbox_memory.c", "xbox_player_key.c", "xbox_stack.c", "xbox_xlink.c",
     "monocypher.c", "monocypher-ed25519.c", "p2p_crypto.c", "port_config.c", "tomlc17.c",
 )
 SUPPORT_CXX_FLAGS = ["-fno-exceptions", "-fno-rtti", "-fno-threadsafe-statics"]
@@ -151,11 +151,14 @@ P2P_SOURCES = [
 ]
 # Delta Peer's (docs/delta.md), as the desktop builds compile them: the wire
 # format, a session as a client, and the game's session over the game's
-# sockets (no signed legacy table, no thread: delta.c is not in the console),
-# and which wires play together (delta_compat.c)
+# sockets, which wires play together (delta_compat.c), and the signed legacy
+# table (delta.c, without its thread: the game list's thread fetches it)
 DELTA_SOURCES = [LINUX_SRC / "delta_wire.c", LINUX_SRC / "delta_peer.c", LINUX_SRC / "delta_chat.c", LINUX_SRC / "delta_chat_words.c",
                  LINUX_SRC / "delta_chat_bridge.c",
-                 LINUX_SRC / "delta_peer_game.c", LINUX_SRC / "delta_compat.c"]
+                 LINUX_SRC / "delta_peer_game.c", LINUX_SRC / "delta_compat.c",
+                 # the signed legacy table, fetched over HTTPS
+                 # (HALO_CONSOLE_HTTPS: port/xbox/src/xbox_https.c asks)
+                 LINUX_SRC / "delta.c"]
 # the settings, D:\config.toml: the desktop builds' port_config.c and its
 # TOML parser (tools/linux_build.py's TOML_DIR)
 CONFIG_SOURCE = LINUX_SRC / "port_config.c"
@@ -421,7 +424,8 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
     # (HALO_XBOX_CONSOLE), the C99 calls its C runtime lacks, and the port's
     # headers (delta.h, halo_port_limits.h) after the SDK's
     # (-Os: the console's 64 MB keeps every byte of its code)
-    delta_cflags = " ".join([p2p_cflags, "-Os", "-DHALO_XBOX_CONSOLE", "-DHALO_CONSOLE_DELTA", f'-DHALO_VERSION=\\"{version()}\\"',
+    delta_cflags = " ".join([p2p_cflags, "-Os", "-DHALO_XBOX_CONSOLE", "-DHALO_CONSOLE_DELTA", "-DHALO_CONSOLE_HTTPS",
+                             f'-DHALO_VERSION=\\"{version()}\\"', *console_https_flags(game),
                              f"-include {_quote(PORT_DIR / 'p2p' / 'xbox_stdio.h')}",
                              f"-idirafter {_quote(game / PORT_LINUX_INCLUDE)}"])
     for source in DELTA_SOURCES:
@@ -441,6 +445,15 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
                                                            _quote(PORT_DIR / "include" / "xbox_c99.h"),
                                                            f"-I{_quote(xdk / 'include')}"]),
                [PORT_DIR / "include" / "xbox_c99.h"])
+
+    # HTTPS (port/xbox/src/xbox_https.c): the game's shared client and Mbed
+    # TLS with the consoles' configuration (the game's docs/console-https.md),
+    # built for size
+    https_cflags = " ".join([*SUPPORT_FLAGS, *COLD_FLAGS, "-std=gnu11", "-w", "-include",
+                             _quote(PORT_DIR / "include" / "xbox_c99.h"), *console_https_flags(game, windows_crt=True),
+                             f"-I{_quote(xdk / 'include')}"])
+    for source in console_https_sources():
+        add_object(game / source, https_cflags, [PORT_DIR / "include" / "xbox_c99.h"])
 
     n.build(
         outputs=exe,
