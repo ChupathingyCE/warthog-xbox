@@ -75,7 +75,9 @@ cp $G/port/linux/include/halo_port_limits.h $G/port/linux/include/halo_port_capa
 # (the parser itself without the sanitizers: its offsetof by a null pointer
 # is undefined behavior they report, which every compiler takes as meant)
 $CC -std=gnu11 -O1 -w -c $G/port/third_party/tomlc17/tomlc17.c -o "$OUT/config/tomlc17.o"
+# (with what the console leaves out, as port/xbox/build.py builds it)
 $CC -std=gnu11 -Wall -Wextra -Werror $SAN -DHALO_XBOX_CONSOLE -DHALO_CONSOLE_PLAYERS=16 \
+	-include port/xbox/include/halo_xbox_features.h \
 	-I$G/port/linux/src -I$G/port/third_party/tomlc17 \
 	port/xbox/tests/config_test.c "$OUT/config/port_config.c" "$OUT/config/tomlc17.o" -o "$OUT/config/config_test"
 (cd "$OUT/config/run" && ../config_test new && ../config_test given)
