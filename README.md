@@ -2,35 +2,38 @@
 
 <h1 align="center">Warthog</h1>
 
-<p align="center"><b>Chupathingy on the original Xbox, playing online with the PCs.</b></p>
+<p align="center"><b>Chupathingy on the original Xbox.</b></p>
 
 <p align="center">
-<a href="https://github.com/ChupathingyCE/chupathingyce">The game (Chupathingy)</a> ·
+<a href="https://discord.gg/chupathingy">Get the test build (Discord, #xbox)</a> ·
 <a href="https://stats.chupathingy.org">Games online now</a> ·
-<a href="https://discord.gg/chupathingy">Discord</a>
+<a href="https://github.com/ChupathingyCE/chupathingyce">The game</a> ·
+<a href="https://chupathingy.org">chupathingy.org</a>
 </p>
 
-Warthog is the Halo: Combat Evolved decompilation built back for the
-consoles, on the same game code as
-[Chupathingy](https://github.com/ChupathingyCE/chupathingyce) (the Windows,
-Mac, Linux and Android builds). An original Xbox joins the same games as the
-PCs and Macs, from the **Online Games** list or System Link.
+Play Chupathingy on the console Halo was made for. A softmodded or modded
+original Xbox joins the same online games as PCs, Macs and phones. Open
+**Multiplayer > Online Games** and pick a game. System Link works too.
 
-This repository holds the console ports only. The game is the
-`chupathingyce` submodule.
+It runs on a stock 64 MB console. A console with 128 MB gets a little more
+room, and the game plays the same either way.
 
-You need your own copy of Halo. No SDK files or game files are included,
-and there is no download yet: you build it yourself.
+**Status: test builds.** Online play, up to 32 players and Halo CE+ maps
+work today. Hosting PC players, online co-op and movies aren't in yet.
 
-## Status
+Test builds are shared in #xbox on the [Discord](https://discord.gg/chupathingy).
+You can also build it yourself (below).
 
-| Console | Status |
-| --- | --- |
-| Original Xbox | Testing (update c, 2026-10-21). Up to 32 players, Halo CE+ maps. Plays on a stock 64 MB console; 128 MB consoles get extras |
-| Xbox 360 | Plays and joins servers on RGH hardware; moved to [warthog-360](https://github.com/ChupathingyCE/warthog-360) |
-| Wii U | Public test build; moved to [warthog-wiiu](https://github.com/ChupathingyCE/warthog-wiiu) |
+You need your own copy of Halo. No game files or SDK files are included.
 
-**Original Xbox**
+This repository holds the original Xbox port. The game itself is the
+`chupathingyce` submodule. The other consoles have their own repositories:
+[warthog-360](https://github.com/ChupathingyCE/warthog-360),
+[warthog-wiiu](https://github.com/ChupathingyCE/warthog-wiiu) and
+[warthog-switch](https://github.com/ChupathingyCE/warthog-switch).
+
+## Details
+
 - Network version: 32 (wire `chupa-32a`). Joins hosts of network versions
   11 through 33.
 - Online: **Multiplayer > ONLINE GAMES** lists the games online and joins
@@ -268,11 +271,11 @@ not be part of our community.
 ## Links
 
 - The game: [ChupathingyCE/chupathingyce](https://github.com/ChupathingyCE/chupathingyce)
-- Games online now: [halo.milenko.org](https://halo.milenko.org)
+- Games online now: [stats.chupathingy.org](https://stats.chupathingy.org)
 - Discord: [discord.gg/chupathingy](https://discord.gg/chupathingy)
   (#warthog-support for help, #warthog-dev for development)
 
-Halo is a trademark of Microsoft. Warthog is a fan project, not made or
-endorsed by Microsoft, Bungie or 343 Industries, and includes none of the
-game's content. The code is released under the GNU GPL, version 3 or later
+Warthog is an unofficial fan project. It isn't affiliated with or endorsed
+by Microsoft, Xbox Game Studios, Bungie or Halo Studios. Halo is a trademark
+of Microsoft. No game files are included: you bring your own copy. The code is released under the GNU GPL, version 3 or later
 (see [License](#license)).
