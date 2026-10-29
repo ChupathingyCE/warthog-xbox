@@ -115,6 +115,12 @@ SUPPORT_FLAGS = [
 # exchange and signatures (Monocypher, p2p_crypto.c), the game list, the
 # claim and the player key. Monocypher alone goes from 83 KB to 18 KB
 COLD_FLAGS = ["-Os"]
+# the port's own units (not the decomp's, whose globals keep their
+# neighbors: GAME_FLAGS) with each global in a section of its own, so that
+# the linker leaves out the data nothing reads too: tables of the desktop's
+# map families and HaloMD's names, the zlib's and the tunnel's unused
+# constants, about 16 KB
+PORT_DATA_FLAGS = ["-fdata-sections"]
 COLD_SOURCES = (
     "console_link.c", "qrcodegen.c", "xbox_console_link.c",
     "xbox_claim.c", "xbox_claim_run.c", "xbox_config.c", "xbox_coop_name.c", "xbox_direct_join.c",
@@ -388,24 +394,26 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
     # so it plays with them; PAL tags; frame interpolation), but not their
     # screens of the game list, which draw through their platform layer
     for name in XBOX_PORT_GAME_SOURCES:
-        add_object(game / PORT_LINUX_GAME / name, f"-std=gnu89 {game_cflags}", [semantics_header, prefix_header])
+        add_object(game / PORT_LINUX_GAME / name, " ".join(["-std=gnu89", game_cflags, *PORT_DATA_FLAGS]),
+                   [semantics_header, prefix_header])
 
     # the console's own game code: its Online Games screen, and the Delta
     # profile panel over it
     link_include = f"-I{_quote(game / CONSOLE_LINK_DIR)}"
     for source in sorted((PORT_DIR / "game").glob("*.c")):
-        add_object(source, f"-std=gnu89 {game_cflags} {link_include}", [semantics_header, prefix_header])
-    add_object(game / CONSOLE_LINK_DIR / "console_link_panel.c", f"-std=gnu89 {game_cflags} {link_include}",
-               [semantics_header, prefix_header])
+        add_object(source, " ".join(["-std=gnu89", game_cflags, link_include, *PORT_DATA_FLAGS]),
+                   [semantics_header, prefix_header])
+    add_object(game / CONSOLE_LINK_DIR / "console_link_panel.c",
+               " ".join(["-std=gnu89", game_cflags, link_include, *PORT_DATA_FLAGS]), [semantics_header, prefix_header])
 
     support_cflags = " ".join([*SUPPORT_FLAGS, players_flag, f"-iquote {_quote(game)}", link_include,
                                f"-I{_quote(xdk / 'include')}"])
     for source in sorted((PORT_DIR / "src").glob("*.c")):
-        add_object(source, " ".join([support_cflags, *(COLD_FLAGS if source.name in COLD_SOURCES else [])]))
+        add_object(source, " ".join([support_cflags, *PORT_DATA_FLAGS, *(COLD_FLAGS if source.name in COLD_SOURCES else [])]))
     add_object(stamp_source, support_cflags)
     for source in sorted((PORT_DIR / "src").glob("*.cpp")):
-        add_object(source, " ".join([support_cflags, *SUPPORT_CXX_FLAGS]))
-    link_cflags = " ".join([*SUPPORT_FLAGS, *COLD_FLAGS, "-std=gnu11", link_include,
+        add_object(source, " ".join([support_cflags, *PORT_DATA_FLAGS, *SUPPORT_CXX_FLAGS]))
+    link_cflags = " ".join([*SUPPORT_FLAGS, *COLD_FLAGS, *PORT_DATA_FLAGS, "-std=gnu11", link_include,
                             f"-I{_quote(game / QRCODEGEN_DIR)}", f"-I{_quote(xdk / 'include')}"])
     for source in (game / CONSOLE_LINK_DIR / "console_link.c", game / QRCODEGEN_DIR / "qrcodegen.c"):
         add_object(source, link_cflags)
@@ -415,14 +423,14 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
                 variables={"kind": kind})
         add_object(generated, support_cflags)
 
-    zlib_cflags = " ".join([*SUPPORT_FLAGS, *ZLIB_DEFINES, "-w", f"-I{_quote(xdk / 'include')}"])
+    zlib_cflags = " ".join([*SUPPORT_FLAGS, *PORT_DATA_FLAGS, *ZLIB_DEFINES, "-w", f"-I{_quote(xdk / 'include')}"])
     for name in ZLIB_SOURCES:
         add_object(game / ZLIB_DIR / name, zlib_cflags)
 
     # internet play (the desktop builds' tunnel, joining only: port/xbox/src/
     # xbox_p2p.c is its platform layer), its sources as they are, with
     # port/xbox/p2p's headers in place of the Linux layer's
-    p2p_cflags = " ".join([*SUPPORT_FLAGS, players_flag, "-std=gnu11", f"-iquote {_quote(game)}", f"-I{_quote(PORT_DIR / 'p2p')}",
+    p2p_cflags = " ".join([*SUPPORT_FLAGS, *PORT_DATA_FLAGS, players_flag, "-std=gnu11", f"-iquote {_quote(game)}", f"-I{_quote(PORT_DIR / 'p2p')}",
                            f"-I{_quote(game / LINUX_SRC)}", f"-iquote {_quote(game / PORT_LINUX_INCLUDE)}",
                            f"-I{_quote(game / KCP_DIR)}", f"-I{_quote(game / MONOCYPHER_DIR)}", f"-I{_quote(xdk / 'include')}"])
     for source in P2P_SOURCES:
@@ -448,12 +456,18 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
 
     # the settings (port/xbox/src/xbox_config.c): port_config.c as it is,
     # copied as internet play's are, with the console's headers first
-    config_cflags = " ".join([p2p_cflags, *COLD_FLAGS, "-DHALO_XBOX_CONSOLE", f"-I{_quote(game / TOMLC17_DIR)}"])
+    # (with what the console leaves out, include/halo_xbox_features.h, whose
+    # settings leave its table too, and whether the developer tools are in)
+    debug_tools_flags = [define for define in defines if define == "-DHALO_CONSOLE_DEBUG_TOOLS"]
+    config_cflags = " ".join([p2p_cflags, *COLD_FLAGS, "-DHALO_XBOX_CONSOLE", *debug_tools_flags,
+                              f"-include {_quote(PORT_DIR / 'include' / 'halo_xbox_features.h')}",
+                              f"-I{_quote(game / TOMLC17_DIR)}"])
     generated = gen_dir / "p2p" / CONFIG_SOURCE.name
     n.build(outputs=generated, rule="xbox_source", inputs=game / CONFIG_SOURCE, implicit=[TOOLS_DIR / "xbox_sources.py"],
             variables={"kind": "copy"})
-    add_object(generated, config_cflags, sorted((PORT_DIR / "p2p").glob("*.h")))
-    add_object(game / TOMLC17_DIR / "tomlc17.c", " ".join([*SUPPORT_FLAGS, *COLD_FLAGS, "-std=gnu11", "-w", "-include",
+    add_object(generated, config_cflags, [*sorted((PORT_DIR / "p2p").glob("*.h")),
+                                          PORT_DIR / "include" / "halo_xbox_features.h"])
+    add_object(game / TOMLC17_DIR / "tomlc17.c", " ".join([*SUPPORT_FLAGS, *PORT_DATA_FLAGS, *COLD_FLAGS, "-std=gnu11", "-w", "-include",
                                                            _quote(PORT_DIR / "include" / "xbox_c99.h"),
                                                            f"-I{_quote(xdk / 'include')}"]),
                [PORT_DIR / "include" / "xbox_c99.h"])
