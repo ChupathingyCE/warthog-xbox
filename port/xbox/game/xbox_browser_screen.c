@@ -417,6 +417,14 @@ void browser_screen_process(
 	take_list();
 	while (browser_screen.active && get_next_event(&event, NONE))
 	{
+		/* (the event manager sends a held button every frame: a d-pad
+		direction held steps at the menus' pace, held_move; every other
+		button acts once a press, as the menus' buttons do, or a held A,
+		Start or B went through the panel and the list a frame at a time) */
+		if (event.type == _browser_event_button && event.data.button.value != 1 &&
+			!(event.data.button.index >= _gamepad_binary_button_dpad_up &&
+				event.data.button.index <= _gamepad_binary_button_dpad_right))
+			continue;
 		if (event.type == _browser_event_left_stick && !console_link_panel_active())
 		{
 			if (event.data.stick.y == SHORT_MAX)
