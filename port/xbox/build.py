@@ -79,6 +79,9 @@ GAME_FLAGS = [
     # the memory class, 64 MB or more (port/linux/include/halo_console_memory.h,
     # port/xbox/src/xbox_memory.c)
     "-DHALO_CONSOLE_MEMORY_CLASS",
+    # the reports of joined games (port/console/reports, port/xbox/src/
+    # xbox_reports.c)
+    "-DHALO_CONSOLE_GAME_REPORTS",
     "-w",
     "-Wno-error=incompatible-pointer-types",
     "-Wno-error=incompatible-function-pointer-types",
@@ -97,6 +100,9 @@ SUPPORT_FLAGS = [
     "-fms-compatibility-version=13.10",
     "-O2",
     "-D_XBOX", "-D_X86_", "-DWIN32_LEAN_AND_MEAN", "-D_NTOS_", "-D_MT",
+    # (the joined invite internet play keeps, and network.report_joined_games:
+    # the reports of joined games, GAME_FLAGS)
+    "-DHALO_CONSOLE_GAME_REPORTS",
     "-Wno-microsoft-include", "-Wno-pragma-pack", "-Wno-ignored-pragmas",
     "-Wno-deprecated-declarations", "-Wno-writable-strings", "-Wno-microsoft-cast",
     "-Wno-unknown-pragmas", "-Wno-extra-tokens", "-Wno-nonportable-include-path",
@@ -125,7 +131,8 @@ COLD_SOURCES = (
     "console_link.c", "qrcodegen.c", "xbox_console_link.c",
     "xbox_claim.c", "xbox_claim_run.c", "xbox_config.c", "xbox_coop_name.c", "xbox_direct_join.c",
     "xbox_game_list_fetch.c", "xbox_game_list_parse.c", "xbox_game_list_text.c", "xbox_log_tag.c",
-    "xbox_https.c", "xbox_memory.c", "xbox_player_key.c", "xbox_stack.c", "xbox_xlink.c",
+    "xbox_https.c", "xbox_memory.c", "xbox_player_key.c", "xbox_reports.c", "xbox_stack.c", "xbox_xlink.c",
+    "console_reports.c", "game_report.c",
     "monocypher.c", "monocypher-ed25519.c", "p2p_crypto.c", "port_config.c", "tomlc17.c",
 )
 SUPPORT_CXX_FLAGS = ["-fno-exceptions", "-fno-rtti", "-fno-threadsafe-statics"]
@@ -170,6 +177,10 @@ DELTA_SOURCES = [LINUX_SRC / "delta_wire.c", LINUX_SRC / "delta_peer.c", LINUX_S
 # console_link.c over port/xbox/src/xbox_console_link.c's hooks, the panel
 # over Online Games, game/xbox_browser_screen.c), and the QR code it shows
 CONSOLE_LINK_DIR = Path("port/console/link")
+# the reports of joined games (the game's port/console/reports, and its
+# report's JSON, port/linux/src/game_report.c), over port/xbox/src/
+# xbox_reports.c's hooks
+CONSOLE_REPORTS_SOURCES = [Path("port/console/reports/console_reports.c"), LINUX_SRC / "game_report.c"]
 QRCODEGEN_DIR = Path("port/third_party/qrcodegen")
 # the settings, D:\config.toml: the desktop builds' port_config.c and its
 # TOML parser (tools/linux_build.py's TOML_DIR)
@@ -190,6 +201,9 @@ XBOX_PORT_GAME_SOURCES = [
     # the menus' map list and the Xbox map packs (maps_cex: Halo CE+), as
     # the desktop builds have them (HALO_MAP_LIST, below)
     "map_packs.c", "ui_map_list.c",
+    # the statistics recorder, for the reports of joined games
+    # (HALO_CONSOLE_GAME_REPORTS)
+    "game_stats.c",
 ]
 # the menus' map list filled by the port, with the map packs' maps
 # (port/linux/game/ui_map_list.c, map_packs.c), on the console too
@@ -412,7 +426,10 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
     support_cflags = " ".join([*SUPPORT_FLAGS, players_flag, f"-iquote {_quote(game)}", link_include,
                                f"-I{_quote(xdk / 'include')}"])
     for source in sorted((PORT_DIR / "src").glob("*.c")):
-        add_object(source, " ".join([support_cflags, *PORT_DATA_FLAGS, *(COLD_FLAGS if source.name in COLD_SOURCES else [])]))
+        # (the reports name the build: "Warthog 0.8.1d")
+        version_flags = [f'-DHALO_VERSION=\\"{version()}\\"'] if source.name == "xbox_reports.c" else []
+        add_object(source, " ".join([support_cflags, *PORT_DATA_FLAGS, *version_flags,
+                                     *(COLD_FLAGS if source.name in COLD_SOURCES else [])]))
     add_object(stamp_source, support_cflags)
     for source in sorted((PORT_DIR / "src").glob("*.cpp")):
         add_object(source, " ".join([support_cflags, *PORT_DATA_FLAGS, *SUPPORT_CXX_FLAGS]))
@@ -420,6 +437,10 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
                             f"-I{_quote(game / QRCODEGEN_DIR)}", f"-I{_quote(xdk / 'include')}"])
     for source in (game / CONSOLE_LINK_DIR / "console_link.c", game / QRCODEGEN_DIR / "qrcodegen.c"):
         add_object(source, link_cflags)
+    reports_cflags = " ".join([*SUPPORT_FLAGS, *COLD_FLAGS, *PORT_DATA_FLAGS, "-std=gnu11", f"-iquote {_quote(game)}",
+                               "-include", _quote(PORT_DIR / "include" / "xbox_c99.h"), f"-I{_quote(xdk / 'include')}"])
+    for source in CONSOLE_REPORTS_SOURCES:
+        add_object(game / source, reports_cflags, [PORT_DIR / "include" / "xbox_c99.h"])
     for kind, source in (("common", game / LINUX_SRC / "halo_linker_common.c"), ("bink", game / LINUX_SRC / "bink_null.c")):
         generated = gen_dir / f"xbox_{source.name}"
         n.build(outputs=generated, rule="xbox_source", inputs=source, implicit=[TOOLS_DIR / "xbox_sources.py"],
