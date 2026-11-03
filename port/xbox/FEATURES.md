@@ -25,7 +25,7 @@ one; a feature that would is to ask for it through the memory class
 | Delta Profile screen | Yes | Not yet | Its data comes from the site over HTTPS; the console has plain HTTP only. Plan: a plain HTTP player card on the Warthog list server |
 | Profile names and clan tags in games | Yes | Not yet | As Delta Profile: the names come from the site |
 | Platform logos on the scoreboard | Yes | Not yet | The logos are drawn with the high-res text (cut) |
-| Stats reports of joined games | Yes | Not yet | The signed platform claim is in; the report itself (the scoreboard sent to the site) is not ported |
+| Stats reports of joined games | Yes | Yes | The desktop's report over HTTPS, with the identity file's key or signed by a linked console (`src/xbox_reports.c`); `network.report_joined_games`; about 14 KB of recorder state and a 128 KB thread for a few seconds after each game |
 | Delta Stats of hosted games | Yes | Not yet | Only for a listed host |
 | Moderation (moderator sign-in, kicks) | Yes | Not yet | Desktop and dedicated server only |
 | Network co-op | Yes | Not yet | Not built for the console (`network_coop.c`, 3,100 lines); co-op games are left out of its lists |
