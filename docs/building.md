@@ -2,7 +2,7 @@
 
 This is how the original Xbox build works today. It is built on macOS with
 [OXDK](https://github.com/MrMilenko/OXDK), clang and lld-link. It should
-build on Linux the same way, but that is untested. There is no Windows
+build on Linux the same way (see "Linux", below). There is no Windows
 build path yet; see "Help wanted: Windows tooling" in the README.
 
 This repository holds the console ports only. The game itself, with the
@@ -66,6 +66,22 @@ It records its options, so later runs of `ninja` keep them, and runs again
 when the port's `build.py` or the game's build files change, for example
 after a submodule update. If it can't find OXDK or the Direct3D library,
 there is no `xbox` target.
+
+### Linux
+
+Tested on Debian 12 with LLVM 22.1.8 (the release's clang and lld-link) and
+ninja 1.13. Two things differ from macOS:
+
+- **The SDK's file names.** Linux is case sensitive, and the SDK names its
+  files as it pleases (`XTL.h`, `StdIO.h`, `sys/Types.h`). After copying it
+  into OXDK, `python3 tools/xdk_case_links.py port chupathingyce/source
+  chupathingyce/port/console chupathingyce/port/linux/game` adds lower-case
+  symlinks beside the originals and leaves them alone.
+- **lld fills code sections with 0xCC.** The SDK's libraries keep
+  uninitialized data in code sections (`D3D_URW`, `DSOUND_URW`), so what must
+  start as zero started as `0xCCCCCCCC`: `CDirectSound::m_pDirectSound`, and a
+  black screen at boot, the game crashing in `DirectSoundCreate`. The link
+  step zeroes those bytes (`tools/zero_urw.py`, from `halo.map`).
 
 The game's own configure option `--console-players` defaults to 16; give
 `--console-players 32` for the Xbox build testers get (`tools/easy_build.py`

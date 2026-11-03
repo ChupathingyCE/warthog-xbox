@@ -313,7 +313,8 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
     )
     n.rule(
         name="xbox_lld",
-        command="$xbox_link $ldflags /map:$map /out:$out @$out.rsp",
+        # (tools/zero_urw.py: the SDK libraries' uninitialized data, which lld fills)
+        command="$xbox_link $ldflags /map:$map /out:$out @$out.rsp && $python tools/zero_urw.py $out $map",
         description="XBOX LINK $out",
         rspfile="$out.rsp",
         rspfile_content="$in_newline $libs",
