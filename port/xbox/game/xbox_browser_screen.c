@@ -51,6 +51,12 @@ list itself is the fetch's one copy (xbox_game_list_get).
 #include "../include/xbox_direct_join.h"
 #include "console_link_panel.h"
 
+/* (xbox_maps_screen.c's: the Map Browser, over these hooks) */
+boolean maps_screen_active(void);
+void maps_screen_process(void);
+void maps_screen_render(void);
+static void browser_screen_render_list(void);
+
 /* (port/xbox/src/xbox_console_link.c's: Link Profile set up, once) */
 void xbox_console_link_start(void);
 
@@ -344,7 +350,7 @@ static void wait_for_host(
 boolean browser_screen_active(
 	void)
 {
-	return browser_screen.active;
+	return browser_screen.active || maps_screen_active();
 }
 
 /* the screen opened (the Multiplayer menu's ONLINE GAMES, interface/ui_widget.c) */
@@ -413,6 +419,13 @@ void browser_screen_process(
 {
 	struct event_record event;
 	short move = 0;
+
+	/* (the Map Browser, on this screen's hooks: xbox_maps_screen.c) */
+	if (maps_screen_active())
+	{
+		maps_screen_process();
+		return;
+	}
 
 	take_list();
 	while (browser_screen.active && get_next_event(&event, NONE))
@@ -696,6 +709,17 @@ static void draw_details(
 }
 
 void browser_screen_render(
+	void)
+{
+	if (maps_screen_active())
+	{
+		maps_screen_render();
+		return;
+	}
+	browser_screen_render_list();
+}
+
+static void browser_screen_render_list(
 	void)
 {
 	long heading_font = ui_widget_online_games_font(TRUE);

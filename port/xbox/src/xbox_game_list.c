@@ -185,6 +185,44 @@ static int fetch_once(char *buffer, int attempt)
 	return game_list_parse(response.body, response.body_size, &fetched);
 }
 
+/* the Custom Edition games, on a console that plays them: the desktop list's, as the
+console's own leaves them out. A failure leaves the list as it came */
+#define CUSTOM_EDITION_LIST_PATH "/v1/games.txt?fields=23&coop=1"
+#define CUSTOM_EDITION_LIST_SIZE (48 * 1024)
+int console_memory_extras(void);
+void platform_log(const char *format, ...);
+
+static void fetch_custom_edition_games(void)
+{
+	char *buffer;
+	struct game_list_response response;
+	unsigned long received = 0;
+	int result, parsed = -1, added = 0;
+
+	if (!console_memory_extras() || https_refused || !console_https_available())
+	{
+		platform_log("game list: no Custom Edition games asked for (%s)", !console_memory_extras() ? "a 64 MB console" :
+			https_refused ? "HTTPS refused" : "no HTTPS");
+		return;
+	}
+	buffer = (char *)malloc(CUSTOM_EDITION_LIST_SIZE);
+	if (!buffer)
+	{
+		platform_log("game list: no memory for the Custom Edition games");
+		return;
+	}
+	memset(&response, 0, sizeof(response));
+	result = console_https_request(CONSOLE_HTTPS_SITE, CUSTOM_EDITION_LIST_PATH, NULL, NULL, buffer, CUSTOM_EDITION_LIST_SIZE,
+		&received, FETCH_TIMEOUT);
+	if (result == CONSOLE_HTTPS_OK)
+		parsed = game_list_parse_response(buffer, received, &response);
+	if (parsed == GAME_LIST_OK && response.status == 200)
+		added = game_list_add_custom_edition(response.body, response.body_size, &fetched);
+	platform_log("game list: Custom Edition games: %s, status %d, %lu bytes, %d added (%d in all)",
+		result == CONSOLE_HTTPS_OK ? "ok" : console_https_error_string(result), response.status, received, added, fetched.count);
+	free(buffer);
+}
+
 static unsigned long __stdcall game_list_thread(void *parameter)
 {
 	/* (the stack's: the thread has no other use for it, and the heap has
@@ -223,6 +261,7 @@ static unsigned long __stdcall game_list_thread(void *parameter)
 	list_error = result;
 	if (result == GAME_LIST_OK)
 	{
+		fetch_custom_edition_games();
 		DbgPrint("halo: game list: %d games (format %d) over %s%s\n", fetched.count, fetched.format,
 			list_secure ? "HTTPS" : "plain HTTP", fetched.skipped ? ", some lines left out" : "");
 	}

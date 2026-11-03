@@ -180,7 +180,9 @@ int game_list_parse_response(const char *data, unsigned long size, struct game_l
 		}
 		if (equal_ignoring_case(line, colon, "content-length"))
 		{
-			long value = parse_number(line + start, end - start, 9, GAME_LIST_RESPONSE_SIZE);
+			/* (no more than the response that came: the console list's buffer, or a
+			larger one's, the desktop list's Custom Edition games' ) */
+			long value = parse_number(line + start, end - start, 9, (long)size);
 
 			if (value < 0 || (response->content_length >= 0 && response->content_length != value))
 				return GAME_LIST_ERROR_CONTENT_LENGTH;
@@ -422,6 +424,74 @@ static int parse_game(const char *line, unsigned long length, struct game_list_g
 	game->maximum_players = (short)maximum_players;
 	game->version = (unsigned short)version;
 	return 1;
+}
+
+/* one line of the desktop list (/v1/games.txt?fields=23: invite name map engine
+players maximum_players open version age score_limit teams roster region platform
+hosting protocol machines gametype ...): 1 with a Custom Edition game, else 0 */
+#define DESKTOP_FIELDS_READ 18
+static int parse_custom_edition_game(const char *line, unsigned long length, struct game_list_game *game)
+{
+	const char *fields[DESKTOP_FIELDS_READ];
+	unsigned long sizes[DESKTOP_FIELDS_READ];
+	unsigned long start = 0, index;
+	int count = 0;
+	long engine, players, maximum_players, version;
+
+	for (index = 0; index <= length && count < DESKTOP_FIELDS_READ; index++)
+	{
+		if (index == length || line[index] == '\t')
+		{
+			fields[count] = line + start;
+			sizes[count] = index - start;
+			count++;
+			start = index + 1;
+		}
+	}
+	if (count < DESKTOP_FIELDS_READ || sizes[2] < 4 || memcmp(fields[2] + sizes[2] - 3, "@ce", 3))
+		return 0;
+	memset(game, 0, sizeof(*game));
+	engine = parse_number(fields[3], sizes[3], 2, 15);
+	players = parse_number(fields[4], sizes[4], 3, 255);
+	maximum_players = parse_number(fields[5], sizes[5], 3, 255);
+	version = parse_number(fields[7], sizes[7], 5, 65535);
+	if (!parse_invite(game->invite, fields[0], sizes[0]) ||
+		!copy_text(game->name, GAME_LIST_NAME_LENGTH, fields[1], sizes[1], 1) ||
+		!copy_text(game->map, GAME_LIST_MAP_LENGTH, fields[2], sizes[2], 1) ||
+		engine < 0 || players < 0 || maximum_players < 0 || version < 0 ||
+		!copy_text(game->gametype, GAME_LIST_GAMETYPE_LENGTH, fields[17], sizes[17], 0) ||
+		!copy_text(game->region, GAME_LIST_REGION_LENGTH, fields[12], sizes[12], 0))
+	{
+		return 0;
+	}
+	strcpy(game->state, sizes[6] == 1 && fields[6][0] == '1' ? "open" : "closed");
+	game->engine = (short)engine;
+	game->players = (short)players;
+	game->maximum_players = (short)maximum_players;
+	game->version = (unsigned short)version;
+	return 1;
+}
+
+int game_list_add_custom_edition(const char *text, unsigned long size, struct game_list *list)
+{
+	unsigned long offset = 0;
+	int added = 0;
+
+	while (offset < size && list->count < GAME_LIST_MAXIMUM_GAMES)
+	{
+		unsigned long end = offset;
+
+		while (end < size && text[end] != '\n')
+			end++;
+		if (parse_custom_edition_game(text + offset, end > offset && text[end - 1] == '\r' ? end - offset - 1 : end - offset,
+			&list->games[list->count]))
+		{
+			list->count++;
+			added++;
+		}
+		offset = end + 1;
+	}
+	return added;
 }
 
 int game_list_parse(const char *text, unsigned long size, struct game_list *list)

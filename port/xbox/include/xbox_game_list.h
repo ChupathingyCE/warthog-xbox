@@ -133,6 +133,10 @@ int game_list_parse_response(const char *data, unsigned long size, struct game_l
 /* the list's text, size bytes (no terminator needed) */
 int game_list_parse(const char *text, unsigned long size, struct game_list *list);
 
+/* the desktop list's Custom Edition games (/v1/games.txt, whose map ends @ce, which
+the console's list leaves out) added to a list, as many as it has room for: how many */
+int game_list_add_custom_edition(const char *text, unsigned long size, struct game_list *list);
+
 /* "host[:port]" or "a.b.c.d[:port]" (console.game_list_server's): the host
 (at most host_size - 1 characters) and the port; 0 if it is neither */
 int game_list_parse_server(const char *text, unsigned long size, char *host, int host_size, unsigned short *port);

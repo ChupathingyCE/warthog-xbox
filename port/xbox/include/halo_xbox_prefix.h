@@ -31,6 +31,10 @@ second parameter the definition ignores; MSVC tolerates the two declarations
 meeting, clang does not (as halo_linux_source_fixups.h) */
 #define rasterizer_debug_drawing_begin(opaque, ...) (rasterizer_debug_drawing_begin)(opaque)
 
+/* Reads of a file opened for overlapped reads without an OVERLAPPED, which
+Custom Edition maps' checks make: port/xbox/src/xbox_ce_files.c */
+#define ReadFile halo_xbox_ReadFile
+
 /* The DirectSound calls whose January form (mix bins as a mask) the SDK
 library no longer takes: port/xbox/src/xbox_dsound.c translates them */
 #define DirectSoundCreateBuffer halo_xbox_DirectSoundCreateBuffer
