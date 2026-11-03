@@ -709,7 +709,8 @@ static void wrap_description(
 	}
 }
 
-/* a round button, 16 across, and its word: the x after them */
+/* a round button as big as the menu font's letters need, its letter in the middle, and
+its word after it, on a line: the x after them */
 static short draw_button(
 	long font,
 	short x,
@@ -720,14 +721,25 @@ static short draw_button(
 	real_argb_color const *dark_color,
 	real_argb_color const *text_color)
 {
-	static const char half[16] = { 3, 5, 6, 7, 7, 8, 8, 8, 8, 8, 8, 7, 7, 6, 5, 3 };
+	short height = line_height(font);
+	/* (the widest letter, W, with room around it) */
+	short diameter = (short)PIN(MAX(height + 4, text_width(font, "W") + 8), 16, 30);
+	short text_top = (short)(y + (diameter - height) / 2);
 	short row;
 
-	for (row = 0; row < 16; row++)
-		quad((short)(x + 8 - half[row]), (short)(y + row), (short)(x + 8 + half[row]), (short)(y + row + 1), color);
-	text(font, _justify_center, dark_color, x, (short)(y - 1), (short)(x + 16), (short)(y + 18), letter);
-	text(font, _justify_left, text_color, (short)(x + 21), (short)(y - 1), SCREEN_RIGHT, (short)(y + 18), word);
-	return (short)(x + 21 + text_width(font, word) + 14);
+	for (row = 0; row < diameter; row++)
+	{
+		/* (the circle's half width at this row: the largest w with (2w)^2 + dy^2 <= d^2, in half pixels) */
+		long dy = 2 * row + 1 - diameter;
+		long half = 0;
+
+		while ((2 * (half + 1)) * (2 * (half + 1)) + dy * dy <= (long)diameter * diameter)
+			half++;
+		quad((short)(x + diameter / 2 - half), (short)(y + row), (short)(x + (diameter + 1) / 2 + half), (short)(y + row + 1), color);
+	}
+	text(font, _justify_center, dark_color, x, text_top, (short)(x + diameter), (short)(text_top + height + 2), letter);
+	text(font, _justify_left, text_color, (short)(x + diameter + 6), text_top, SCREEN_RIGHT, (short)(text_top + height + 2), word);
+	return (short)(x + diameter + 6 + text_width(font, word) + 16);
 }
 
 static void draw_picture_box(
@@ -1084,7 +1096,7 @@ void maps_screen_render(
 	long heading_font = ui_widget_online_games_font(TRUE);
 	long font = ui_widget_online_games_font(FALSE);
 	real_argb_color title_color, head_color, text_color, dim_color, note_color, good_color, dark_color;
-	short x = SCREEN_LEFT + CELL_INSET, y = PROMPT_TOP + 4;
+	short x = SCREEN_LEFT + CELL_INSET, y = PROMPT_TOP + 2;
 
 	set_color(&title_color, 1.0f, 0.24f, 0.55f, 1.0f);
 	set_color(&head_color, 1.0f, 0.5f, 0.69f, 1.0f);
