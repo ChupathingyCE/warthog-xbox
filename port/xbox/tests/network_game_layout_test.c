@@ -4,7 +4,8 @@ NETWORK_GAME_LAYOUT_TEST.C
 The game settings record between the PC builds' and the console's layouts
 (port/linux/game/network_game_layout.c) on the host: the sizes the game
 asserts, a round trip, and every reason a fold refuses; and the game type
-states' fold (slayer's, as game_engine_slayer.c lays it out).
+states' fold (slayer's, oddball's, king's and race's, as the game's
+game_engine_*.c lay them out).
 port/xbox/tests/run.sh.
 */
 
@@ -295,6 +296,104 @@ int main(void)
 				NETWORK_GAME_LAYOUT_OK);
 			CHECK(to[0] == 9 && to[4] == 7 && to[36] == 5 && dropped == 0);
 		}
+	}
+
+	/* a PC host's oddball state: team and individual scores (longs, a
+	slot each), then the balls' spawn timers (16 longs), their carriers (16
+	bytes) and the host's events (4 bytes), whole; 1,108 and 212 bytes */
+	{
+		static const struct network_game_layout_field oddball[] =
+		{
+			{ 4, 1, 0 }, { 4, 1, 0 }, { 4 * 16, 0, 0 }, { 16, 0, 0 }, { 4, 0, 0 },
+		};
+		unsigned char wire[1108], local[212];
+		int dropped, slot;
+
+		CHECK(network_game_layout_fields_size(oddball, 5, PC) == 1108);
+		CHECK(network_game_layout_fields_size(oddball, 5, CONSOLE_P) == 212);
+		memset(wire, 0, sizeof(wire));
+		for (slot = 0; slot < CONSOLE_P; slot++)
+		{
+			wire[slot * 4] = (unsigned char)(slot + 1);
+			wire[512 + slot * 4 + 1] = (unsigned char)(slot + 2);
+		}
+		wire[1024] = 0xA4; /* the first ball's spawn timer: 420 */
+		wire[1025] = 0x01;
+		wire[1088] = 3; /* the first ball's carrier */
+		wire[1089] = 0xFF;
+		wire[1104] = 2; /* resets */
+		wire[1107] = 5; /* the pass's player */
+		CHECK(network_game_layout_fold_fields(wire, sizeof(wire), PC, local, sizeof(local), CONSOLE_P, oddball, 5,
+			&dropped) == NETWORK_GAME_LAYOUT_OK);
+		CHECK(dropped == 0);
+		CHECK(local[0] == 1 && local[15 * 4] == 16 && local[64 + 1] == 2 && local[64 + 15 * 4 + 1] == 17);
+		CHECK(local[128] == 0xA4 && local[129] == 0x01 && local[192] == 3 && local[193] == 0xFF);
+		CHECK(local[208] == 2 && local[211] == 5);
+		/* an individual score past slot 16: dropped and counted */
+		wire[512 + 40 * 4] = 9;
+		CHECK(network_game_layout_fold_fields(wire, sizeof(wire), PC, local, sizeof(local), CONSOLE_P, oddball, 5,
+			&dropped) == NETWORK_GAME_LAYOUT_OK);
+		CHECK(dropped == 1);
+	}
+
+	/* a PC host's king state: team scores and their ticks (longs), who is on
+	the hill (bytes), a slot each, then the hill (284 bytes: its points to
+	hill_id and hill_timer, the last two longs), whole; 1,436 and 428 */
+	{
+		static const struct network_game_layout_field king[] =
+		{
+			{ 4, 1, 0 }, { 4, 1, 0 }, { 1, 1, 0 }, { 284, 0, 0 },
+		};
+		unsigned char wire[1436], local[428];
+		int dropped;
+
+		CHECK(network_game_layout_fields_size(king, 4, PC) == 1436);
+		CHECK(network_game_layout_fields_size(king, 4, CONSOLE_P) == 428);
+		memset(wire, 0, sizeof(wire));
+		wire[0] = 0x2C; /* red's score: 300 */
+		wire[1] = 0x01;
+		wire[4] = 0x5A; /* blue's: 90 */
+		wire[512 + 4] = 0x77;
+		wire[1024 + 1] = 1;
+		wire[1152] = 4; /* hill_point_count */
+		wire[1428] = 12; /* hill_id */
+		wire[1432] = 0x08; /* hill_timer: 1800 */
+		wire[1433] = 0x07;
+		CHECK(network_game_layout_fold_fields(wire, sizeof(wire), PC, local, sizeof(local), CONSOLE_P, king, 4,
+			&dropped) == NETWORK_GAME_LAYOUT_OK);
+		CHECK(dropped == 0);
+		CHECK(local[0] == 0x2C && local[1] == 0x01 && local[4] == 0x5A && local[64 + 4] == 0x77 && local[128 + 1] == 1);
+		CHECK(local[144] == 4 && local[420] == 12 && local[424] == 0x08 && local[425] == 0x07);
+	}
+
+	/* a PC host's race state: race_globals (the lap value, each slot's first
+	flag and laps' flags, the rally flag, each team's laps, the team score,
+	whether the vehicles are added), then the events (bytes) and each
+	player's lap times and laps (shorts), a slot each; 2,704 and 352 */
+	{
+		static const struct network_game_layout_field race[] =
+		{
+			{ 4, 0, 0 }, { 4, 1, 0 }, { 4, 1, 0 }, { 4, 0, 0 }, { 4, 1, 0 }, { 4, 0, 0 }, { 4, 0, 0 },
+			{ 1, 1, 0 }, { 1, 1, 0 }, { 1, 1, 0 }, { 2, 1, 0 }, { 2, 1, 0 }, { 2, 1, 0 },
+		};
+		unsigned char wire[2704], local[352];
+		int dropped;
+
+		CHECK(network_game_layout_fields_size(race, 13, PC) == 2704);
+		CHECK(network_game_layout_fields_size(race, 13, CONSOLE_P) == 352);
+		memset(wire, 0, sizeof(wire));
+		wire[0] = 0x0F; /* lap_completed_value */
+		wire[4 + 2 * 4] = 1; /* slot 2's first flag */
+		wire[1028] = 6; /* rally_flag */
+		wire[1032 + 4] = 3; /* team 1's laps */
+		wire[1544] = 7; /* persistent_team_score */
+		wire[1680 + 15] = 2; /* slot 15's laps (events) */
+		wire[2448 + 15 * 2] = 4; /* slot 15's laps completed */
+		CHECK(network_game_layout_fold_fields(wire, sizeof(wire), PC, local, sizeof(local), CONSOLE_P, race, 13,
+			&dropped) == NETWORK_GAME_LAYOUT_OK);
+		CHECK(dropped == 0);
+		CHECK(local[0] == 0x0F && local[4 + 2 * 4] == 1 && local[132] == 6 && local[136 + 4] == 3 && local[200] == 7);
+		CHECK(local[224 + 15] == 2 && local[320 + 15 * 2] == 4);
 	}
 
 	free(console);
