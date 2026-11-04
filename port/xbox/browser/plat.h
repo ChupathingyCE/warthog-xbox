@@ -1,4 +1,10 @@
 /*
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ * Copyright (C) 2026 JizzyRivers and Warthog's contributors
+ * Part of Warthog: under its license, with its console SDK permission (README.md, "License").
+ */
+
+/*
  * the platform under the browser: files, folders, the network. plat_xbox.c on
  * the console (nxdk), plat_posix.c on linux, for testing the same code against
  * the real server

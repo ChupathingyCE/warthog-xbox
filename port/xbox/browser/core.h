@@ -1,4 +1,10 @@
 /*
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ * Copyright (C) 2026 JizzyRivers and Warthog's contributors
+ * Part of Warthog: under its license, with its console SDK permission (README.md, "License").
+ */
+
+/*
  * the content browser's core: the store's list of warthog maps
  * (/api/warthog/maps.txt), each map's state on this machine by warthog's own
  * fingerprint, installing one (download, check, maplist.txt) and removing it
