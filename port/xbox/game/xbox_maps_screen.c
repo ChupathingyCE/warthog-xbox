@@ -454,6 +454,13 @@ boolean maps_screen_active(
 	return maps_screen.active;
 }
 
+/* the MAP BROWSER item's description in the menu (source/interface/ui_widget.c) */
+wchar_t const *maps_screen_description(
+	void)
+{
+	return L"Download community maps \r\nand map packs, from the \r\nxboxhomebrew.store archive.";
+}
+
 void maps_screen_open(
 	void)
 {

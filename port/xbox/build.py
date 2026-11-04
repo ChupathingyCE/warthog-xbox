@@ -491,7 +491,9 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
                                f"-include {_quote(PORT_DIR / 'include' / 'xbox_c99.h')}",
                                f"-I{_quote(PORT_DIR / 'browser')}", f"-iquote {_quote(game)}", f"-I{_quote(xdk / 'include')}"])
     for source in sorted((PORT_DIR / "browser").glob("*.c")):
-        add_object(source, browser_cflags, sorted((PORT_DIR / "browser").glob("*.h")))
+        # (the store hears which build asks: "Warthog 0.8.1d")
+        version_flags = [f'-DHALO_VERSION=\\"{version()}\\"'] if source.name == "http.c" else []
+        add_object(source, " ".join([browser_cflags, *version_flags]), sorted((PORT_DIR / "browser").glob("*.h")))
     for source in P2P_SOURCES:
         generated = gen_dir / "p2p" / source.name
         n.build(outputs=generated, rule="xbox_source", inputs=game / source, implicit=[TOOLS_DIR / "xbox_sources.py"],

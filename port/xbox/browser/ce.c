@@ -432,7 +432,7 @@ int ce_install(const char *base, const char *game, ce_detail *detail, ce_progres
 			plat_remove(path);
 			return 0;
 		}
-		// the important bit: the whole file has to be the signed lists blake2b, else its gone
+		// the important bit: the whole file has to be the blake2b the store's json gave (over https), else its gone
 		blake2b_final(&d.hash, digest);
 		blake2b_hex(digest, 32, hex);
 		if (strcmp(hex, m->blake2b) || d.done != m->size)

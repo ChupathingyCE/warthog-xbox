@@ -1,7 +1,8 @@
 /*
  * custom edition maps from the store's archive: halomaps.org's pages (title,
  * author, description) with each one's maps from the store's mirror, every
- * map on opence's signed list and checked against its blake2b as it comes.
+ * map named in the store's json with its blake2b, and checked against it as
+ * it comes (the json and the hashes come over https).
  * they go in <warthog>\maps_ce\, chupathingyce's folder of custom edition
  * maps on the desktop (where warthog will read them is milenko's call)
  */

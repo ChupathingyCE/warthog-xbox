@@ -17,6 +17,11 @@ void platform_log(const char *format, ...);
 // headers past 8k = something is very wrong, just give up
 #define HTTP_HEADER_MAX 8192
 #define HTTP_USER_AGENT "Warthog/1 (map browser)"
+/* (the build, to the store: "Warthog 0.9.0") */
+#ifndef HALO_VERSION
+#define HALO_VERSION "unknown"
+#endif
+#define HTTP_CLIENT_VERSION "X-Client-Version: Warthog " HALO_VERSION "\r\n"
 /* (an https answer's handshake, then the most to wait for each piece) */
 #define PLAT_HTTPS_TIMEOUT_MS 30000
 
@@ -180,11 +185,11 @@ static int get_once(const char *url, char *location, int location_size, http_siz
 		return -1;
 	}
 	// the request. user agent matters, cloudflare blocks some defaults
-	// x-client-version skips the stores rate limit for web stuff
+	// x-client-version names the build to the store (its rate limit lets ours through)
 	// identity = no gzip, we dont have zlib wired up for this
 	length = snprintf(request, sizeof(request),
 		"GET %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: " HTTP_USER_AGENT "\r\n"
-		"X-Client-Version: warthog-poc\r\nAccept-Encoding: identity\r\nConnection: close\r\n\r\n",
+		HTTP_CLIENT_VERSION "Accept-Encoding: identity\r\nConnection: close\r\n\r\n",
 		path, host);
 	if (plat_send(s->socket, request, length) != length)
 	{
@@ -328,7 +333,7 @@ static int get_https(const char *url, http_size_proc size, http_body_proc body, 
 	b.size = size;
 	b.body = body;
 	b.context = context;
-	result = console_https_get_stream(host, slash ? slash : "/", "X-Client-Version: warthog-poc\r\n", &status,
+	result = console_https_get_stream(host, slash ? slash : "/", HTTP_CLIENT_VERSION, &status,
 		https_size, https_body, &b, PLAT_HTTPS_TIMEOUT_MS);
 	if (result != CONSOLE_HTTPS_OK)
 	{

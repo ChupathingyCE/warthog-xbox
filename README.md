@@ -257,6 +257,8 @@ not be part of our community.
   toolchain: [OXDK](https://github.com/MrMilenko/OXDK).
 - Libraries: KCP and Monocypher (internet play), zlib, and the libraries
   the game uses, with their licenses in the game's `port/third_party`.
+  [jsmn](https://github.com/zserge/jsmn) by Serge Zaitsev (MIT), the Map
+  Browser's JSON parser (`port/xbox/browser/jsmn.h`).
 
 ### Contributors
 
