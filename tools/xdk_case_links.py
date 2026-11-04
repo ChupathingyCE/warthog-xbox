@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 JizzyRivers and Warthog's contributors
+# Part of Warthog: under its license, with its console SDK permission (README.md, "License").
 """The SDK's file names as the code spells them, for a build on Linux (docs/building.md,
 "Linux"). Linux is case sensitive and the SDK's names aren't consistent (XTL.h, StdIO.h,
 sys/Types.h): symlinks beside the originals, which aren't touched, each name in lower case

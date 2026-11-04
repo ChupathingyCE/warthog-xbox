@@ -1,4 +1,10 @@
 /*
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ * Copyright (C) 2026 JizzyRivers and Warthog's contributors
+ * Part of Warthog: under its license, with its console SDK permission (README.md, "License").
+ */
+
+/*
  * ce.h: the archive's json (/api/archive/halomaps/hce/files), each map from
  * the mirror (/api/mapindex/file/<blake2b>) checked as it comes
  */

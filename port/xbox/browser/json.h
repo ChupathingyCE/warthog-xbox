@@ -1,4 +1,10 @@
 /*
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ * Copyright (C) 2026 JizzyRivers and Warthog's contributors
+ * Part of Warthog: under its license, with its console SDK permission (README.md, "License").
+ */
+
+/*
  * a little over jsmn (jsmn.h, MIT): find a key in an object, a value as text
  * or a number, an array's items. the archive api answers in json
  */

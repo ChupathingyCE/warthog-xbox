@@ -1,4 +1,10 @@
 /*
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ * Copyright (C) 2026 JizzyRivers and Warthog's contributors
+ * Part of Warthog: under its license, with its console SDK permission (README.md, "License").
+ */
+
+/*
  * a small http/1.1 client over plat's sockets: GET, the body to a callback.
  * content-length and chunked bodies, one redirect to another http url.
  * https:// urls go through the game's console HTTPS client
