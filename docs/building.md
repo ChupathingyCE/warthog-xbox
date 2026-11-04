@@ -1,9 +1,9 @@
 # Building Warthog for the original Xbox
 
-This is how the original Xbox build works today. It is built on macOS with
-[OXDK](https://github.com/MrMilenko/OXDK), clang and lld-link. It should
-build on Linux the same way (see "Linux", below). There is no Windows
-build path yet; see "Help wanted: Windows tooling" in the README.
+This is how the original Xbox build works today. It is built on macOS or
+Linux with [OXDK](https://github.com/MrMilenko/OXDK), clang and lld-link
+(see "Linux", below, for what differs there). There is no Windows build
+path yet; see "Help wanted: Windows tooling" in CONTRIBUTING.md.
 
 This repository holds the console ports only. The game itself, with the
 code every platform shares, is
@@ -36,7 +36,7 @@ same thing by hand.
 | --- | --- | --- |
 | Python 3 | on `PATH` (3.7 or newer) | 3.9 (macOS's) |
 | [ninja](https://ninja-build.org/) | on `PATH` | 1.13 |
-| LLVM: clang and lld-link | macOS: `brew install llvm lld ninja`. The build looks in `LLVM_DIR`, then Homebrew's `llvm` folder, then `PATH` | Homebrew clang 22.1, LLD 22.1 |
+| LLVM: clang and lld-link | macOS: `brew install llvm lld ninja`. The build looks in `LLVM_DIR`, then Homebrew's `llvm` folder, then `PATH` | Homebrew clang 22.1, LLD 21.1 and 22.1 (if Homebrew's `lld` crashes at start because it loads a newer LLVM's library, install `lld@21` and put its `lld-link` first on `PATH`) |
 | [OXDK](https://github.com/MrMilenko/OXDK), with its `cxbe` built | `~/OXDK` (or `--oxdk DIR`, or `OXDK_DIR`) | |
 | The Xbox SDK's libraries and headers (the 5933 SDK) | OXDK's `xbox/xdk/lib` and `xbox/xdk/include`, set up as OXDK's README says | 5933 |
 | An Aug 2001 Direct3D library, `d3d8ntpr.lib` (the `aug01` i386 build) | anywhere; you give its path to `configure.py` | |
@@ -181,5 +181,5 @@ on a development kit.
 The settings in `D:\config.toml` (`bypass_security`, `join`, `trace` and
 the rest) are in the README, "Settings on the console", and attach
 `debug.txt` to bug reports. xemu (128 MB, NAT) can run the build too:
-README, "Testing". Questions go to the #warthog-support forum on the
+docs/consoles.md, "Testing". Questions go to the #warthog-support forum on the
 Discord.

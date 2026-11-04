@@ -14,16 +14,16 @@ one; a feature that would is to ask for it through the memory class
 
 | Feature | PC | Xbox | Why, or the plan |
 | --- | --- | --- | --- |
-| Online Games (the game list) and joining | Yes | Yes | The console's own screen (`game/xbox_browser_screen.c`), over plain HTTP |
+| Online Games (the game list) and joining | Yes | Yes | The console's own screen (`game/xbox_browser_screen.c`), over HTTPS (plain HTTP if HTTPS fails) |
 | Hosting a listed internet game | Yes | Not yet | The console hosts System Link; its games are not listed and PCs do not join it over the internet yet |
 | Invite links | Yes | Yes, from `console.join` | No clipboard on a console |
-| Cross-play with PCs and OpenCE | Yes | Yes | Up to 16 players, network versions as `README.md` says |
+| Cross-play with PCs and OpenCE | Yes | Yes | Up to 32 players in test builds (16 in a build without `--console-players 32`), network versions as `README.md` says |
 | Delta Peer (platform, player ID) | Yes | Yes, as a client | `console.delta`; the player ID from `D:\game_list_player.key` |
 | Text chat | Yes | Yes | Shown lines, quick lines on the D-pad, a USB keyboard's T, Y and H; the client's part only (a console never hosts on Delta) |
 | Server messages | Yes, in a banner | Yes, in the chat lines | The banner is the desktop's overlay; the console shows them as lines |
 | Team changes in a game | Yes | Not yet | Needs CHANGE TEAMS in the console's pause menu (`team_change.c` is 505 lines, little memory) |
-| Delta Profile screen | Yes | Not yet | Its data comes from the site over HTTPS; the console has plain HTTP only. Plan: a plain HTTP player card on the Warthog list server |
-| Profile names and clan tags in games | Yes | Not yet | As Delta Profile: the names come from the site |
+| Delta Profile screen | Yes | Yes, Link Profile | Online Games' Start: link the console to a profile with a code (`D:\delta_device.key`), then its name and clan tag show there |
+| Profile names and clan tags in games | Yes | Not yet | The names come from the site, for each player in the game |
 | Platform logos on the scoreboard | Yes | Not yet | The logos are drawn with the high-res text (cut) |
 | Stats reports of joined games | Yes | Yes | The desktop's report over HTTPS, with the identity file's key or signed by a linked console (`src/xbox_reports.c`); `network.report_joined_games`; about 14 KB of recorder state and a 128 KB thread for a few seconds after each game |
 | Delta Stats of hosted games | Yes | Not yet | Only for a listed host |

@@ -117,12 +117,16 @@ inline functions that units call through a prototype.
 ## The game list
 
 At the start, once the network is up, a thread of the game's own gets the
-game list from `http://warthog.milenko.org/v1/console/games` (plain HTTP:
-the console has no TLS) and the game logs it, to the debug monitor as
+game list from `https://stats.chupathingy.org/v1/console/games`, over the
+game's console HTTPS client (`src/xbox_https.c`, the site's key pinned). If
+HTTPS fails, it asks `http://warthog.milenko.org` over plain HTTP instead,
+and a pin or name that is refused keeps it on plain HTTP for the rest of
+the run. A console that plays Custom Edition maps also asks the desktop
+list over HTTPS for its Custom Edition games. The game logs the list, to the debug monitor as
 `halo: game list:` lines and to `debug.txt` as `game list:` lines. Nothing
 waits on it. Multiplayer's ONLINE GAMES shows it (`game/xbox_browser_screen.c`).
 
-- `src/xbox_game_list_fetch.c`: HTTP/1.0 over XNet's Winsock. The host is
+- `src/xbox_game_list_fetch.c`: the plain HTTP fallback, HTTP/1.0 over XNet's Winsock. The host is
   looked up with `XNetDnsLookup`; if it does not resolve,
   `console.game_list_server` names another: a host or an IPv4 address, `:port` optional
   (the request still says `Host: warthog.milenko.org` for an address).
@@ -204,15 +208,16 @@ And the desktop builds' that apply on the console: `display.direct_camera`,
 `chat.streamer_mode`, `chat.quick_messages`, `audio.music_volume`,
 `audio.effects_volume`, `game.console_log`, `game.unlock_all_levels`,
 `game.start_with_one_player`, `network.online`, `network.tunnel_port`,
-`network.brokers_file`, and `network.stun_servers`. A wider field of view
+`network.brokers_file`, `network.stun_servers` and
+`network.report_joined_games`. A wider field of view
 draws more of the map each frame: on a stock console, keep the Xbox's 70 if
 a busy map slows down. `FEATURES.md` lists the desktop's features and where
 each stands on the console.
 Another setting the shared code reads is empty, 0 or false on the console,
 as before it had the file.
 
-The switch files that came before it are still read for this release, each
-logged as deprecated in `debug.txt` ("D:\memory_64.txt is deprecated, use
+Use `config.toml` for every setting. The switch files that came before it
+are still read, each logged as deprecated in `debug.txt` ("D:\memory_64.txt is deprecated, use
 console.simulate_64mb in config.toml", which now ignores it): `bypass_security.txt`,
 `memory_64.txt`, `large_caches.txt` and `trace.txt` (an empty file turns
 the setting on), and `join.txt` and `game_list.txt` (one line, used when
@@ -357,8 +362,10 @@ modified retail consoles, gets its address by DHCP, shows the game list
 (ONLINE GAMES) and joins [D] dedicated servers and PC hosts through the PCs'
 tunnel. It targets a stock 64 MB console (first matches played on October 18);
 128 MB only adds extras (see "Memory"). Music and the campaign's effects
-play. The code is ChupathingyCE's at network version 28 (it joins hosts of 11
-through 30).
+play. The game is on wire `chupa-41a`: it joins hosts of network versions 11
+through 41 (OpenCE's newest), the range the signed legacy table gives.
+Custom Edition maps play on a 128 MB console and, experimentally, on a
+64 MB one (`docs/custom-edition.md`).
 Network co-op is not built for the console (`game/xbox_coop.c`): co-op
 games are left out of its lists, and a game that turns co-op is left with
 a message. Known:

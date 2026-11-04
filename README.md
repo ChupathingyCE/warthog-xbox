@@ -18,8 +18,9 @@ original Xbox joins the same online games as PCs, Macs and phones. Open
 It runs on a stock 64 MB console. A console with 128 MB gets a little more
 room, and the game plays the same either way.
 
-**Status: test builds.** Online play, up to 32 players and Halo CE+ maps
-work today. Hosting PC players, online co-op and movies aren't in yet.
+**Status: test builds.** Online play, up to 32 players, Halo CE+ maps and
+Custom Edition maps work today. Hosting PC players, online co-op and movies
+aren't in yet.
 
 Test builds are shared in #xbox on the [Discord](https://discord.gg/chupathingy).
 You can also build it yourself (below).
@@ -34,8 +35,8 @@ This repository holds the original Xbox port. The game itself is the
 
 ## Details
 
-- Network version: 32 (wire `chupa-32a`). Joins hosts of network versions
-  11 through 33.
+- Network: wire `chupa-41a`. Joins hosts of network versions 11 through 41,
+  OpenCE's newest, as the signed compatibility table allows.
 - Online: **Multiplayer > ONLINE GAMES** lists the games online and joins
   them through the PCs' own tunnel, dedicated servers too.
 - System Link: joins PC hosts and consoles on your network.
@@ -43,6 +44,14 @@ This repository holds the original Xbox port. The game itself is the
   or the common upgrade) gets larger texture and sound caches; the game
   plays the same either way.
 - Maps: the retail maps, and community packs of Xbox maps beside them, Halo CE+ in `D:\maps_cex` ([below](#xbox-map-packs-halo-ce)).
+- Custom Edition maps: Halo PC's Custom Edition maps play as they are, from
+  `D:\maps_ce`, on a 128 MB console (experimental on a stock 64 MB one).
+  **Multiplayer > MAP BROWSER** downloads them from the
+  [xboxhomebrew.store](https://xboxhomebrew.store) archive, and Online Games
+  offers a missing map when you join ([below](#custom-edition-maps)).
+- Service record: the online games you join count on your profile at
+  stats.chupathingy.org, once the console is linked (Online Games, **Start**)
+  or has your identity file.
 - Players: the test build holds 32 players. Games past that are left, as a
   full game is.
 - Chat: quick lines on the controller, and a USB keyboard.
@@ -91,6 +100,26 @@ the pack's files: get them from the pack's release page. The pack's own
 menus (`ui.map`) stay unused unless `game.pack_menus = "cex"` is set in
 `D:\config.toml`.
 
+### Custom Edition maps
+
+Custom Edition maps go in `D:\maps_ce\`, with no conversion. Their
+`bitmaps.map`, `sounds.map` and `loc.map` go beside them. They show in the
+multiplayer map list marked [CE], and Online Games lists the Custom Edition
+games hosted by PCs and dedicated servers.
+
+The easy way to get them is **Multiplayer > MAP BROWSER**. It lists the
+[xboxhomebrew.store](https://xboxhomebrew.store) archive (halomaps.org's
+maps) and the store's Xbox map packs, with a picture and details for each.
+**A** installs a map, **Y** removes it, and **X** searches. Each download is
+checked against the store's hash. When you join a game whose map you don't
+have, Online Games offers to download it first.
+
+A console with 128 MB plays them. On a stock 64 MB console they are
+experimental: most maps load, and a map too large for the console's memory
+is refused with a message. So far they have been tested in xemu, not yet on
+a real console. [docs/custom-edition.md](docs/custom-edition.md) has the
+details.
+
 ## Settings on the console
 
 The settings are in `D:\config.toml` (`D:\` is the game's folder, beside
@@ -120,7 +149,8 @@ join = "192.168.1.20"
 
 Many of the PC builds' settings work on the console too: field of view, the
 follow camera, chat, the scoreboard, music and effects volume, the network
-ones. [port/xbox/README.md](port/xbox/README.md) lists them, and
+ones. `network.report_joined_games = false` keeps your games off your
+service record. [port/xbox/README.md](port/xbox/README.md) lists them, and
 [port/xbox/FEATURES.md](port/xbox/FEATURES.md) shows which PC features the
 console has.
 
@@ -147,6 +177,8 @@ Chat works in a game whose host runs Chupathingy.
   as a full one is.
 - **No network co-op.** Co-op games are left out of the console's lists.
   Split screen and the campaign play as they always did.
+- **Custom Edition HUD buttons.** The button icons on a Custom Edition map's
+  HUD are missing.
 
 ## Building it yourself
 
@@ -161,7 +193,8 @@ cd warthog-xbox
 
 You need:
 - Python 3, [ninja](https://ninja-build.org/) and LLVM (clang and lld-link).
-  On macOS: `brew install llvm lld ninja`.
+  On macOS: `brew install llvm lld ninja`. On Linux, see the Linux section
+  of [docs/building.md](docs/building.md).
 - [OXDK](https://github.com/MrMilenko/OXDK) in `~/OXDK` (or `--oxdk DIR`),
   with its `cxbe` built, and your own 5933 Xbox SDK's libraries and headers
   in OXDK's `xbox/xdk/lib` and `xbox/xdk/include`.
@@ -185,7 +218,8 @@ Notes:
   configure builds 16, as the Xbox's own game had.
 - The Xbox 360 port is
   [ChupathingyCE/warthog-360](https://github.com/ChupathingyCE/warthog-360).
-- Windows: no build path yet. Help is welcome in #warthog-dev on the Discord.
+- macOS and Linux build it. Windows: no build path yet. Help is welcome in
+  #warthog-dev on the Discord.
 - Nothing from Microsoft's SDKs is in this repository, and none of it may be
   committed.
 
@@ -262,6 +296,8 @@ not be part of our community.
 
 ### Contributors
 
+- [Jizzy](https://github.com/JizzyRivers): Custom Edition maps on the
+  console, the Map Browser, maps offered on join, and the Linux build fixes.
 - [thelinkin3000](https://github.com/thelinkin3000): the Nintendo Switch
   port, now in [ChupathingyCE/warthog-switch](https://github.com/ChupathingyCE/warthog-switch).
 - CrunchBite (XLink Kai's developer): XLink Kai's addressing for consoles
