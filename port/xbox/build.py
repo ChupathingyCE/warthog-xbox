@@ -204,10 +204,22 @@ XBOX_PORT_GAME_SOURCES = [
     # the statistics recorder, for the reports of joined games
     # (HALO_CONSOLE_GAME_REPORTS)
     "game_stats.c",
+    # Custom Edition maps (HALO_CUSTOM_EDITION, below): their tag cache is the
+    # Xbox's memory at their own addresses (src/xbox_memory.c, src/xbox_ce_files.c)
+    "ce_bsp.c", "ce_functions.c", "ce_hud.c", "ce_map_checks.c", "ce_models.c", "ce_repairs.c", "ce_resources.c",
+    "ce_vorbis.c",
+    # Stubbs the Zombie's mode (stubbs_mode_active, which the scripts' compiler
+    # asks): the game's since chupathingyce 95871e3a
+    "stubbs_mode.c",
+    # the host's checks of its players (line of sight, evidence, conduct
+    # rules), which the network code asks: the game's since #689 and #694
+    "conduct_rules.c", "host_evidence.c", "line_of_sight.c",
 ]
 # the menus' map list filled by the port, with the map packs' maps
 # (port/linux/game/ui_map_list.c, map_packs.c), on the console too
-MAP_LIST_DEFINES = ["-DHALO_MAP_LIST"]
+MAP_LIST_DEFINES = ["-DHALO_MAP_LIST", "-DHALO_CUSTOM_EDITION", "-DHALO_CONSOLE_MAP_BROWSER",
+                    # (the console capabilities Custom Edition maps use: halo_port_features.h)
+                    "-DHALO_CONSOLE_CE_BITMAPS", "-DHALO_CONSOLE_CE_SHARED_TAG_CACHE"]
 # d3d_intimacy.cpp reads the device as the January library named it; the
 # kernel's build of the Aug 2001 library has it in its own namespace (the
 # same layout)
@@ -313,7 +325,8 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
     )
     n.rule(
         name="xbox_lld",
-        command="$xbox_link $ldflags /map:$map /out:$out @$out.rsp",
+        # (tools/zero_urw.py: the SDK libraries' uninitialized data, which lld fills)
+        command="$xbox_link $ldflags /map:$map /out:$out @$out.rsp && $python tools/zero_urw.py $out $map",
         description="XBOX LINK $out",
         rspfile="$out.rsp",
         rspfile_content="$in_newline $libs",
@@ -411,7 +424,20 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
     # so it plays with them; PAL tags; frame interpolation), but not their
     # screens of the game list, which draw through their platform layer
     for name in XBOX_PORT_GAME_SOURCES:
-        add_object(game / PORT_LINUX_GAME / name, " ".join(["-std=gnu89", game_cflags, *PORT_DATA_FLAGS]),
+        # (a Custom Edition map's converted vertices: port/xbox/src/xbox_ce_files.c)
+        vertex_flags = ["-DXPhysicalAlloc=xbox_ce_vertex_alloc", "-DXPhysicalFree=xbox_ce_vertex_free"] \
+            if name in ("ce_bsp.c", "ce_models.c") else []
+        # (and on a 64 MB console, what a map's load takes a while out of the
+        # texture cache's memory, lent: the same file)
+        # (the game's heap, cseries.h's malloc, in two; the C runtime's in the
+        # decoder)
+        if name in ("ce_map_checks.c", "ce_resources.c"):
+            vertex_flags = ["-Ddebug_malloc=xbox_ce_debug_malloc", "-Ddebug_realloc=xbox_ce_debug_realloc",
+                            "-Ddebug_free=xbox_ce_debug_free"]
+        if name == "ce_vorbis.c":
+            vertex_flags = ["-Dmalloc=platform_ce_scratch_malloc", "-Drealloc=platform_ce_scratch_realloc",
+                            "-Dfree=platform_ce_scratch_free"]
+        add_object(game / PORT_LINUX_GAME / name, " ".join(["-std=gnu89", game_cflags, *PORT_DATA_FLAGS, *vertex_flags]),
                    [semantics_header, prefix_header])
 
     # the console's own game code: its Online Games screen, and the Delta
@@ -457,6 +483,20 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
     p2p_cflags = " ".join([*SUPPORT_FLAGS, *PORT_DATA_FLAGS, players_flag, "-std=gnu11", f"-iquote {_quote(game)}", f"-I{_quote(PORT_DIR / 'p2p')}",
                            f"-I{_quote(game / LINUX_SRC)}", f"-iquote {_quote(game / PORT_LINUX_INCLUDE)}",
                            f"-I{_quote(game / KCP_DIR)}", f"-I{_quote(game / MONOCYPHER_DIR)}", f"-I{_quote(xdk / 'include')}"])
+    # (what the map families ask of a map's name and version, not its downloads)
+    add_object(game / LINUX_SRC / "map_archive.c",
+               " ".join([*SUPPORT_FLAGS, *COLD_FLAGS, *PORT_DATA_FLAGS, players_flag, *ZLIB_DEFINES,
+                         f"-include {_quote(PORT_DIR / 'include' / 'xbox_c99.h')}",
+                         f"-iquote {_quote(game)}", f"-I{_quote(game / MONOCYPHER_DIR)}", f"-I{_quote(game / ZLIB_DIR)}",
+                         f"-iquote {_quote(game / PORT_LINUX_INCLUDE)}", f"-I{_quote(xdk / 'include')}"]))
+    # the Map Browser's work: the store's client, with the platform under it the SDK's
+    browser_cflags = " ".join([*SUPPORT_FLAGS, *COLD_FLAGS, *PORT_DATA_FLAGS, "-std=gnu11", "-DNXDK", players_flag,
+                               f"-include {_quote(PORT_DIR / 'include' / 'xbox_c99.h')}",
+                               f"-I{_quote(PORT_DIR / 'browser')}", f"-iquote {_quote(game)}", f"-I{_quote(xdk / 'include')}"])
+    for source in sorted((PORT_DIR / "browser").glob("*.c")):
+        # (the store hears which build asks: "Warthog 0.8.1d")
+        version_flags = [f'-DHALO_VERSION=\\"{version()}\\"'] if source.name == "http.c" else []
+        add_object(source, " ".join([browser_cflags, *version_flags]), sorted((PORT_DIR / "browser").glob("*.h")))
     for source in P2P_SOURCES:
         generated = gen_dir / "p2p" / source.name
         n.build(outputs=generated, rule="xbox_source", inputs=game / source, implicit=[TOOLS_DIR / "xbox_sources.py"],

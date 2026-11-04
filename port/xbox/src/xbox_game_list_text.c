@@ -56,7 +56,7 @@ int game_list_map_name(const char *map, char *text, unsigned long size)
 	for (at = 0; at < end && map[at] != '@'; at++)
 		;
 	if (at < end)
-		family = !strcmp(map + at, "@ce") ? "PC" : !strcmp(map + at, "@md") ? "MD" : "?";
+		family = !strcmp(map + at, "@ce") ? "CE" : !strcmp(map + at, "@md") ? "MD" : "?";
 	for (index = 0; index < at; index++)
 	{
 		if (map[index] == '\\' || map[index] == '/')

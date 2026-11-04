@@ -388,7 +388,7 @@ static void test_text(void)
 	CHECK(game_list_map_name("levels\\test\\carousel\\carousel", text, sizeof(text)) && !strcmp(text, "Derelict"));
 	CHECK(game_list_map_name("levels/test/putput/putput", text, sizeof(text)) && !strcmp(text, "Chiron TL-34"));
 	CHECK(game_list_map_name("HangEmHigh", text, sizeof(text)) && !strcmp(text, "Hang 'Em High"));
-	CHECK(!game_list_map_name("timberland@ce", text, sizeof(text)) && !strcmp(text, "timberland (PC)"));
+	CHECK(!game_list_map_name("timberland@ce", text, sizeof(text)) && !strcmp(text, "timberland (CE)"));
 	CHECK(!game_list_map_name("levels\\test\\gephyrophobia\\gephyrophobia@md", text, sizeof(text)) &&
 		!strcmp(text, "gephyrophobia (MD)"));
 	CHECK(!game_list_map_name("bloodgulch@xx", text, sizeof(text)) && !strcmp(text, "bloodgulch (?)"));

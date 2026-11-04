@@ -29,7 +29,9 @@ one; a feature that would is to ask for it through the memory class
 | Delta Stats of hosted games | Yes | Not yet | Only for a listed host |
 | Moderation (moderator sign-in, kicks) | Yes | Not yet | Desktop and dedicated server only |
 | Network co-op | Yes | Not yet | Not built for the console (`network_coop.c`, 3,100 lines); co-op games are left out of its lists |
-| Custom Edition and HaloMD maps, map downloads | Yes | Cut | 2026-10-19: memory and storage; the console plays the Xbox's maps |
+| Custom Edition maps | Yes | Yes (64 MB experimental) | Played as they are, with no conversion: the shared code's loader (`ce_*.c`), its tag cache at `0x40440000`, the converted vertices in the Xbox's idle tag cache, the bitmaps made the Xbox's as they're read (`docs/custom-edition.md`). A 64 MB console: the Xbox's tag cache by the page tables, the load's memory lent by the texture cache, experimental (xemu only) |
+| Map downloads on join | Yes | Yes, Custom Edition | Online Games offers a missing Custom Edition map (MAP NEEDED) from the store's map index, then joins. HaloMD maps: not yet |
+| Map Browser (Multiplayer menu) | No | Yes | The xboxhomebrew.store archive's Custom Edition maps and the store's Xbox map packs, with screenshots, details, install and remove (`port/xbox/browser`, `game/xbox_maps_screen.c`) |
 | Xbox map packs (Halo CE+ in `maps_cex`) | Yes | Yes | Xbox-format maps, read by the console's own loader; the menus' map list (`ui_map_list.c`, `map_packs.c`) is on the console for them, about 35 KB |
 | Pings in the game list | Yes | Not yet | The console's list shows none; the probe code (`p2p_probe.c`) is already linked |
 

@@ -185,6 +185,53 @@ static int fetch_once(char *buffer, int attempt)
 	return game_list_parse(response.body, response.body_size, &fetched);
 }
 
+/* the Custom Edition games, on a console that plays them: the desktop list's, as the
+console's own leaves them out. A failure leaves the list as it came */
+#define CUSTOM_EDITION_LIST_PATH "/v1/games.txt?fields=23&coop=1"
+#define CUSTOM_EDITION_LIST_SIZE (48 * 1024)
+#define CUSTOM_EDITION_LIST_STACK_SIZE (24 * 1024)
+/* (xbox_memory.c's: a Custom Edition tag cache made, its own or on 64 MB the Xbox's) */
+extern int platform_ce_tag_cache_ready;
+void platform_log(const char *format, ...);
+
+static void fetch_custom_edition_games(void)
+{
+	char *buffer;
+	struct game_list_response response;
+	unsigned long received = 0;
+	int result, parsed = -1, added = 0;
+	char stack_buffer[CUSTOM_EDITION_LIST_STACK_SIZE];
+	unsigned long size;
+
+	if (!platform_ce_tag_cache_ready || https_refused || !console_https_available())
+	{
+		platform_log("game list: no Custom Edition games asked for (%s)", !platform_ce_tag_cache_ready ?
+			"no Custom Edition tag cache" :
+			https_refused ? "HTTPS refused" : "no HTTPS");
+		return;
+	}
+	/* (a 64 MB console has no 48 KB of heap to spare: the list's thread's stack
+	then, which has room beside the console list's buffer: LIST_THREAD_STACK) */
+	buffer = (char *)malloc(CUSTOM_EDITION_LIST_SIZE);
+	size = CUSTOM_EDITION_LIST_SIZE;
+	if (!buffer)
+	{
+		buffer = stack_buffer;
+		size = sizeof(stack_buffer);
+	}
+	memset(&response, 0, sizeof(response));
+	result = console_https_request(CONSOLE_HTTPS_SITE, CUSTOM_EDITION_LIST_PATH, NULL, NULL, buffer, size,
+		&received, FETCH_TIMEOUT);
+	if (result == CONSOLE_HTTPS_OK)
+		parsed = game_list_parse_response(buffer, received, &response);
+	if (parsed == GAME_LIST_OK && response.status == 200)
+		added = game_list_add_custom_edition(response.body, response.body_size, &fetched);
+	platform_log("game list: Custom Edition games: %s, status %d, %lu bytes, %d added (%d in all)",
+		result == CONSOLE_HTTPS_OK ? "ok" : console_https_error_string(result), response.status, received, added, fetched.count);
+	if (buffer != stack_buffer)
+		free(buffer);
+}
+
 static unsigned long __stdcall game_list_thread(void *parameter)
 {
 	/* (the stack's: the thread has no other use for it, and the heap has
@@ -223,6 +270,7 @@ static unsigned long __stdcall game_list_thread(void *parameter)
 	list_error = result;
 	if (result == GAME_LIST_OK)
 	{
+		fetch_custom_edition_games();
 		DbgPrint("halo: game list: %d games (format %d) over %s%s\n", fetched.count, fetched.format,
 			list_secure ? "HTTPS" : "plain HTTP", fetched.skipped ? ", some lines left out" : "");
 	}
