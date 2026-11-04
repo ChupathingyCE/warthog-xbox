@@ -211,6 +211,9 @@ XBOX_PORT_GAME_SOURCES = [
     # Stubbs the Zombie's mode (stubbs_mode_active, which the scripts' compiler
     # asks): the game's since chupathingyce 95871e3a
     "stubbs_mode.c",
+    # the host's checks of its players (line of sight, evidence, conduct
+    # rules), which the network code asks: the game's since #689 and #694
+    "conduct_rules.c", "host_evidence.c", "line_of_sight.c",
 ]
 # the menus' map list filled by the port, with the map packs' maps
 # (port/linux/game/ui_map_list.c, map_packs.c), on the console too
