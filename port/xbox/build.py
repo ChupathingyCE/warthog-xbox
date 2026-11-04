@@ -138,7 +138,10 @@ COLD_SOURCES = (
 SUPPORT_CXX_FLAGS = ["-fno-exceptions", "-fno-rtti", "-fno-threadsafe-statics"]
 
 LINK_FLAGS = [
-    "/nologo", "/subsystem:windows", "/fixed:no", "/base:0x00010000", "/stack:1048576",
+    # (the main thread's stack: 768 KB, all of it committed on the console.
+    # The deepest seen in any debug.txt is 279 KB, a campaign mission; the
+    # retail game's is 512 KB)
+    "/nologo", "/subsystem:windows", "/fixed:no", "/base:0x00010000", "/stack:786432",
     "/machine:x86", "/entry:mainCRTStartup",
     # the functions nothing calls are left out (-ffunction-sections), and no
     # two that compile the same are folded into one: the game compares

@@ -301,7 +301,7 @@ void xbox_game_list_request(void)
 	set_state(_list_fetching);
 	/* (the signed table's cache, and the network rules told of it: once) */
 	xbox_https_table_start();
-	/* (a stack of its own size: 0 is the main thread's, the XBE's 1 MB, all
+	/* (a stack of its own size: 0 is the main thread's, the XBE's 768 KB, all
 	of it committed memory on the Xbox; 48 KB holds the response's buffer
 	and the fetch's frames, CONSOLE_HTTPS_STACK_SIZE more the TLS
 	session's arena and Mbed TLS's frames, and DELTA_REFRESH_STACK_SIZE the

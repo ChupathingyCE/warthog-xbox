@@ -236,7 +236,7 @@ static unsigned long __stdcall xbox_watchdog(void *parameter)
 
 void xbox_watchdog_start(void)
 {
-	/* (a stack of its own size: 0 is the main thread's, the XBE's 1 MB, all
+	/* (a stack of its own size: 0 is the main thread's, the XBE's 768 KB, all
 	of it committed memory on the Xbox) */
 	CreateThread(NULL, 64 * 1024, xbox_watchdog, NULL, 0, NULL);
 }
