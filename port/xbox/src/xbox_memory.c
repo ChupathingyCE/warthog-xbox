@@ -659,9 +659,10 @@ int xbox_memory_require(int memory_class, const wchar_t *text)
 
 /* Custom Edition maps' tag cache, at the address their tags are linked to
 (chupathingyce's port/linux/src/platform.h), once the caches are made: on a
-console above 64 MB for now, 23 MB of its own. A 64 MB console has no room for
-this (the map list then leaves such maps out) */
+console above 64 MB, 23 MB of its own. A 64 MB console has no room for this:
+there it's the Xbox's own tag cache, by the page tables (xbox_ce_files.c) */
 int platform_ce_tag_cache_ready = 0;
+int xbox_ce_alias_install(void);
 
 static void ce_tag_cache_make(void)
 {
@@ -674,7 +675,15 @@ static void ce_tag_cache_make(void)
 	memory_read();
 	if (memory.memory_class == _xbox_memory_class_64mb)
 	{
-		xbox_boot_log("custom edition: no tag cache on a 64 MB console, its maps are left out");
+		/* (the Xbox's own tag cache, by the page tables, as a map loads: xbox_ce_files.c) */
+		if (xbox_ce_alias_install())
+		{
+			platform_ce_tag_cache_ready = 1;
+			xbox_boot_log("custom edition: a 64 MB console, its tag cache the Xbox's, %lu KB free",
+				xbox_memory_free() >> 10);
+		}
+		else
+			xbox_boot_log("custom edition: no tag cache on this 64 MB console, its maps are left out");
 		return;
 	}
 	address = VirtualAlloc((void *)0x40440000UL, 0x01700000UL, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);

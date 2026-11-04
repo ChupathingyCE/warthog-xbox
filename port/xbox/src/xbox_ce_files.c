@@ -168,6 +168,8 @@ static long vertex_block_count, vertex_block_capacity;
 static unsigned long vertex_logged;
 
 void platform_log(const char *format, ...);
+extern int platform_ce_alias;
+unsigned long ce_resources_allocate(unsigned long size);
 
 LPVOID WINAPI xbox_ce_vertex_alloc(
 	SIZE_T size,
@@ -184,6 +186,14 @@ LPVOID WINAPI xbox_ce_vertex_alloc(
 	(void)protect;
 	if (bytes < size)
 		return NULL;
+	/* (a 64 MB console: the range is the tag cache's, so the room the loader keeps below
+	the BSPs is, in order: a block of it, at the cache's own address, which the GPU reads) */
+	if (platform_ce_alias)
+	{
+		unsigned long room = ce_resources_allocate(bytes);
+
+		return room ? (LPVOID)(XBOX_CE_VERTEX_BASE + (room - 0x40440000UL)) : NULL;
+	}
 	if (vertex_block_count == vertex_block_capacity)
 	{
 		long capacity = vertex_block_capacity ? vertex_block_capacity * 2 : 1024;
@@ -224,6 +234,11 @@ VOID WINAPI xbox_ce_vertex_free(
 	unsigned long offset = (unsigned long)address - XBOX_CE_VERTEX_BASE;
 	long low = 0, high = vertex_block_count - 1;
 
+	/* (the loader's room is given back as the loader does: a level's with it, a map's
+	when it goes) */
+	if (platform_ce_alias)
+		return;
+
 	while (low <= high)
 	{
 		long middle = (low + high) / 2;
@@ -240,4 +255,386 @@ VOID WINAPI xbox_ce_vertex_free(
 		else
 			high = middle - 1;
 	}
+}
+
+/* ---------- a 64 MB console: Custom Edition's tag cache on the Xbox's */
+
+/* A 64 MB console has no room for a second tag cache. Custom Edition maps are
+linked to 0x40440000, 23 MB; the Xbox's own tag cache at 0x803A6000, 22 MB, is idle
+while one is loaded. So the range is made the Xbox tag cache's own pages, by the page
+tables (the kernel keeps them at 0xC0000000, its directory's own entry at 0xC0300000):
+the bottom of the range on the bottom of the cache, the map's structure BSPs at the
+top of the range on the top of the cache, and a megabyte between them that is no
+memory at all (platform_ce_room_end: what the loader may fill below the BSPs). Tried
+alone on a console first (warthog-ce-alias-poc). */
+
+#define CE_ALIAS_BASE 0x40440000UL
+#define CE_ALIAS_SIZE 0x01700000UL
+#define CE_ALIAS_CACHE 0x803A6000UL
+#define CE_ALIAS_CACHE_SIZE 0x01600000UL
+#define CE_ALIAS_PAGE 0x1000UL
+#define CE_ALIAS_PTE_BASE 0xC0000000UL
+#define CE_ALIAS_PDE_BASE 0xC0300000UL
+/* (present, writable, accessed, dirty: as the kernel's own) */
+#define CE_ALIAS_PTE_FLAGS 0x63UL
+#define CE_ALIAS_FIRST_PDE (CE_ALIAS_BASE >> 22)
+#define CE_ALIAS_PDE_COUNT (((CE_ALIAS_BASE + CE_ALIAS_SIZE - 1) >> 22) - CE_ALIAS_FIRST_PDE + 1)
+
+ULONG_PTR __stdcall MmGetPhysicalAddress(PVOID address);
+unsigned long ce_resources_allocate(unsigned long size);
+
+/* 1 once the range is the tag cache's (the loader asks: cache_files.c, ce_map_checks.c) */
+int platform_ce_alias = 0;
+
+static unsigned long *ce_alias_tables;
+static unsigned long ce_alias_physical;
+
+static void ce_alias_flush(void)
+{
+	__asm__ volatile("mov %%cr3, %%eax\n\tmov %%eax, %%cr3" : : : "eax", "memory");
+}
+
+static void ce_alias_map(unsigned long address, unsigned long bytes, unsigned long cache_offset)
+{
+	unsigned long page;
+
+	for (page = 0; page < bytes / CE_ALIAS_PAGE; page++)
+	{
+		ce_alias_tables[(address - (CE_ALIAS_FIRST_PDE << 22)) / CE_ALIAS_PAGE + page] =
+			(ce_alias_physical + cache_offset + page * CE_ALIAS_PAGE) | CE_ALIAS_PTE_FLAGS;
+	}
+}
+
+static void ce_alias_unmap(unsigned long address, unsigned long bytes)
+{
+	memset(&ce_alias_tables[(address - (CE_ALIAS_FIRST_PDE << 22)) / CE_ALIAS_PAGE], 0, bytes / CE_ALIAS_PAGE * 4);
+}
+
+/* the page tables for the range, once: 1 if it can be the tag cache's. Anything
+unexpected stops it before a page table is written */
+int xbox_ce_alias_install(void)
+{
+	volatile unsigned long *directory = (volatile unsigned long *)CE_ALIAS_PDE_BASE;
+	unsigned long cr3, index;
+
+	if (platform_ce_alias)
+		return 1;
+	__asm__ volatile("mov %%cr3, %0" : "=r"(cr3));
+	if ((directory[CE_ALIAS_PTE_BASE >> 22] & ~0xFFFUL) != (cr3 & ~0xFFFUL))
+	{
+		platform_log("custom edition: the page tables aren't where they're expected; no tag cache");
+		return 0;
+	}
+	for (index = 0; index < CE_ALIAS_PDE_COUNT; index++)
+	{
+		if (directory[CE_ALIAS_FIRST_PDE + index] & 1)
+		{
+			platform_log("custom edition: 0x40440000 is in use; no tag cache");
+			return 0;
+		}
+	}
+	/* (so the kernel gives nothing else out of it) */
+	if (VirtualAlloc((void *)CE_ALIAS_BASE, CE_ALIAS_SIZE, MEM_RESERVE, PAGE_READWRITE) != (void *)CE_ALIAS_BASE)
+	{
+		platform_log("custom edition: 0x40440000 could not be reserved; no tag cache");
+		return 0;
+	}
+	ce_alias_tables = (unsigned long *)XPhysicalAlloc(CE_ALIAS_PDE_COUNT * CE_ALIAS_PAGE, MAXULONG_PTR, CE_ALIAS_PAGE,
+		PAGE_READWRITE);
+	if (!ce_alias_tables)
+	{
+		platform_log("custom edition: no memory for the page tables; no tag cache");
+		return 0;
+	}
+	memset(ce_alias_tables, 0, CE_ALIAS_PDE_COUNT * CE_ALIAS_PAGE);
+	ce_alias_physical = MmGetPhysicalAddress((void *)CE_ALIAS_CACHE);
+	for (index = 0; index < CE_ALIAS_PDE_COUNT; index++)
+	{
+		directory[CE_ALIAS_FIRST_PDE + index] =
+			MmGetPhysicalAddress((unsigned char *)ce_alias_tables + index * CE_ALIAS_PAGE) | CE_ALIAS_PTE_FLAGS;
+	}
+	ce_alias_flush();
+	platform_ce_alias = 1;
+	platform_log("custom edition: its tag cache is the Xbox's (physical %08lx), by the page tables", ce_alias_physical);
+	return 1;
+}
+
+/* a map about to load: the range's first 22 MB the tag cache's, in order (its
+BSPs' window comes once they're known: platform_ce_room_end) */
+void xbox_ce_alias_whole(void)
+{
+	if (!platform_ce_alias)
+		return;
+	ce_alias_unmap(CE_ALIAS_BASE, CE_ALIAS_SIZE);
+	ce_alias_map(CE_ALIAS_BASE, CE_ALIAS_CACHE_SIZE, 0);
+	ce_alias_flush();
+}
+
+/* the lowest of a map's BSPs' bases (the room below them the loader fills): the
+BSPs' window made, the top of the range on the top of the tag cache, and the end of
+what may be filled below it, a megabyte lower (where there's no memory). The same
+for the same map, as often as it's asked */
+unsigned long platform_ce_room_end(unsigned long end_free)
+{
+	unsigned long first, top = CE_ALIAS_BASE + CE_ALIAS_SIZE;
+	unsigned long gap = CE_ALIAS_SIZE - CE_ALIAS_CACHE_SIZE;
+
+	if (!platform_ce_alias)
+		return end_free;
+	first = end_free & ~(CE_ALIAS_PAGE - 1);
+	if (first < CE_ALIAS_BASE + gap)
+		first = CE_ALIAS_BASE + gap;
+	if (first > top)
+		first = top;
+	ce_alias_unmap(first - gap, top - (first - gap));
+	ce_alias_map(first, top - first, first - gap - CE_ALIAS_BASE);
+	ce_alias_flush();
+	return first - gap;
+}
+
+/* ---------- a 64 MB console: what a map's load needs for a while */
+
+/* The loader's checks, its sounds' decoding and its model data take more than a 64 MB
+console has free (a model data block of 9 MB, a level's BSP read whole to check it,
+an Ogg Vorbis stream decoded). While a Custom Edition map loads, those come out of the
+texture cache's own memory, lent as the game lends it for a movie
+(texture_cache_steal_memory), and go back once the map is loaded, before anything is
+drawn of it. ce_map_checks.c, ce_resources.c and ce_vorbis.c's malloc, realloc and free
+are these (port/xbox/build.py); outside a load, the heap's. */
+
+void *texture_cache_steal_memory(long size);
+void texture_cache_return_memory(void);
+unsigned char texture_cache_memory_stolen(void);
+long texture_cache_stealable_size(void);
+
+#define SCRATCH_ALIGNMENT 16UL
+
+static unsigned char *scratch_base;
+static unsigned long scratch_size;
+static struct vertex_block *scratch_blocks;
+static long scratch_count, scratch_capacity;
+static unsigned long scratch_high;
+/* (what a load lent, after it's given back: a block of it freed late is let be) */
+static unsigned char *scratch_last_base;
+static unsigned long scratch_last_size;
+
+
+void xbox_ce_scratch_begin(void)
+{
+	if (!platform_ce_alias || scratch_base || texture_cache_memory_stolen())
+		return;
+	/* (all the cache lends) */
+	scratch_size = (unsigned long)texture_cache_stealable_size();
+	scratch_base = (unsigned char *)texture_cache_steal_memory((long)scratch_size);
+	scratch_count = 0;
+	scratch_high = 0;
+	if (!scratch_base)
+		scratch_size = 0;
+}
+
+void xbox_ce_scratch_end(void)
+{
+	if (!scratch_base)
+		return;
+	if (scratch_count)
+		platform_log("custom edition: %ld blocks of the load's memory still in use as it's given back", scratch_count);
+	platform_log("custom edition: the load took %lu KB of the texture cache's %lu KB, and gave it back", scratch_high >> 10,
+		scratch_size >> 10);
+	/* (the borrowed memory was the CPU's cached memory, the texture cache's is
+	write-combined: what the load left in the CPU's caches written out now, or
+	it's written out later, over textures loaded there since) */
+	__asm__ volatile("wbinvd" : : : "memory");
+	scratch_last_base = scratch_base;
+	scratch_last_size = scratch_size;
+	scratch_base = NULL;
+	scratch_count = 0;
+	texture_cache_return_memory();
+}
+
+static int scratch_owns(void *address)
+{
+	return scratch_base && (unsigned char *)address >= scratch_base && (unsigned char *)address < scratch_base + scratch_size;
+}
+
+static int scratch_owned(void *address)
+{
+	return scratch_last_base && (unsigned char *)address >= scratch_last_base &&
+		(unsigned char *)address < scratch_last_base + scratch_last_size;
+}
+
+void *xbox_ce_heap_realloc(void *address, size_t size)
+{
+	return realloc(address, size);
+}
+
+void *xbox_ce_scratch_malloc(size_t size)
+{
+	unsigned long bytes = ((unsigned long)size + SCRATCH_ALIGNMENT - 1) & ~(SCRATCH_ALIGNMENT - 1);
+	unsigned long offset = 0;
+	long index;
+
+	if (!scratch_base)
+		return malloc(size);
+	if (!bytes)
+		bytes = SCRATCH_ALIGNMENT;
+	if (scratch_count == scratch_capacity)
+	{
+		long capacity = scratch_capacity ? scratch_capacity * 2 : 256;
+		struct vertex_block *grown = (struct vertex_block *)realloc(scratch_blocks, capacity * sizeof(*grown));
+
+		if (!grown)
+			return NULL;
+		scratch_blocks = grown;
+		scratch_capacity = capacity;
+	}
+	for (index = 0; index < scratch_count; index++)
+	{
+		if (scratch_blocks[index].offset - offset >= bytes)
+			break;
+		offset = scratch_blocks[index].offset + scratch_blocks[index].size;
+	}
+	if (bytes > scratch_size - offset)
+	{
+		platform_log("custom edition: %lu bytes past what the load has (%lu KB)", (unsigned long)size, scratch_size >> 10);
+		return NULL;
+	}
+	memmove(&scratch_blocks[index + 1], &scratch_blocks[index], (scratch_count - index) * sizeof(*scratch_blocks));
+	scratch_blocks[index].offset = offset;
+	scratch_blocks[index].size = bytes;
+	scratch_count++;
+	if (offset + bytes > scratch_high)
+		scratch_high = offset + bytes;
+	return scratch_base + offset;
+}
+
+static long scratch_find(void *address)
+{
+	unsigned long offset = (unsigned long)((unsigned char *)address - scratch_base);
+	long low = 0, high = scratch_count - 1;
+
+	while (low <= high)
+	{
+		long middle = (low + high) / 2;
+
+		if (scratch_blocks[middle].offset == offset)
+			return middle;
+		if (scratch_blocks[middle].offset < offset)
+			low = middle + 1;
+		else
+			high = middle - 1;
+	}
+	return -1;
+}
+
+void xbox_ce_scratch_free(void *address)
+{
+	long index;
+
+	if (!address)
+		return;
+	if (!scratch_owns(address))
+	{
+		if (scratch_owned(address))
+		{
+			platform_log("custom edition: a block of a load's memory freed after it was given back");
+			return;
+		}
+		free(address);
+		return;
+	}
+	index = scratch_find(address);
+	if (index < 0)
+		return;
+	memmove(&scratch_blocks[index], &scratch_blocks[index + 1], (scratch_count - index - 1) * sizeof(*scratch_blocks));
+	scratch_count--;
+}
+
+void *xbox_ce_scratch_realloc(void *address, size_t size)
+{
+	long index;
+	void *moved;
+
+	if (!address)
+		return xbox_ce_scratch_malloc(size);
+	if (!scratch_owns(address))
+		return realloc(address, size);
+	index = scratch_find(address);
+	if (index < 0)
+		return NULL;
+	/* (the last block, or one with room after it, grows where it is) */
+	{
+		unsigned long bytes = ((unsigned long)size + SCRATCH_ALIGNMENT - 1) & ~(SCRATCH_ALIGNMENT - 1);
+		unsigned long limit = index + 1 < scratch_count ? scratch_blocks[index + 1].offset : scratch_size;
+
+		if (scratch_blocks[index].offset + bytes <= limit)
+		{
+			scratch_blocks[index].size = bytes;
+			if (scratch_blocks[index].offset + bytes > scratch_high)
+				scratch_high = scratch_blocks[index].offset + bytes;
+			return address;
+		}
+	}
+	moved = xbox_ce_scratch_malloc(size);
+	if (!moved)
+		return NULL;
+	index = scratch_find(address);
+	memcpy(moved, address, scratch_blocks[index].size < size ? scratch_blocks[index].size : size);
+	xbox_ce_scratch_free(address);
+	return moved;
+}
+
+/* a map's load begun and ended (cache_files.c): the range made whole, the texture
+cache's memory lent, and given back */
+void xbox_ce_load_begin(void)
+{
+	xbox_ce_alias_whole();
+	xbox_ce_scratch_begin();
+}
+
+void xbox_ce_load_end(void)
+{
+	xbox_ce_scratch_end();
+}
+
+/* the game's heap (cseries.h's malloc) in ce_map_checks.c and ce_resources.c:
+the same, a block of it the game's own outside a load */
+void *debug_malloc(unsigned int size, unsigned char clear, const char *file, long line);
+void debug_free(void *pointer, const char *file, long line);
+void *debug_realloc(void *pointer, unsigned int size, const char *file, long line);
+
+void *xbox_ce_debug_malloc(unsigned int size, unsigned char clear, const char *file, long line)
+{
+	void *address;
+
+	if (!scratch_base)
+		return debug_malloc(size, clear, file, line);
+	address = xbox_ce_scratch_malloc(size);
+	if (address && clear)
+		memset(address, 0, size);
+	return address;
+}
+
+void xbox_ce_debug_free(void *pointer, const char *file, long line)
+{
+	if (!pointer)
+		return;
+	if (scratch_owns(pointer) || scratch_owned(pointer))
+		xbox_ce_scratch_free(pointer);
+	else
+		debug_free(pointer, file, line);
+}
+
+void *xbox_ce_debug_realloc(void *pointer, unsigned int size, const char *file, long line)
+{
+	void *moved;
+
+	if (!pointer)
+		return xbox_ce_debug_malloc(size, 0, file, line);
+	if (scratch_owns(pointer))
+		return xbox_ce_scratch_realloc(pointer, size);
+	if (!scratch_base)
+		return debug_realloc(pointer, size, file, line);
+	/* (a block of the game's heap grown during a load: there still) */
+	moved = debug_realloc(pointer, size, file, line);
+	return moved;
 }

@@ -22,6 +22,9 @@ int console_memory_extras(void);
 /* every section's maps (ce.h: 0), the archive's multiplayer, AI, modified and
 single player maps alike */
 #define MAPS_SECTION 0
+
+/* the Custom Edition list's search ("": none), read by the thread's page job */
+static char maps_query[64];
 /* (http's read buffer is on it, and a detail's url and paths) */
 #define MAPS_STACK_SIZE (128 * 1024)
 
@@ -35,7 +38,8 @@ enum
 	JOB_REMOVE_DETAIL,
 	JOB_INSTALL_PACK,
 	JOB_REMOVE_PACK,
-	JOB_PICTURE
+	JOB_PICTURE,
+	JOB_INSTALL_NAMED
 };
 
 volatile long xbox_maps_cancel;
@@ -61,6 +65,8 @@ static struct
 	int picture_serial;
 	/* as it goes, read by the main thread */
 	char progress_name[64];
+	/* the map a named install is of */
+	char named[64];
 	volatile unsigned long done, total_bytes;
 } maps;
 
@@ -92,7 +98,7 @@ static DWORD WINAPI maps_thread(LPVOID parameter)
 	switch (maps.job)
 	{
 	case JOB_PAGE:
-		maps.row_count = ce_fetch_page(MAPS_BASE, MAPS_SECTION, maps.offset, XBOX_MAPS_ROWS, maps.rows, XBOX_MAPS_ROWS,
+		maps.row_count = ce_fetch_page(MAPS_BASE, MAPS_SECTION, maps_query, maps.offset, XBOX_MAPS_ROWS, maps.rows, XBOX_MAPS_ROWS,
 			&maps.total, error, sizeof(error));
 		result = maps.row_count >= 0;
 		if (!result)
@@ -139,6 +145,27 @@ static DWORD WINAPI maps_thread(LPVOID parameter)
 		if (result)
 			snprintf(maps.status, sizeof(maps.status), "Removed.");
 		break;
+	case JOB_INSTALL_NAMED:
+		/* (a game's map, by its name: the map index's copy, checked as any) */
+		result = ce_fetch_map(MAPS_BASE, maps.named, &maps.detail, error, sizeof(error));
+		if (result && !maps.detail.maps[0].ready)
+		{
+			snprintf(error, sizeof(error), "%s isn't on the mirror yet.", maps.detail.maps[0].file);
+			result = 0;
+		}
+		if (result && !console_memory_extras() && maps.detail.maps[0].fits64 == 0)
+		{
+			snprintf(error, sizeof(error), "%s won't fit on a 64 MB console.", maps.detail.maps[0].file);
+			result = 0;
+		}
+		if (result)
+		{
+			strncpy(maps.progress_name, maps.detail.maps[0].file, sizeof(maps.progress_name) - 1);
+			result = ce_install(MAPS_BASE, MAPS_GAME, &maps.detail, maps_ce_progress, NULL, error, sizeof(error));
+		}
+		if (result)
+			snprintf(maps.status, sizeof(maps.status), "Installed %s.", maps.detail.maps[0].file);
+		break;
 	case JOB_PICTURE:
 		/* (a map with no picture is no error: its box says so) */
 		if (ce_fetch_picture(MAPS_BASE, maps.detail.fid, maps.detail.picture, maps.picture, XBOX_MAPS_PICTURE_WIDTH,
@@ -154,7 +181,7 @@ static DWORD WINAPI maps_thread(LPVOID parameter)
 		}
 		break;
 	}
-	if (result && (maps.job == JOB_INSTALL_DETAIL || maps.job == JOB_REMOVE_DETAIL || maps.job == JOB_INSTALL_PACK ||
+	if (result && (maps.job == JOB_INSTALL_DETAIL || maps.job == JOB_INSTALL_NAMED || maps.job == JOB_REMOVE_DETAIL || maps.job == JOB_INSTALL_PACK ||
 		maps.job == JOB_REMOVE_PACK))
 	{
 		maps.failed = 0;
@@ -238,12 +265,25 @@ char const *xbox_maps_status(int *failed, int *serial)
 
 int xbox_maps_progress(char *name, int name_size, unsigned long *done, unsigned long *total)
 {
-	if (!maps_busy || (maps.job != JOB_INSTALL_DETAIL && maps.job != JOB_INSTALL_PACK))
+	if (!maps_busy || (maps.job != JOB_INSTALL_DETAIL && maps.job != JOB_INSTALL_PACK && maps.job != JOB_INSTALL_NAMED))
 		return 0;
 	snprintf(name, name_size, "%s", maps.progress_name);
 	*done = maps.done;
 	*total = maps.total_bytes;
 	return 1;
+}
+
+void xbox_maps_set_query(char const *query)
+{
+	if (maps_busy)
+		return;
+	strncpy(maps_query, query ? query : "", sizeof(maps_query) - 1);
+	maps_query[sizeof(maps_query) - 1] = 0;
+}
+
+char const *xbox_maps_query(void)
+{
+	return maps_query;
 }
 
 int xbox_maps_load_page(int offset)
@@ -252,6 +292,15 @@ int xbox_maps_load_page(int offset)
 		return 0;
 	maps.offset = offset;
 	return maps_start(JOB_PAGE);
+}
+
+int xbox_maps_install_named(char const *file)
+{
+	if (maps_busy)
+		return 0;
+	strncpy(maps.named, file, sizeof(maps.named) - 1);
+	maps.named[sizeof(maps.named) - 1] = 0;
+	return maps_start(JOB_INSTALL_NAMED);
 }
 
 int xbox_maps_load_detail(long fid)

@@ -58,10 +58,14 @@ typedef struct
 
 /* a page of archive entries with maps on the mirror (section 10: halo ce
 maps): how many, -1 with why. total is every such entry */
-int ce_fetch_page(const char *base, int section, int offset, int count, ce_entry *out, int max, int *total,
+int ce_fetch_page(const char *base, int section, const char *query, int offset, int count, ce_entry *out, int max,
+	int *total,
 	char *error, int error_size);
 /* one entry's description and maps */
 int ce_fetch_detail(const char *base, long fid, ce_detail *out, char *error, int error_size);
+/* a map by its file's name ("ndugu.map", or without .map), from the store's map
+index (the one a game being joined needs), as an entry of that one map */
+int ce_fetch_map(const char *base, const char *file, ce_detail *out, char *error, int error_size);
 /* its maps here? (MAP_INSTALLED, MAP_OUTDATED for some of them, MAP_MISSING) */
 void ce_check(const char *game, ce_detail *detail);
 

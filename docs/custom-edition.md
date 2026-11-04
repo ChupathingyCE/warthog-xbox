@@ -13,8 +13,8 @@ maps, mirrored), and Online Games lists the Custom Edition games hosted on
 the desktop builds and the dedicated servers, so the console can join them.
 
 `port/xbox/FEATURES.md` listed Custom Edition maps as cut for memory and
-storage on 2026-10-19. This is the case for putting them back, on a console
-of 128 MB for now.
+storage on 2026-10-19. This is the case for putting them back: on a console
+of 128 MB, and, experimentally, on a stock 64 MB one.
 
 ## What was tested
 
@@ -33,29 +33,61 @@ In xemu 0.8.139, 128 MB, with the retail kernel:
   Xbox's; a join of one (ndugu, a dedicated server on network version 32)
   into its lobby and a game, over internet play.
 
-Not tested: a real console (only xemu), a 64 MB console, the HUD's button
-icons (`ui.map` has none this reads: a warning), joining a host of network
-version 41 from this version 32 build.
+In xemu at 64 MB (2026-11-03), experimental:
+
+- ndugu and Ctf 1 loaded and played, the snow, lightmaps and HUD as at 128 MB.
+- Online Games: Warman World (ndugu, a dedicated server now on network
+  version 41) listed, its map missing, downloaded from the store as the
+  join offered it, and joined into a game.
+- The Map Browser's search.
+
+Not tested: a real console (only xemu; the page tables' layout on retail
+hardware is what `warthog-ce-alias-poc` checks first), the HUD's button icons
+(`ui.map` has none this reads: a warning), large maps at 64 MB (their models
+and BSP vertices now share the tag cache: some won't fit, and are refused
+saying so).
 
 ## How it works
 
 **The tag cache.** Custom Edition maps are linked to a tag cache of their own
 at `0x40440000`, 23 MB. On a console above 64 MB, `src/xbox_memory.c` makes
 it there with `VirtualAlloc` once the caches are made
-(`platform_ce_tag_cache_ready`). A 64 MB console has no room for a second tag
-cache, and its maps are left out of the menus' list.
+(`platform_ce_tag_cache_ready`).
 
-For 64 MB, the way is known and was tried alone: the range at `0x40440000`
-aliased onto the Xbox tag cache's own physical pages by writing the page
-tables (the kernel maps them at `0xC0000000`), a map's tags at the bottom of
-the range and its BSP at the top, on the same 22 MB, which a Custom Edition
-map never uses at the same time as an Xbox map. A probe XBE did exactly that
-in xemu at 64 MB: the two addresses read and wrote the same memory both ways,
-disk reads went into the alias, and four real maps' own pointers (about 9,700
-tags, their BSPs at the top of the range) all resolved, with no fixups. Not
-in this branch: `cache_files.c` clears the whole 23 MB as a map loads, and
-`ce_map_checks.c` takes a 23 MB image of it to check it, both of which a
-64 MB console needs done another way first.
+**A 64 MB console** has no room for a second tag cache, so the range is the
+Xbox tag cache's own, which holds nothing while a Custom Edition map is
+loaded (`src/xbox_ce_files.c`, tried alone first in `warthog-ce-alias-poc`):
+
+- **The page tables.** The range at `0x40440000` is mapped onto the Xbox tag
+  cache's physical pages (the kernel's page tables at `0xC0000000`, its
+  directory's own entry checked against CR3 before anything is written). Its
+  bottom 22 MB are the cache's pages in order as a map loads; once the
+  lowest BSP base is known, the top of the range is moved onto the top of
+  the cache, and the megabyte between is left unmapped:
+  `platform_ce_room_end` holds the loader's room (`ce_resources.c`) below it.
+  A Custom Edition map's BSPs sit at the top of its 23 MB; every map read
+  this way resolved with no fixups.
+- **The checks, as it loads.** `ce_map_checks.c` checked a map as it opened
+  in a 23 MB image of the tag cache. At 64 MB a map opens unchecked in the
+  menus (whose `ui.map` is in the tag cache then) and is checked in the tag
+  cache itself as it loads (`ce_map_check_deferred`), then read again.
+- **Memory lent for the load.** The checks, the 7 MB model data block and
+  the Ogg Vorbis decoding take more than a 64 MB console has free. For the
+  load, their `malloc` (the game's `debug_malloc`, and the C runtime's in
+  `ce_vorbis.c`, renamed per file in `build.py`) is the texture cache's
+  memory, lent as the game lends it for a movie
+  (`texture_cache_steal_memory`), and returned (the CPU's caches written out
+  first) before anything of the map is drawn. ndugu's load took 6.9 MB of
+  17 MB.
+- **Vertices in the room.** The converted model and BSP vertices come from
+  the loader's room below the BSPs, at the cache's own address, and the
+  checks count them (`ce_bsp.c`, `ce_models.c`), so a map too large is
+  refused with "too big for the game's tag cache".
+- **No copies.** The bitmaps' layout (below) copied each one; with no memory
+  for the copy, the Xbox's order is made in place: a bitmap's index bits
+  swapped two at a time, a cube map's blocks rotated into place. The map
+  hash reads 16 KB at a time (`map_archive.c`, the same hash), and the
+  desktop game list comes into the list thread's stack.
 
 **The converted vertices.** `ce_bsp.c` and `ce_models.c` ask for a block of
 contiguous memory for each model part and BSP material (`XPhysicalAlloc`).
@@ -97,7 +129,7 @@ code over the menus on Online Games' hooks (`game/xbox_maps_screen.c`). Two
 lists, White or Black between them:
 
 - **Custom Edition**: the archive's entries with a map on the mirror, a page
-  at a time, with each one's screenshot (the store's DXT1, decoded into a
+  at a time (X searches titles and authors, with the game's keyboard), with each one's screenshot (the store's DXT1, decoded into a
   texture of the screen's), author, date, size, the tag space it needs, and
   its description. A installs into `D:\maps_ce`, each map checked against the
   signed list's BLAKE2b as it comes; Y removes.
@@ -120,6 +152,11 @@ a console that plays them, `src/xbox_game_list.c` asks the desktop list too
 (`game_list_add_custom_edition`). They show as `<map> (CE)`, every game type
 (CTF, Slayer, King of the Hill, Race...).
 
+A game whose Custom Edition map isn't on the console offers it first (MAP
+NEEDED): A downloads it from the store's map index by its file's name
+(`/api/mapindex/maps?name=`, `ce_fetch_map`), checked against its BLAKE2b,
+and joins the game once it's in `D:\maps_ce`.
+
 ## Bugs found on the way
 
 - **lld fills code sections with 0xCC** (a Linux build, LLVM 22.1.8): the
@@ -138,6 +175,13 @@ a console that plays them, `src/xbox_game_list.c` asks the desktop list too
   `game_list_parse_response` refused any larger than `GAME_LIST_RESPONSE_SIZE`
   (10 KB); it's now held to what came.
 
+- **A failed hash was another version.** At 64 MB the map hash's 256 KB
+  buffer couldn't be had, and a join said the console's map was another
+  version than the host's: it's now read 16 KB at a time.
+- **A bitmap with no memory to lay out was drawn in Halo PC's order** (HUD
+  meters speckled, a level's light in blocks, snow dark). Now laid out in
+  place.
+
 ## Building
 
 As `docs/building.md` says. On Linux, its "Linux" section: the SDK's names
@@ -146,9 +190,11 @@ made case-blind once (`tools/xdk_case_links.py`), and the link's own fix
 
 ## What's left
 
-- A 64 MB console (above: the alias, and the loader's two 23 MB needs).
-- A real console.
-- Downloading a missing map as a join asks for it (the desktop builds' map
-  repositories), and HaloMD maps.
+- A real console, 64 MB above all.
+- A map the host changes to in the lobby that isn't here (the offer is made
+  only as a game is joined), and HaloMD maps.
+- Custom Edition's resource maps from its installer
+  (`halocesetup_en_1.00.exe`, the desktop builds' `ce_installer.c`), at boot
+  before the caches are made, where a 64 MB console has the memory.
 - DXT multipurpose maps' channels; the HUD's button icons on Custom Edition
   maps.

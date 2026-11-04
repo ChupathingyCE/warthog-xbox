@@ -22,6 +22,7 @@ browser's thread's (port/xbox/browser/xbox_maps.c): the menus go on while it run
 #include "bitmaps/bitmap_group.h"
 #include "input/input.h"
 #include "interface/event_manager.h"
+#include "interface/virtual_keyboard.h"
 #include "interface/ui_widget.h"
 #include "rasterizer/rasterizer.h"
 #include "text/draw_string.h"
@@ -34,8 +35,6 @@ browser's thread's (port/xbox/browser/xbox_maps.c): the menus go on while it run
 
 /* (ui_widget.c's) */
 long ui_widget_online_games_font(boolean heading);
-/* (halo_console_memory.h's: whether a console has the memory for Custom Edition maps) */
-int console_memory_extras(void);
 /* (xbox_texture_cache.c's) */
 void texture_cache_map_browser_bitmap(struct bitmap_data *bitmap, void *pixels, short size);
 
@@ -135,6 +134,11 @@ static struct
 	int picture_serial;
 	long picture_fid;
 	short picture_width, picture_height;
+	/* the search (X, the game's keyboard): what's typed, the words the list is
+	of ("": the whole archive), and whether the keyboard is up for it */
+	wchar_t search_text[32];
+	char query[32];
+	boolean searching;
 	/* the description, broken into lines for the font, for one entry */
 	long wrapped_fid;
 	char wrapped[DESCRIPTION_LINES][DESCRIPTION_LINE_LENGTH];
@@ -266,6 +270,7 @@ static void run_wanted(
 	take_detail();
 	if (maps_screen.want_page)
 	{
+		xbox_maps_set_query(maps_screen.query);
 		if (xbox_maps_load_page(maps_screen.ce_offset))
 		{
 			maps_screen.want_page = FALSE;
@@ -403,6 +408,33 @@ static void move_pack(
 	}
 }
 
+/* the search's words from what the keyboard took (the store's are ASCII) */
+static void take_search(
+	void)
+{
+	char query[sizeof(maps_screen.query)];
+	short in, out = 0;
+
+	for (in = 0; maps_screen.search_text[in] && out < (short)sizeof(query) - 1; in++)
+	{
+		wchar_t c = maps_screen.search_text[in];
+
+		if (c >= 0x20 && c < 0x7f)
+			query[out++] = (char)c;
+	}
+	/* (the spaces before and after dropped) */
+	while (out && query[out - 1] == ' ')
+		out--;
+	query[out] = 0;
+	for (in = 0; query[in] == ' '; in++)
+		;
+	if (!strcmp(maps_screen.query, query + in))
+		return;
+	strncpy(maps_screen.query, query + in, sizeof(maps_screen.query) - 1);
+	maps_screen.query[sizeof(maps_screen.query) - 1] = 0;
+	to_page(0, 0);
+}
+
 static void switch_tab(
 	short tab)
 {
@@ -440,6 +472,7 @@ void maps_screen_open(
 	maps_screen.picture_fid = 0;
 	maps_screen.wrapped_fid = 0;
 	maps_screen.tab = XBOX_MAPS_TAB_CE;
+	maps_screen.searching = FALSE;
 	event_manager_flush();
 }
 
@@ -449,6 +482,14 @@ void maps_screen_process(
 	struct event_record event;
 	short move = 0;
 
+	/* (the keyboard put away: its words searched for, if it was done) */
+	if (maps_screen.searching && !virtual_keyboard_active())
+	{
+		maps_screen.searching = FALSE;
+		if (virtual_keyboard_last_exit_saved_text())
+			take_search();
+		event_manager_flush();
+	}
 	while (maps_screen.active && get_next_event(&event, NONE))
 	{
 		if (event.type == _maps_event_left_stick)
@@ -513,11 +554,30 @@ void maps_screen_process(
 				}
 				break;
 			case _gamepad_analog_button_x:
-				ui_play_audio_feedback_sound(_maps_sound_forward);
+				/* (on the Custom Edition list, a search: the game's keyboard,
+				with the words searched for last) */
 				if (maps_screen.tab == XBOX_MAPS_TAB_CE)
-					maps_screen.want_page = TRUE;
+				{
+					if (settled)
+					{
+						short index;
+
+						for (index = 0; maps_screen.query[index] && index < 31; index++)
+							maps_screen.search_text[index] = (wchar_t)(unsigned char)maps_screen.query[index];
+						maps_screen.search_text[index] = 0;
+						maps_screen.searching = virtual_keyboard_launch_plain(maps_screen.search_text,
+							sizeof(maps_screen.search_text), L"SEARCH MAPS");
+						if (!maps_screen.searching)
+							ui_play_audio_feedback_sound(_maps_sound_back);
+						else
+							return;
+					}
+				}
 				else
+				{
+					ui_play_audio_feedback_sound(_maps_sound_forward);
 					maps_screen.want_packs = TRUE;
+				}
 				break;
 			case _gamepad_analog_button_b:
 				ui_play_audio_feedback_sound(_maps_sound_back);
@@ -528,6 +588,12 @@ void maps_screen_process(
 					/* (B stops a download; with none, goes back) */
 					if (xbox_maps_progress(name, sizeof(name), &done, &total))
 						xbox_maps_stop();
+					/* (and a search, the whole archive again) */
+					else if (maps_screen.tab == XBOX_MAPS_TAB_CE && maps_screen.query[0])
+					{
+						maps_screen.query[0] = 0;
+						to_page(0, 0);
+					}
 					else
 					{
 						maps_screen.active = FALSE;
@@ -856,10 +922,17 @@ static void draw_under_list(
 	{
 		text(font, _justify_left, failed ? note_color : good_color, SCREEN_LEFT + CELL_INSET, y, SCREEN_RIGHT - 130, y1, status);
 	}
-	else if (!console_memory_extras())
+	else if (maps_screen.tab == XBOX_MAPS_TAB_CE && maps_screen.query[0])
 	{
-		text(font, _justify_left, note_color, SCREEN_LEFT + CELL_INSET, y, SCREEN_RIGHT - 130, y1,
-			"Custom Edition maps play on a 128 MB console for now.");
+		int count, total;
+		char searched[80];
+
+		xbox_maps_rows(&count, &total);
+		if (maps_screen.want_page || xbox_maps_busy())
+			snprintf(searched, sizeof(searched), "Searching for \"%s\"...", maps_screen.query);
+		else
+			snprintf(searched, sizeof(searched), "\"%s\": %d found", maps_screen.query, total);
+		text(font, _justify_left, good_color, SCREEN_LEFT + CELL_INSET, y, SCREEN_RIGHT - 130, y1, searched);
 	}
 	snprintf(line, sizeof(line), "PAGE %d OF %d", page + 1, pages < 1 ? 1 : pages);
 	text(font, _justify_right, head_color, SCREEN_LEFT, y, SCREEN_RIGHT - CELL_INSET, y1, line);
@@ -905,7 +978,8 @@ static void draw_ce(
 	if (!count)
 	{
 		text(font, _justify_center, dim_color, SCREEN_LEFT, LIST_TOP + ROW_HEIGHT * 2, SCREEN_RIGHT, LIST_TOP + ROW_HEIGHT * 3,
-			"Getting the archive...");
+			maps_screen.query[0] && !maps_screen.want_page && !xbox_maps_busy() ?
+				"No maps found. X searches again, B shows them all." : "Getting the archive...");
 	}
 	for (row = 0; !maps_screen.want_page && row < count && row < XBOX_MAPS_ROWS; row++)
 	{
@@ -1098,6 +1172,9 @@ void maps_screen_render(
 	real_argb_color title_color, head_color, text_color, dim_color, note_color, good_color, dark_color;
 	short x = SCREEN_LEFT + CELL_INSET, y = PROMPT_TOP + 2;
 
+	/* (the search's keyboard drawn instead, by the menus) */
+	if (virtual_keyboard_active())
+		return;
 	set_color(&title_color, 1.0f, 0.24f, 0.55f, 1.0f);
 	set_color(&head_color, 1.0f, 0.5f, 0.69f, 1.0f);
 	set_color(&text_color, 1.0f, 0.9f, 0.93f, 0.99f);
@@ -1119,9 +1196,11 @@ void maps_screen_render(
 
 	x = draw_button(font, x, y, COLOR_BUTTON_A, "A", "Install", &dark_color, &text_color);
 	x = draw_button(font, x, y, COLOR_BUTTON_Y, "Y", "Remove", &dark_color, &text_color);
-	x = draw_button(font, x, y, COLOR_BUTTON_X, "X", "Refresh", &dark_color, &text_color);
+	x = draw_button(font, x, y, COLOR_BUTTON_X, "X", maps_screen.tab == XBOX_MAPS_TAB_CE ? "Search" : "Refresh",
+		&dark_color, &text_color);
 	x = draw_button(font, x, y, COLOR_BUTTON_WHITE, "W", "Tab", &dark_color, &text_color);
-	x = draw_button(font, x, y, COLOR_BUTTON_B, "B", "Back", &dark_color, &text_color);
+	x = draw_button(font, x, y, COLOR_BUTTON_B, "B",
+		maps_screen.tab == XBOX_MAPS_TAB_CE && maps_screen.query[0] ? "All maps" : "Back", &dark_color, &text_color);
 
 	draw_busy(font, &title_color, &text_color, &dim_color);
 }

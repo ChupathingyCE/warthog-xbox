@@ -419,6 +419,16 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
         # (a Custom Edition map's converted vertices: port/xbox/src/xbox_ce_files.c)
         vertex_flags = ["-DXPhysicalAlloc=xbox_ce_vertex_alloc", "-DXPhysicalFree=xbox_ce_vertex_free"] \
             if name in ("ce_bsp.c", "ce_models.c") else []
+        # (and on a 64 MB console, what a map's load takes a while out of the
+        # texture cache's memory, lent: the same file)
+        # (the game's heap, cseries.h's malloc, in two; the C runtime's in the
+        # decoder)
+        if name in ("ce_map_checks.c", "ce_resources.c"):
+            vertex_flags = ["-Ddebug_malloc=xbox_ce_debug_malloc", "-Ddebug_realloc=xbox_ce_debug_realloc",
+                            "-Ddebug_free=xbox_ce_debug_free"]
+        if name == "ce_vorbis.c":
+            vertex_flags = ["-Dmalloc=xbox_ce_scratch_malloc", "-Drealloc=xbox_ce_scratch_realloc",
+                            "-Dfree=xbox_ce_scratch_free"]
         add_object(game / PORT_LINUX_GAME / name, " ".join(["-std=gnu89", game_cflags, *PORT_DATA_FLAGS, *vertex_flags]),
                    [semantics_header, prefix_header])
 

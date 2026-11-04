@@ -50,9 +50,13 @@ list itself is the fetch's one copy (xbox_game_list_get).
 #include "../include/xbox_game_list.h"
 #include "../include/xbox_direct_join.h"
 #include "console_link_panel.h"
+#include "halo_map_families.h"
+#include "../browser/xbox_maps.h"
 
 /* (xbox_maps_screen.c's: the Map Browser, over these hooks) */
 boolean maps_screen_active(void);
+/* (ui_map_list.c's: whether the console has a game's map) */
+boolean ui_map_list_map_present(char const *map);
 void maps_screen_process(void);
 void maps_screen_render(void);
 static void browser_screen_render_list(void);
@@ -177,6 +181,13 @@ static struct
 	boolean connecting;
 	char connecting_invite[GAME_LIST_INVITE_LENGTH + 1];
 	unsigned long connecting_time;
+	/* a game picked whose Custom Edition map isn't here: its map offered from
+	the store (the map index, by its file's name), then the game joined */
+	boolean offer;
+	boolean offer_downloading;
+	char offer_invite[GAME_LIST_INVITE_LENGTH + 1];
+	char offer_name[GAME_LIST_NAME_LENGTH + 1];
+	char offer_file[GAME_LIST_MAP_LENGTH + 8];
 } browser_screen;
 
 /* ---------- private code */
@@ -302,6 +313,94 @@ static void join_invite(
 	error(_error_log, "online games: joining %s (invite %.8s...)", name, invite);
 }
 
+/* a game's map, if it's a Custom Edition map this console doesn't have: its
+file's name ("ndugu.map") in file, 1 */
+static int missing_ce_map(
+	struct game_list_game const *game,
+	char *file,
+	int size)
+{
+	char name[GAME_LIST_MAP_LENGTH + 1];
+
+	if (map_family_parse_listed(game->map, name, sizeof(name)) != _map_family_custom_edition || !name[0] ||
+		ui_map_list_map_present(game->map))
+	{
+		return 0;
+	}
+	snprintf(file, size, "%s.map", name);
+	return 1;
+}
+
+/* the offer: put up for a game, its download started (A), and given up (B: a
+download under way stopped) */
+static void offer_open(
+	struct game_list_game const *game,
+	char const *file)
+{
+	browser_screen.offer = TRUE;
+	browser_screen.offer_downloading = FALSE;
+	csstrncpy(browser_screen.offer_invite, game->invite, GAME_LIST_INVITE_LENGTH);
+	browser_screen.offer_invite[GAME_LIST_INVITE_LENGTH] = 0;
+	csstrncpy(browser_screen.offer_name, game->name, GAME_LIST_NAME_LENGTH);
+	browser_screen.offer_name[GAME_LIST_NAME_LENGTH] = 0;
+	csstrncpy(browser_screen.offer_file, file, sizeof(browser_screen.offer_file) - 1);
+	browser_screen.offer_file[sizeof(browser_screen.offer_file) - 1] = 0;
+	error(_error_log, "online games: %s needs %s, which isn't here: offered", game->name, file);
+}
+
+static void offer_start(
+	void)
+{
+	if (browser_screen.offer_downloading || xbox_maps_busy())
+		return;
+	if (!xbox_maps_open() || !xbox_maps_install_named(browser_screen.offer_file))
+	{
+		set_status("No memory to download the map.");
+		browser_screen.offer = FALSE;
+		return;
+	}
+	browser_screen.offer_downloading = TRUE;
+	error(_error_log, "online games: downloading %s from the store", browser_screen.offer_file);
+}
+
+static void offer_close(
+	void)
+{
+	if (browser_screen.offer_downloading && xbox_maps_busy())
+	{
+		/* (stopped; the screen closed once it has) */
+		xbox_maps_stop();
+		return;
+	}
+	if (browser_screen.offer_downloading)
+		xbox_maps_close();
+	browser_screen.offer = FALSE;
+	browser_screen.offer_downloading = FALSE;
+}
+
+/* a download done: the game joined, or why not said */
+static void offer_update(
+	void)
+{
+	int failed = 0;
+	char const *status;
+
+	if (!browser_screen.offer || !browser_screen.offer_downloading || xbox_maps_busy())
+		return;
+	status = xbox_maps_status(&failed, NULL);
+	xbox_maps_close();
+	browser_screen.offer = FALSE;
+	browser_screen.offer_downloading = FALSE;
+	if (failed)
+	{
+		set_status(status[0] ? status : "The map didn't download.");
+		error(_error_log, "online games: %s didn't download: %s", browser_screen.offer_file, status);
+		return;
+	}
+	error(_error_log, "online games: %s downloaded; joining %s", browser_screen.offer_file, browser_screen.offer_name);
+	join_invite(browser_screen.offer_invite, browser_screen.offer_name);
+}
+
 /* the picked game's host: its game joined once it is advertised, and its
 lobby opened */
 static void wait_for_host(
@@ -366,6 +465,8 @@ void browser_screen_open(
 	/* (the list, as it came at the start or last time; a fresh one asked for) */
 	browser_screen.lists = 0;
 	browser_screen.connecting = FALSE;
+	browser_screen.offer = FALSE;
+	browser_screen.offer_downloading = FALSE;
 	{
 		char invite[XBOX_DIRECT_JOIN_INVITE_LENGTH + 1];
 
@@ -428,7 +529,24 @@ void browser_screen_process(
 	}
 
 	take_list();
-	while (browser_screen.active && get_next_event(&event, NONE))
+	offer_update();
+	/* (the offer, over the list, takes the buttons) */
+	while (browser_screen.active && browser_screen.offer && get_next_event(&event, NONE))
+	{
+		if (event.type != _browser_event_button)
+			continue;
+		if (event.data.button.index == _gamepad_analog_button_a && !browser_screen.offer_downloading)
+		{
+			ui_play_audio_feedback_sound(_browser_sound_forward);
+			offer_start();
+		}
+		else if (event.data.button.index == _gamepad_analog_button_b)
+		{
+			ui_play_audio_feedback_sound(_browser_sound_back);
+			offer_close();
+		}
+	}
+	while (browser_screen.active && !browser_screen.offer && get_next_event(&event, NONE))
 	{
 		/* (the event manager sends a held button every frame: a d-pad
 		direction held steps at the menus' pace, held_move; every other
@@ -469,10 +587,14 @@ void browser_screen_process(
 					selected_game())
 				{
 					struct game_list_game const *game = selected_game();
+					char file[GAME_LIST_MAP_LENGTH + 8];
 
 					ui_play_audio_feedback_sound(_browser_sound_forward);
 					if (strcmp(game->state, "open"))
 						set_status("That game is not accepting players.");
+					/* (a Custom Edition map that isn't here: offered first) */
+					else if (missing_ce_map(game, file, sizeof(file)))
+						offer_open(game, file);
 					else
 						join_invite(game->invite, game->name);
 				}
@@ -708,6 +830,69 @@ static void draw_details(
 #undef DETAIL_LINE
 }
 
+/* the offer: a panel over the list, its question or its download's progress */
+static void draw_offer(
+	long font,
+	long heading_font)
+{
+	real_argb_color title_color, text_color, dim_color;
+	short height = line_height(font) + 4;
+	short x0 = SCREEN_LEFT + 40, x1 = SCREEN_RIGHT - 40, y0 = 150, y1 = 330;
+	short y = y0 + 14;
+	char line[128];
+
+	set_color(&title_color, 1.0f, 0.55f, 0.75f, 1.0f);
+	set_color(&text_color, 1.0f, 0.93f, 0.95f, 1.0f);
+	set_color(&dim_color, 1.0f, 0.6f, 0.68f, 0.82f);
+	quad(0, 0, 640, 480, 0xA0000000);
+	quad(x0, y0, x1, y1, COLOR_HEADER);
+	quad(x0, y0, x1, y0 + 2, COLOR_RULE);
+	text(heading_font != NONE ? heading_font : font, _justify_left, &title_color, x0 + 14, y, x1 - 14, y + height + 6,
+		"MAP NEEDED");
+	y += height + 10;
+	snprintf(line, sizeof(line), "%s plays %s,", browser_screen.offer_name, browser_screen.offer_file);
+	text(font, _justify_left, &text_color, x0 + 14, y, x1 - 14, y + height, line);
+	y += height;
+	text(font, _justify_left, &text_color, x0 + 14, y, x1 - 14, y + height, "which isn't on this Xbox.");
+	y += height + 8;
+	if (!browser_screen.offer_downloading)
+	{
+		text(font, _justify_left, &dim_color, x0 + 14, y, x1 - 14, y + height,
+			"Download it from xboxhomebrew.store and join?");
+	}
+	else
+	{
+		char name[64];
+		unsigned long done = 0, total = 0;
+
+		if (xbox_maps_progress(name, sizeof(name), &done, &total) && total)
+		{
+			short bar = (short)(x0 + 14 + (unsigned long)(x1 - x0 - 28) * (done / 1024) / (total / 1024 ? total / 1024 : 1));
+
+			snprintf(line, sizeof(line), "Downloading %s: %lu of %lu KB", name[0] ? name : browser_screen.offer_file,
+				done >> 10, total >> 10);
+			text(font, _justify_left, &dim_color, x0 + 14, y, x1 - 14, y + height, line);
+			quad(x0 + 14, y + height + 4, x1 - 14, y + height + 12, COLOR_PICTURE);
+			quad(x0 + 14, y + height + 4, bar, y + height + 12, COLOR_RULE);
+		}
+		else
+			text(font, _justify_left, &dim_color, x0 + 14, y, x1 - 14, y + height, "Finding it on the store...");
+	}
+	if (font != NONE)
+	{
+		rectangle2d bounds;
+
+		bounds.x0 = x0 + 14;
+		bounds.y0 = y1 - height - 10;
+		bounds.x1 = x1 - 14;
+		bounds.y1 = y1 - 6;
+		draw_string_set_draw_mode(font, NONE, _justify_left, 0, &text_color);
+		draw_string_and_hack_in_icons(&bounds, &bounds, NULL, 0,
+			browser_screen.offer_downloading ? L"%b-button Stop" : L"%a-button Download and join     %b-button Cancel",
+			FALSE);
+	}
+}
+
 void browser_screen_render(
 	void)
 {
@@ -861,6 +1046,8 @@ static void browser_screen_render_list(
 				L"%a-button Join     %x-button Refresh     %start-button Delta Profile     %b-button Back", FALSE);
 	}
 	console_link_panel_render(font, heading_font);
+	if (browser_screen.offer)
+		draw_offer(font, heading_font);
 }
 
 /* ---------- moderation

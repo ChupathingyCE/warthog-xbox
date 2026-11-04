@@ -137,6 +137,247 @@ static void ce_swizzle_level(
 	}
 }
 
+/* the same in place, with no memory of its own (a 64 MB console in a game has no
+128 KB to spare for a copy of a HUD meter, nor any for a level's lightmaps, which
+were then drawn in Halo PC's order: speckled, and the level's light in blocks).
+The Xbox's order is the linear index's bits put in another order (ce_morton), so
+it's made by swapping two of the index's bits at a time, each a pass of swapped
+pixels, at most one per bit. 0 if it couldn't (a size that isn't a power of two) */
+static boolean ce_power_of_two(
+	long value)
+{
+	return value > 0 && !(value & (value - 1));
+}
+
+static short ce_log2(
+	unsigned long value)
+{
+	short bits = 0;
+
+	while (value > 1)
+	{
+		value >>= 1;
+		bits++;
+	}
+	return bits;
+}
+
+static void ce_swap_index_bits(
+	byte *pixels,
+	unsigned long count,
+	short low,
+	short high,
+	long pixel_bytes)
+{
+	unsigned long mask = (1UL << low) | (1UL << high);
+	unsigned long index;
+
+	for (index = 0; index < count; index++)
+	{
+		unsigned long other;
+
+		/* (each pair once: the one with the low bit set and the high one clear) */
+		if (!(index & (1UL << low)) || (index & (1UL << high)))
+			continue;
+		other = index ^ mask;
+		switch (pixel_bytes)
+		{
+		case 4:
+		{
+			unsigned long held = ((unsigned long *)pixels)[index];
+
+			((unsigned long *)pixels)[index] = ((unsigned long *)pixels)[other];
+			((unsigned long *)pixels)[other] = held;
+			break;
+		}
+		case 2:
+		{
+			unsigned short held = ((unsigned short *)pixels)[index];
+
+			((unsigned short *)pixels)[index] = ((unsigned short *)pixels)[other];
+			((unsigned short *)pixels)[other] = held;
+			break;
+		}
+		default:
+		{
+			byte held = pixels[index];
+
+			pixels[index] = pixels[other];
+			pixels[other] = held;
+			break;
+		}
+		}
+	}
+}
+
+static boolean ce_swizzle_level_in_place(
+	byte *pixels,
+	long width,
+	long height,
+	long depth,
+	long pixel_bytes)
+{
+	/* where each of the linear index's bits goes (to[bit]), and which of them is at
+	each place now (at[place]) */
+	short to[32], at[32], bits, bit, place;
+	short x_bits, y_bits, z_bits;
+	unsigned long count;
+
+	if (!ce_power_of_two(width) || !ce_power_of_two(height) || !ce_power_of_two(depth))
+		return FALSE;
+	x_bits = ce_log2((unsigned long)width);
+	y_bits = ce_log2((unsigned long)height);
+	z_bits = ce_log2((unsigned long)depth);
+	bits = (short)(x_bits + y_bits + z_bits);
+	count = 1UL << bits;
+	/* (ce_morton's: x, y and z's bits in turn, while each has any) */
+	{
+		short x = 0, y = 0, z = 0, next = 0;
+
+		while (x < x_bits || y < y_bits || z < z_bits)
+		{
+			if (x < x_bits)
+				to[x++] = next++;
+			if (y < y_bits)
+				to[x_bits + y++] = next++;
+			if (z < z_bits)
+				to[x_bits + y_bits + z++] = next++;
+		}
+	}
+	for (place = 0; place < bits; place++)
+		at[place] = place;
+	for (bit = 0; bit < bits; bit++)
+	{
+		short now = 0;
+
+		for (place = 0; place < bits; place++)
+		{
+			if (at[place] == bit)
+				now = place;
+		}
+		if (now != to[bit])
+		{
+			short low = now < to[bit] ? now : to[bit];
+			short high = now < to[bit] ? to[bit] : now;
+			short displaced = at[to[bit]];
+
+			ce_swap_index_bits(pixels, count, low, high, pixel_bytes);
+			at[to[bit]] = bit;
+			at[now] = displaced;
+		}
+	}
+	return TRUE;
+}
+
+/* a cube map's levels and faces in place, with no copy: Halo PC's each level with
+its six faces (the second and third the Xbox's third and second), the Xbox's each
+face with its levels, a face_stride apart. Each block brought to its place in
+turn by rotating it there (three reversals), then the faces spread to their
+stride, each level's pixels laid out (swizzle, uncompressed). Slow (a pass for
+each of its blocks), and only for a console that has no memory for the copy */
+enum
+{
+	CE_MAXIMUM_CUBE_LEVELS = 16,
+};
+
+static void ce_reverse(
+	byte *start,
+	byte *end)
+{
+	while (start < --end)
+	{
+		byte held = *start;
+
+		*start++ = *end;
+		*end = held;
+	}
+}
+
+static void ce_rotate(
+	byte *start,
+	byte *middle,
+	byte *end)
+{
+	if (start == middle || middle == end)
+		return;
+	ce_reverse(start, middle);
+	ce_reverse(middle, end);
+	ce_reverse(start, end);
+}
+
+static boolean ce_cube_in_place(
+	byte *pixels,
+	short levels,
+	long const *level_bytes,
+	long const *widths,
+	long const *heights,
+	long face_stride,
+	long pixel_bytes)
+{
+	/* the blocks in the order they're in now: each its face (the Xbox's) and level */
+	short face_of[CE_FACES * CE_MAXIMUM_CUBE_LEVELS], level_of[CE_FACES * CE_MAXIMUM_CUBE_LEVELS];
+	short count = 0, placed = 0, face, level, index;
+	long cursor = 0, face_bytes = 0;
+
+	if (levels < 1 || levels > CE_MAXIMUM_CUBE_LEVELS)
+		return FALSE;
+	for (level = 0; level < levels; level++)
+	{
+		short pc_face;
+
+		face_bytes += level_bytes[level];
+		for (pc_face = 0; pc_face < CE_FACES; pc_face++)
+		{
+			face_of[count] = pc_face == 1 ? 2 : pc_face == 2 ? 1 : pc_face;
+			level_of[count] = level;
+			count++;
+		}
+	}
+	if (face_stride < face_bytes)
+		return FALSE;
+	for (face = 0; face < CE_FACES; face++)
+	{
+		for (level = 0; level < levels; level++)
+		{
+			long offset = cursor;
+
+			/* (where it is among those not placed yet) */
+			for (index = placed; index < count && (face_of[index] != face || level_of[index] != level); index++)
+				offset += level_bytes[level_of[index]];
+			if (index == count)
+				return FALSE;
+			ce_rotate(pixels + cursor, pixels + offset, pixels + offset + level_bytes[level]);
+			for (; index > placed; index--)
+			{
+				face_of[index] = face_of[index - 1];
+				level_of[index] = level_of[index - 1];
+			}
+			face_of[placed] = face;
+			level_of[placed] = level;
+			placed++;
+			cursor += level_bytes[level];
+		}
+	}
+	/* (each face at its stride: the last first, as each moves up) */
+	for (face = CE_FACES - 1; face > 0 && face_stride > face_bytes; face--)
+		memmove(pixels + face * face_stride, pixels + face * face_bytes, face_bytes);
+	if (pixel_bytes == 1 || pixel_bytes == 2 || pixel_bytes == 4)
+	{
+		for (face = 0; face < CE_FACES; face++)
+		{
+			long offset = face * face_stride;
+
+			for (level = 0; level < levels; level++)
+			{
+				if (!ce_swizzle_level_in_place(pixels + offset, widths[level], heights[level], 1, pixel_bytes))
+					return FALSE;
+				offset += level_bytes[level];
+			}
+		}
+	}
+	return TRUE;
+}
+
 /* a level of one face (or of the whole bitmap) as the Xbox has it */
 static void ce_put_level(
 	byte *destination,
@@ -186,6 +427,24 @@ static void ce_bitmap_channels(
 	}
 }
 
+/* (the large ones said, as each is laid out: what's drawn wrong on a console short
+of memory is then in the log) */
+char const *tag_get_name(long tag_index);
+
+static void ce_bitmap_said(
+	struct bitmap_data const *bitmap,
+	long bytes,
+	char const *how)
+{
+	static long said;
+
+	if (bytes < 128 * 1024 || ++said > 64)
+		return;
+	error(_error_silent, "Custom Edition bitmap %s: %dx%dx%d, format %d, type %d, %ld bytes: %s",
+		bitmap->tag_index != NONE ? tag_get_name(bitmap->tag_index) : "(none)", bitmap->width, bitmap->height,
+		bitmap->depth, bitmap->format, bitmap->type, bytes, how);
+}
+
 void xbox_ce_bitmap_loaded(
 	struct bitmap_data *bitmap)
 {
@@ -198,13 +457,71 @@ void xbox_ce_bitmap_loaded(
 	short level;
 
 	if (TEST_FLAG(bitmap->flags, _bitmap_linear_bit))
+	{
+		ce_bitmap_said(bitmap, source_size, "linear, left");
 		return;
+	}
 	/* (nothing moves in a compressed bitmap that isn't a cube map) */
 	if (TEST_FLAG(bitmap->flags, _bitmap_compressed_bit) && bitmap->type != _bitmap_type_cube_map)
 		return;
 	source = (byte *)malloc(source_size);
+	/* (no memory for the copy: a bitmap that isn't a cube map each level in place,
+	slower, reading the texture cache's uncached memory a pass a bit) */
+	if (!source && bitmap->type != _bitmap_type_cube_map)
+	{
+		long pixel_bytes = bitmap_format_get_bits_per_pixel(bitmap->format) / 8;
+		long offset = 0;
+		boolean done = pixel_bytes == 1 || pixel_bytes == 2 || pixel_bytes == 4;
+
+		for (level = 0; done && level <= levels; level++)
+		{
+			long level_bytes = bitmap_mipmap_get_pixel_data_size(bitmap, level);
+
+			done = ce_swizzle_level_in_place(pixels + offset, bitmap_mipmap_get_width(bitmap, level),
+				bitmap_mipmap_get_height(bitmap, level),
+				bitmap->type == _bitmap_type_3d ? bitmap_mipmap_get_depth(bitmap, level) : 1, pixel_bytes);
+			offset += level_bytes;
+		}
+		/* (the first level couldn't be: the copy, as before; a later one can't
+		fail with the first done) */
+		if (done || level > 1)
+		{
+			static long in_place;
+
+			/* (said for the first few: the log says it happened) */
+			if (++in_place <= 3)
+				error(_error_silent, "Custom Edition maps: a bitmap of %ld bytes laid out in place (no memory for a copy)",
+					source_size);
+			ce_bitmap_said(bitmap, source_size, done ? "in place" : "in place, a level of it not");
+			ce_bitmap_channels(bitmap, size);
+			__asm__ volatile("sfence");
+			return;
+		}
+	}
+	/* (no memory for the copy of a cube map: its blocks moved in place) */
+	if (!source && bitmap->type == _bitmap_type_cube_map && levels + 1 <= CE_MAXIMUM_CUBE_LEVELS)
+	{
+		long level_bytes[CE_MAXIMUM_CUBE_LEVELS], widths[CE_MAXIMUM_CUBE_LEVELS], heights[CE_MAXIMUM_CUBE_LEVELS];
+		boolean compressed = TEST_FLAG(bitmap->flags, _bitmap_compressed_bit);
+
+		for (level = 0; level <= levels; level++)
+		{
+			level_bytes[level] = bitmap_mipmap_get_pixel_data_size(bitmap, level) / CE_FACES;
+			widths[level] = bitmap_mipmap_get_width(bitmap, level);
+			heights[level] = bitmap_mipmap_get_height(bitmap, level);
+		}
+		if (ce_cube_in_place(pixels, (short)(levels + 1), level_bytes, widths, heights, size / CE_FACES,
+			compressed ? 0 : bitmap_format_get_bits_per_pixel(bitmap->format) / 8))
+		{
+			ce_bitmap_said(bitmap, source_size, "cube map, in place");
+			ce_bitmap_channels(bitmap, size);
+			__asm__ volatile("sfence");
+			return;
+		}
+	}
 	if (!source)
 	{
+		ce_bitmap_said(bitmap, source_size, "NOT laid out (no memory)");
 		if (!reported)
 			error(_error_silent, "Custom Edition maps: no memory to lay out a bitmap of %ld bytes", source_size);
 		reported = TRUE;
@@ -247,6 +564,7 @@ void xbox_ce_bitmap_loaded(
 		}
 	}
 	free(source);
+	ce_bitmap_said(bitmap, source_size, "copied");
 	ce_bitmap_channels(bitmap, size);
 	__asm__ volatile("sfence");
 }

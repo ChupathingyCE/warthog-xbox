@@ -23,17 +23,23 @@ extern volatile long xbox_maps_cancel;
 #define JSON_MAX (96 * 1024)
 #define TOKENS_MAX 2048
 
+// a map index lookup's answer is a single map (about 1.5k): a 64 MB console in a game's
+// menus has no 128k to spare for a page's buffers
+#define JSON_SMALL_MAX (16 * 1024)
+#define TOKENS_SMALL_MAX 384
+
 typedef struct
 {
 	char *text;
 	int length;
+	int size;
 } json_buffer;
 
 static int json_body(const char *data, int length, void *context)
 {
 	json_buffer *b = (json_buffer *)context;
 
-	if (b->length + length >= JSON_MAX)
+	if (b->length + length >= b->size)
 		return 0;
 	memcpy(b->text + b->length, data, length);
 	b->length += length;
@@ -42,30 +48,37 @@ static int json_body(const char *data, int length, void *context)
 }
 
 /* GET url as json into d (the caller frees *text and *tokens) */
-static int fetch_json(const char *url, json_doc *d, char **text, jsmntok_t **tokens, char *error, int error_size)
+static int fetch_json_sized(const char *url, json_doc *d, char **text, jsmntok_t **tokens, int text_max,
+	int tokens_max, char *error, int error_size)
 {
 	json_buffer b;
 	int status;
 
-	*text = (char *)malloc(JSON_MAX);
-	*tokens = (jsmntok_t *)malloc(sizeof(jsmntok_t) * TOKENS_MAX);
+	*text = (char *)malloc(text_max);
+	*tokens = (jsmntok_t *)malloc(sizeof(jsmntok_t) * tokens_max);
 	if (!*text || !*tokens)
 	{
 		snprintf(error, error_size, "out of memory");
 		return 0;
 	}
 	b.text = *text;
+	b.size = text_max;
 	b.length = 0;
 	b.text[0] = 0;
 	status = http_get(url, NULL, json_body, &b, error, error_size);
 	if (status != 200)
 		return 0;
-	if (json_parse(d, b.text, b.length, *tokens, TOKENS_MAX) < 1)
+	if (json_parse(d, b.text, b.length, *tokens, tokens_max) < 1)
 	{
 		snprintf(error, error_size, "the server's answer wasn't json");
 		return 0;
 	}
 	return 1;
+}
+
+static int fetch_json(const char *url, json_doc *d, char **text, jsmntok_t **tokens, char *error, int error_size)
+{
+	return fetch_json_sized(url, d, text, tokens, JSON_MAX, TOKENS_MAX, error, error_size);
 }
 
 // true / false / null as 1 / 0 / -1
@@ -76,22 +89,26 @@ static int fits_value(const json_doc *d, int i)
 	return d->js[d->t[i].start] == 't' ? 1 : d->js[d->t[i].start] == 'f' ? 0 : -1;
 }
 
-int ce_fetch_page(const char *base, int section, int offset, int count, ce_entry *out, int max, int *total,
-	char *error, int error_size)
+static void url_encode(const char *s, char *out, int size);
+
+int ce_fetch_page(const char *base, int section, const char *query, int offset, int count, ce_entry *out, int max,
+	int *total, char *error, int error_size)
 {
-	char url[256], *text = NULL;
+	char url[384], q[128], *text = NULL;
 	jsmntok_t *tokens = NULL;
 	json_doc d;
 	int items, n = 0, i;
 
 	// onlyMaps: entries w a .map on the mirror, in any section (a store from before it
 	// takes onlyFiles: entries w anything to download). section 0: all of them
+	// query: the store's search, of titles and authors ("" or NULL: none)
+	url_encode(query ? query : "", q, sizeof(q));
 	if (section > 0)
-		snprintf(url, sizeof(url), "%s/api/archive/halomaps/hce/files?onlyMaps=1&onlyFiles=1&section=%d&sort=newest&offset=%d&count=%d",
-			base, section, offset, count);
+		snprintf(url, sizeof(url), "%s/api/archive/halomaps/hce/files?onlyMaps=1&onlyFiles=1&section=%d&sort=newest&offset=%d&count=%d%s%s",
+			base, section, offset, count, q[0] ? "&q=" : "", q);
 	else
-		snprintf(url, sizeof(url), "%s/api/archive/halomaps/hce/files?onlyMaps=1&onlyFiles=1&sort=newest&offset=%d&count=%d",
-			base, offset, count);
+		snprintf(url, sizeof(url), "%s/api/archive/halomaps/hce/files?onlyMaps=1&onlyFiles=1&sort=newest&offset=%d&count=%d%s%s",
+			base, offset, count, q[0] ? "&q=" : "", q);
 	if (!fetch_json(url, &d, &text, &tokens, error, error_size))
 	{
 		free(text);
@@ -171,6 +188,51 @@ int ce_fetch_detail(const char *base, long fid, ce_detail *out, char *error, int
 	}
 	free(text);
 	free(tokens);
+	return 1;
+}
+
+int ce_fetch_map(const char *base, const char *file, ce_detail *out, char *error, int error_size)
+{
+	char url[256], name[96], *text = NULL;
+	jsmntok_t *tokens = NULL;
+	json_doc d;
+	ce_map *m = &out->maps[0];
+	int fit, info;
+
+	memset(out, 0, sizeof(*out));
+	url_encode(file, name, sizeof(name));
+	snprintf(url, sizeof(url), "%s/api/mapindex/maps?name=%s", base, name);
+	if (!fetch_json_sized(url, &d, &text, &tokens, JSON_SMALL_MAX, TOKENS_SMALL_MAX, error, error_size))
+	{
+		free(text);
+		free(tokens);
+		return 0;
+	}
+	json_text(&d, json_get(&d, 0, "file"), m->file, sizeof(m->file));
+	m->size = (unsigned long)json_long(&d, json_get(&d, 0, "size"));
+	json_text(&d, json_get(&d, 0, "blake2b"), m->blake2b, sizeof(m->blake2b));
+	json_text(&d, json_get(&d, 0, "checksum"), m->checksum, sizeof(m->checksum));
+	// (the map index's: a copy on the mirror to download)
+	m->ready = json_true(&d, json_get(&d, 0, "seededHere")) == 1;
+	json_text(&d, json_get(&d, 0, "download"), m->download, sizeof(m->download));
+	fit = json_get(&d, 0, "fit");
+	m->fits64 = fit >= 0 ? fits_value(&d, json_get(&d, fit, "fits64")) : -1;
+	m->needs = fit >= 0 ? (unsigned long)json_long(&d, json_get(&d, fit, "needs")) : 0;
+	info = json_get(&d, 0, "info");
+	if (info >= 0)
+	{
+		out->fid = json_long(&d, json_get(&d, info, "fid"));
+		json_text(&d, json_get(&d, info, "title"), out->title, sizeof(out->title));
+		json_text(&d, json_get(&d, info, "author"), out->author, sizeof(out->author));
+	}
+	free(text);
+	free(tokens);
+	if (!m->file[0] || strpbrk(m->file, "\\/:") || strlen(m->blake2b) != 64)
+	{
+		snprintf(error, error_size, "the store's answer for %s isn't a map", file);
+		return 0;
+	}
+	out->map_count = 1;
 	return 1;
 }
 

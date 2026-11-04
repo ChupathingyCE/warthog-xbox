@@ -38,12 +38,19 @@ int xbox_maps_progress(char *name, int name_size, unsigned long *done, unsigned 
 
 /* each starts its job, or 0 if one is under way */
 int xbox_maps_load_page(int offset);
+/* the Custom Edition list's search, of titles and authors ("": none), for the pages
+loaded after (not while a job is under way) */
+void xbox_maps_set_query(char const *query);
+char const *xbox_maps_query(void);
 int xbox_maps_load_detail(long fid);
 int xbox_maps_load_packs(void);
 /* the detail's picture, on a console with the memory for it */
 int xbox_maps_load_picture(void);
 int xbox_maps_install_detail(void);
 int xbox_maps_remove_detail(void);
+/* a map by its file's name, from the store's map index, into maps_ce: the map a
+game being joined needs (Online Games: xbox_browser_screen.c) */
+int xbox_maps_install_named(char const *file);
 int xbox_maps_install_pack(int index);
 int xbox_maps_remove_pack(int index);
 /* a transfer under way stopped */
