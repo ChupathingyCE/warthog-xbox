@@ -412,7 +412,8 @@ int ce_install(const char *base, const char *game, ce_detail *detail, ce_progres
 		if (!m->ready || !m->download[0])
 			continue;
 		map_path(game, m, path, sizeof(path));
-		snprintf(url, sizeof(url), "%s%s", base, m->download);
+		/* (the file over plain http: the hash it must have came over https) */
+		http_plain_url(url, sizeof(url), base, m->download);
 		d.file = fopen(path, "wb");
 		if (!d.file)
 		{

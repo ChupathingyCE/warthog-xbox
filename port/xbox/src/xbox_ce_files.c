@@ -361,7 +361,7 @@ int xbox_ce_alias_install(void)
 
 /* a map about to load: the range's first 22 MB the tag cache's, in order (its
 BSPs' window comes once they're known: platform_ce_room_end) */
-void xbox_ce_alias_whole(void)
+void platform_ce_alias_whole(void)
 {
 	if (!platform_ce_alias)
 		return;
@@ -462,12 +462,12 @@ static int scratch_owned(void *address)
 		(unsigned char *)address < scratch_last_base + scratch_last_size;
 }
 
-void *xbox_ce_heap_realloc(void *address, size_t size)
+void *platform_ce_heap_realloc(void *address, size_t size)
 {
 	return realloc(address, size);
 }
 
-void *xbox_ce_scratch_malloc(size_t size)
+void *platform_ce_scratch_malloc(size_t size)
 {
 	unsigned long bytes = ((unsigned long)size + SCRATCH_ALIGNMENT - 1) & ~(SCRATCH_ALIGNMENT - 1);
 	unsigned long offset = 0;
@@ -526,7 +526,7 @@ static long scratch_find(void *address)
 	return -1;
 }
 
-void xbox_ce_scratch_free(void *address)
+void platform_ce_scratch_free(void *address)
 {
 	long index;
 
@@ -549,13 +549,13 @@ void xbox_ce_scratch_free(void *address)
 	scratch_count--;
 }
 
-void *xbox_ce_scratch_realloc(void *address, size_t size)
+void *platform_ce_scratch_realloc(void *address, size_t size)
 {
 	long index;
 	void *moved;
 
 	if (!address)
-		return xbox_ce_scratch_malloc(size);
+		return platform_ce_scratch_malloc(size);
 	if (!scratch_owns(address))
 		return realloc(address, size);
 	index = scratch_find(address);
@@ -574,24 +574,24 @@ void *xbox_ce_scratch_realloc(void *address, size_t size)
 			return address;
 		}
 	}
-	moved = xbox_ce_scratch_malloc(size);
+	moved = platform_ce_scratch_malloc(size);
 	if (!moved)
 		return NULL;
 	index = scratch_find(address);
 	memcpy(moved, address, scratch_blocks[index].size < size ? scratch_blocks[index].size : size);
-	xbox_ce_scratch_free(address);
+	platform_ce_scratch_free(address);
 	return moved;
 }
 
 /* a map's load begun and ended (cache_files.c): the range made whole, the texture
 cache's memory lent, and given back */
-void xbox_ce_load_begin(void)
+void platform_ce_load_begin(void)
 {
-	xbox_ce_alias_whole();
+	platform_ce_alias_whole();
 	xbox_ce_scratch_begin();
 }
 
-void xbox_ce_load_end(void)
+void platform_ce_load_end(void)
 {
 	xbox_ce_scratch_end();
 }
@@ -608,7 +608,7 @@ void *xbox_ce_debug_malloc(unsigned int size, unsigned char clear, const char *f
 
 	if (!scratch_base)
 		return debug_malloc(size, clear, file, line);
-	address = xbox_ce_scratch_malloc(size);
+	address = platform_ce_scratch_malloc(size);
 	if (address && clear)
 		memset(address, 0, size);
 	return address;
@@ -619,7 +619,7 @@ void xbox_ce_debug_free(void *pointer, const char *file, long line)
 	if (!pointer)
 		return;
 	if (scratch_owns(pointer) || scratch_owned(pointer))
-		xbox_ce_scratch_free(pointer);
+		platform_ce_scratch_free(pointer);
 	else
 		debug_free(pointer, file, line);
 }
@@ -631,7 +631,7 @@ void *xbox_ce_debug_realloc(void *pointer, unsigned int size, const char *file, 
 	if (!pointer)
 		return xbox_ce_debug_malloc(size, 0, file, line);
 	if (scratch_owns(pointer))
-		return xbox_ce_scratch_realloc(pointer, size);
+		return platform_ce_scratch_realloc(pointer, size);
 	if (!scratch_base)
 		return debug_realloc(pointer, size, file, line);
 	/* (a block of the game's heap grown during a load: there still) */

@@ -205,13 +205,18 @@ XBOX_PORT_GAME_SOURCES = [
     # (HALO_CONSOLE_GAME_REPORTS)
     "game_stats.c",
     # Custom Edition maps (HALO_CUSTOM_EDITION, below): their tag cache is the
-    # Xbox's memory at their own addresses (src/xbox_ce_memory.c)
+    # Xbox's memory at their own addresses (src/xbox_memory.c, src/xbox_ce_files.c)
     "ce_bsp.c", "ce_functions.c", "ce_hud.c", "ce_map_checks.c", "ce_models.c", "ce_repairs.c", "ce_resources.c",
     "ce_vorbis.c",
+    # Stubbs the Zombie's mode (stubbs_mode_active, which the scripts' compiler
+    # asks): the game's since chupathingyce 95871e3a
+    "stubbs_mode.c",
 ]
 # the menus' map list filled by the port, with the map packs' maps
 # (port/linux/game/ui_map_list.c, map_packs.c), on the console too
-MAP_LIST_DEFINES = ["-DHALO_MAP_LIST", "-DHALO_CUSTOM_EDITION", "-DHALO_CONSOLE_MAP_BROWSER"]
+MAP_LIST_DEFINES = ["-DHALO_MAP_LIST", "-DHALO_CUSTOM_EDITION", "-DHALO_CONSOLE_MAP_BROWSER",
+                    # (the console capabilities Custom Edition maps use: halo_port_features.h)
+                    "-DHALO_CONSOLE_CE_BITMAPS", "-DHALO_CONSOLE_CE_SHARED_TAG_CACHE"]
 # d3d_intimacy.cpp reads the device as the January library named it; the
 # kernel's build of the Aug 2001 library has it in its own namespace (the
 # same layout)
@@ -427,8 +432,8 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
             vertex_flags = ["-Ddebug_malloc=xbox_ce_debug_malloc", "-Ddebug_realloc=xbox_ce_debug_realloc",
                             "-Ddebug_free=xbox_ce_debug_free"]
         if name == "ce_vorbis.c":
-            vertex_flags = ["-Dmalloc=xbox_ce_scratch_malloc", "-Drealloc=xbox_ce_scratch_realloc",
-                            "-Dfree=xbox_ce_scratch_free"]
+            vertex_flags = ["-Dmalloc=platform_ce_scratch_malloc", "-Drealloc=platform_ce_scratch_realloc",
+                            "-Dfree=platform_ce_scratch_free"]
         add_object(game / PORT_LINUX_GAME / name, " ".join(["-std=gnu89", game_cflags, *PORT_DATA_FLAGS, *vertex_flags]),
                    [semantics_header, prefix_header])
 
@@ -484,7 +489,7 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
     # the Map Browser's work: the store's client, with the platform under it the SDK's
     browser_cflags = " ".join([*SUPPORT_FLAGS, *COLD_FLAGS, *PORT_DATA_FLAGS, "-std=gnu11", "-DNXDK", players_flag,
                                f"-include {_quote(PORT_DIR / 'include' / 'xbox_c99.h')}",
-                               f"-I{_quote(PORT_DIR / 'browser')}", f"-I{_quote(xdk / 'include')}"])
+                               f"-I{_quote(PORT_DIR / 'browser')}", f"-iquote {_quote(game)}", f"-I{_quote(xdk / 'include')}"])
     for source in sorted((PORT_DIR / "browser").glob("*.c")):
         add_object(source, browser_cflags, sorted((PORT_DIR / "browser").glob("*.h")))
     for source in P2P_SOURCES:

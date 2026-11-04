@@ -1,9 +1,10 @@
 /*
 XBOX_MAPS.C
 
-xbox_maps.h. The store's plain HTTP host, as the store's own client: every Custom
-Edition map on it is checked against the signed list's BLAKE2b as it comes (ce.c),
-every pack's map against Warthog's fingerprint (core.c), and a bad one deleted.
+xbox_maps.h. The store's API over HTTPS (the console's client, which checks its
+chain): its lists, each Custom Edition map's BLAKE2b and each pack map's
+Warthog fingerprint. The files themselves come over plain HTTP and are checked
+against those as they come (ce.c, core.c), and a bad one deleted.
 Maps go beside default.xbe: D:\maps_ce, D:\maps_<pack>.
 */
 
@@ -13,11 +14,12 @@ Maps go beside default.xbe: D:\maps_ce, D:\maps_<pack>.
 #include <string.h>
 
 #include "xbox_maps.h"
+#include "port/console/https/console_https.h"
 
 void platform_log(const char *format, ...);
 int console_memory_extras(void);
 
-#define MAPS_BASE "http://api.xboxhomebrew.store"
+#define MAPS_BASE "https://" CONSOLE_HTTPS_MAP_STORE
 #define MAPS_GAME "D:"
 /* every section's maps (ce.h: 0), the archive's multiplayer, AI, modified and
 single player maps alike */
@@ -25,8 +27,8 @@ single player maps alike */
 
 /* the Custom Edition list's search ("": none), read by the thread's page job */
 static char maps_query[64];
-/* (http's read buffer is on it, and a detail's url and paths) */
-#define MAPS_STACK_SIZE (128 * 1024)
+/* (an https request's arena and stream buffer, and the jobs' own frames) */
+#define MAPS_STACK_SIZE (CONSOLE_HTTPS_STACK_SIZE + CONSOLE_HTTPS_STREAM_BUFFER_SIZE + 32 * 1024)
 
 enum
 {

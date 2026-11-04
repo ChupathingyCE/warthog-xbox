@@ -429,7 +429,8 @@ int core_install(const char *base, const char *game, map_entry *map, core_progre
 	join(folder, sizeof(folder), game, name);
 	plat_mkdir(folder);
 	core_map_path(game, map, path, sizeof(path));
-	snprintf(url, sizeof(url), "%s%s", base, map->download);
+	/* (the file over plain http: its fingerprint's list came over https) */
+	http_plain_url(url, sizeof(url), base, map->download);
 
 	d.file = fopen(path, "wb");
 	if (!d.file)

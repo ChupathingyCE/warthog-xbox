@@ -5,6 +5,7 @@
 
 #include "http.h"
 #include "plat.h"
+#include "port/console/https/console_https.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,6 +17,8 @@ void platform_log(const char *format, ...);
 // headers past 8k = something is very wrong, just give up
 #define HTTP_HEADER_MAX 8192
 #define HTTP_USER_AGENT "Warthog/1 (map browser)"
+/* (an https answer's handshake, then the most to wait for each piece) */
+#define PLAT_HTTPS_TIMEOUT_MS 30000
 
 // a little read buffer over the socket. start/end are whats not read yet
 typedef struct
@@ -282,12 +285,83 @@ done:
 	return status;
 }
 
+/* an https:// url, by the console's HTTPS client: the status, or -1 with
+why in error. no redirects (the store's api answers in place) */
+struct https_body
+{
+	http_size_proc size;
+	http_body_proc body;
+	void *context;
+};
+
+static void https_size(unsigned long size, void *context)
+{
+	struct https_body *b = (struct https_body *)context;
+
+	if (b->size)
+		b->size(size, b->context);
+}
+
+static int https_body(const char *data, unsigned long size, void *context)
+{
+	struct https_body *b = (struct https_body *)context;
+
+	return b->body(data, (int)size, b->context);
+}
+
+static int get_https(const char *url, http_size_proc size, http_body_proc body, void *context, char *error,
+	int error_size)
+{
+	char host[128];
+	const char *p = url + 8, *slash = strchr(p, '/');
+	struct https_body b;
+	int length, status = 0, result;
+
+	length = slash ? (int)(slash - p) : (int)strlen(p);
+	if (length <= 0 || length >= (int)sizeof(host) || memchr(p, ':', length))
+	{
+		snprintf(error, error_size, "not an https:// url this can ask: %.80s", url);
+		return -1;
+	}
+	memcpy(host, p, length);
+	host[length] = 0;
+	b.size = size;
+	b.body = body;
+	b.context = context;
+	result = console_https_get_stream(host, slash ? slash : "/", "X-Client-Version: warthog-poc\r\n", &status,
+		https_size, https_body, &b, PLAT_HTTPS_TIMEOUT_MS);
+	if (result != CONSOLE_HTTPS_OK)
+	{
+		snprintf(error, error_size, "%s: %s", host, console_https_error_string(result));
+		platform_log("map browser: GET %.120s: %s", url, error);
+		return -1;
+	}
+	if (status != 200 && status != 206)
+	{
+		snprintf(error, error_size, "HTTP %d", status);
+		platform_log("map browser: GET %.120s: status %d", url, status);
+	}
+	return status;
+}
+
+void http_plain_url(char *out, int size, const char *base, const char *path)
+{
+	if (!strncmp(base, "https://", 8))
+		snprintf(out, size, "http://%s%s", base + 8, path);
+	else
+		snprintf(out, size, "%s%s", base, path);
+}
+
 // the public one. follows one redirect but only to another http:// url
 // an https redirect = fail w a message, cant follow that from here
 int http_get(const char *url, http_size_proc size, http_body_proc body, void *context, char *error, int error_size)
 {
 	char location[1024];
-	int status = get_once(url, location, sizeof(location), size, body, context, error, error_size);
+	int status;
+
+	if (!strncmp(url, "https://", 8))
+		return get_https(url, size, body, context, error, error_size);
+	status = get_once(url, location, sizeof(location), size, body, context, error, error_size);
 
 	if (status >= 300 && status < 400)
 	{

@@ -132,16 +132,22 @@ lists, White or Black between them:
   at a time (X searches titles and authors, with the game's keyboard), with each one's screenshot (the store's DXT1, decoded into a
   texture of the screen's), author, date, size, the tag space it needs, and
   its description. A installs into `D:\maps_ce`, each map checked against the
-  signed list's BLAKE2b as it comes; Y removes.
+  BLAKE2b the store's list gave (over HTTPS) as it comes; Y removes.
 - **Xbox packs**: the store's Warthog packs, into `D:\maps_<pack>`, each map
   checked against Warthog's own fingerprint (`map_pack_fingerprint`), with
   `maplist.txt` merged.
 
-The work is a thread of its own (`browser/xbox_maps.c`): plain HTTP to
-`api.xboxhomebrew.store`, through XNet's Winsock (`browser/plat_warthog.c`),
-so nothing holds up the menus. `browser/core.c`, `ce.c`, `http.c`, `json.c`,
-`dxt.c` and `blake2b.c` are the store's own map browser's, shared with its
-Linux command line. A name the Xbox's disk won't take is made one it will
+The work is a thread of its own (`browser/xbox_maps.c`), through XNet's
+Winsock (`browser/plat_warthog.c`), so nothing holds up the menus. The
+store's API (`api.xboxhomebrew.store`: the lists, the hashes, the pictures)
+is asked over HTTPS, by the game's console client
+(`chupathingyce/port/console/https`, `console_https_get_stream`), which
+checks the store's chain to Let's Encrypt's roots. The map files come over
+plain HTTP, so a long download doesn't hold the client's one-request lock
+from the game list and the reports, and each is checked against the hash
+that came over HTTPS. The BLAKE2b is the game's Monocypher.
+`browser/core.c`, `ce.c`, `http.c`, `json.c` and `dxt.c` are the store's
+own map browser's, shared with its Linux command line. A name the Xbox's disk won't take is made one it will
 (`=ac=timberland.map` becomes `actimberland.map`, at most 42 characters).
 
 ## Online Games

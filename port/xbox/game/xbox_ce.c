@@ -445,7 +445,7 @@ static void ce_bitmap_said(
 		bitmap->depth, bitmap->format, bitmap->type, bytes, how);
 }
 
-void xbox_ce_bitmap_loaded(
+void platform_ce_bitmap_loaded(
 	struct bitmap_data *bitmap)
 {
 	static boolean reported = FALSE;
