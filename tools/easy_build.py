@@ -106,9 +106,15 @@ def check_maps(maps: Path) -> Tuple[bool, List[str]]:
     return True, notes
 
 
-def configure_args(d3d8: str, oxdk: str, players: int, release: bool, debug_tools: bool) -> List[str]:
+def configure_args(d3d8: str, oxdk: str, players: int, release: bool, debug_tools: bool,
+                   asserts: bool = False) -> List[str]:
+    """configure.py's arguments. Without asserts, the build testers get
+    (--console-no-debug-asserts): the debug decomp's asserts compiled out but
+    for the memory checks, about 370 KB less image."""
     args = [GAME_CONFIGURE, "--console-port", PORT, "--xbox-d3d8", d3d8, "--oxdk", oxdk,
             "--console-players", str(players)]
+    if not asserts:
+        args.append("--console-no-debug-asserts")
     if release:
         args.append("--release")
     if debug_tools:
@@ -414,6 +420,8 @@ def main() -> int:
     parser.add_argument("--players", metavar="N", help="32 (default), 16 (the Xbox's own game), or 64 for a test build")
     parser.add_argument("--release", action="store_true", help="a release build: assertions are not checked")
     parser.add_argument("--debug-tools", action="store_true", help="keep the debug decomp's developer tools")
+    parser.add_argument("--asserts", action="store_true",
+                        help="keep all of the debug decomp's asserts (about 370 KB more image)")
     parser.add_argument("--maps", metavar="DIR", help="your own NTSC disc's maps folder: also packages the game")
     parser.add_argument("--devkit-64mb", action="store_true",
                         help="package for a development kit limited to 64 MB (as a stock console)")
@@ -472,10 +480,14 @@ def main() -> int:
     heading("Step 2: choices")
     release = args.release or bool(state.get("release", False))
     debug_tools = args.debug_tools or bool(state.get("debug_tools", False))
+    asserts = args.asserts or bool(state.get("asserts", False))
     if Console.interactive:
-        say("Build type: normal keeps the debug build's assertions (an assertion stops the game and shows the")
+        say("Build type: in a normal build a failed assertion stops the game and shows the")
         say("error, which helps bug reports). Release builds go on after one, as the retail game did.")
         release = ask_yes_no("Release build?", release)
+        say("Asserts: by default most of the debug build's asserts are left out, as testers' builds do (the memory")
+        say("checks stay). Keeping them all costs about 370 KB of memory.")
+        asserts = ask_yes_no("Keep all asserts?", asserts)
         if args.players is None:
             say("Players: 32 is the default, 16 is what the Xbox's own game had. 64 is a test build that says so on screen.")
             while True:
@@ -486,9 +498,9 @@ def main() -> int:
                 say("  Please enter 16, 32 or 64.")
         say("Developer tools (profiler, AI and render debug, stack walker) cost about 0.9 MB of memory.")
         debug_tools = ask_yes_no("Include developer tools?", debug_tools)
-    say(f"  build: {'release' if release else 'normal'}, {players} players, developer tools "
-        f"{'on' if debug_tools else 'off'}")
-    state.update({"release": release, "debug_tools": debug_tools, "players": players})
+    say(f"  build: {'release' if release else 'normal'}, {players} players, all asserts "
+        f"{'on' if asserts else 'off'}, developer tools {'on' if debug_tools else 'off'}")
+    state.update({"release": release, "debug_tools": debug_tools, "asserts": asserts, "players": players})
     save_state(state)
 
     # step 3: build
@@ -500,7 +512,8 @@ def main() -> int:
     if extra:
         env["PATH"] = os.pathsep.join(extra + [env.get("PATH", "")])
     code, tail = run_logged("Configuring", [sys.executable] + configure_args(
-        str(Path(d3d8).expanduser().resolve()), str(Path(oxdk).expanduser().resolve()), players, release, debug_tools),
+        str(Path(d3d8).expanduser().resolve()), str(Path(oxdk).expanduser().resolve()), players, release, debug_tools,
+        asserts),
         env)
     if code != 0:
         return fail(tail)
