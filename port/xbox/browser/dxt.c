@@ -87,18 +87,19 @@ int dxt_picture(const unsigned char *data, unsigned long size, uint32_t *out, in
 {
 	// the store's canvas before it was squared for the gpu (it scaled 640x360 up to a power of 2)
 	enum { CANVAS_W = 640, CANVAS_H = 360, PROBE_W = 160, PROBE_H = 90 };
-	static uint32_t probe[PROBE_W * PROBE_H];
 	uint32_t width, height;
 	int left = PROBE_W, right = -1, top = PROBE_H, bottom = -1, x, y, x0, x1, y0, y1;
 	long shape_w, shape_h;
 
 	if (!header(data, size, &width, &height))
 		return 0;
-	// where the picture is: a coarse look for whats not black padding
-	sample(data, width, 0, 0, (int)width, (int)height, probe, PROBE_W, PROBE_H);
+	// where the picture is: a coarse look for whats not black padding, the
+	// pixels sample() would pick for a PROBE_W x PROBE_H copy, read in place
+	// (no 56 KB copy kept in the image for it)
 	for (y = 0; y < PROBE_H; y++)
 		for (x = 0; x < PROBE_W; x++)
-			if (!dark(probe[y * PROBE_W + x]))
+			if (!dark(pixel(data + 128, (int)width, (int)((long)x * (int)width / PROBE_W),
+				(int)((long)y * (int)height / PROBE_H))))
 			{
 				if (x < left) left = x;
 				if (x > right) right = x;
