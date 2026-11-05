@@ -169,6 +169,15 @@ int game_list_order(const struct game_list *list, unsigned char *order);
 else looked up (XNet's DNS on the console) */
 int game_list_resolve(const char *host, unsigned long *address);
 
+/* a DNS query for host's IPv4 address (an A record, recursion asked) with
+the identifier id, into buffer: its length, 0 if it does not fit or host
+is not a name (game_list_resolve's own lookup, when XNet's finds nothing) */
+int game_list_dns_query(const char *host, unsigned short id, unsigned char *buffer, int size);
+/* the first IPv4 address (network order) a DNS answer to the query of
+identifier id gives: 1, else 0 (another query's, an error, no address, or
+data that runs past its size) */
+int game_list_dns_answer(const unsigned char *data, int size, unsigned short id, unsigned long *address);
+
 /* GET path from address:port, with Host: host, into buffer (at most size
 bytes, the whole response); within timeout_ms */
 int game_list_fetch(unsigned long address, unsigned short port, const char *host, const char *path,

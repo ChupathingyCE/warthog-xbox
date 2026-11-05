@@ -570,6 +570,64 @@ static void fuzz(long iterations)
 	}
 }
 
+/* the public DNS lookup's query and answers (game_list_resolve) */
+static void test_dns(void)
+{
+	unsigned char query[300], reply[512];
+	unsigned long address = 0;
+	int length, size, index;
+	static const unsigned char name[] = "\x05stats\x0b" "chupathingy\x03org";
+
+	length = game_list_dns_query("stats.chupathingy.org", 0x1234, query, (int)sizeof(query));
+	CHECK(length == 12 + (int)sizeof(name) + 4);
+	CHECK(query[0] == 0x12 && query[1] == 0x34 && query[2] == 0x01 && query[5] == 1);
+	CHECK(!memcmp(query + 12, name, sizeof(name)));
+	CHECK(query[length - 3] == 1 && query[length - 1] == 1);
+	CHECK(game_list_dns_query("stats.chupathingy.org.", 1, query, (int)sizeof(query)) == length);
+	CHECK(!game_list_dns_query("", 1, query, (int)sizeof(query)));
+	CHECK(!game_list_dns_query("a..b", 1, query, (int)sizeof(query)));
+	CHECK(!game_list_dns_query("stats.chupathingy.org", 1, query, 20));
+
+	/* (an answer: the question, an alias, then the address, by pointers) */
+	length = game_list_dns_query("stats.chupathingy.org", 0x1234, query, (int)sizeof(query));
+	memcpy(reply, query, (size_t)length);
+	reply[2] = 0x81;
+	reply[3] = 0x80;
+	reply[7] = 2;
+	size = length;
+	{
+		static const unsigned char alias[] = { 0xC0, 12, 0, 5, 0, 1, 0, 0, 0, 60, 0, 6, 3, 'w', 'w', 'w', 0xC0, 12 };
+		static const unsigned char record[] = { 0xC0, 12, 0, 1, 0, 1, 0, 0, 0, 60, 0, 4, 10, 20, 30, 40 };
+
+		memcpy(reply + size, alias, sizeof(alias));
+		size += (int)sizeof(alias);
+		memcpy(reply + size, record, sizeof(record));
+		size += (int)sizeof(record);
+	}
+	CHECK(game_list_dns_answer(reply, size, 0x1234, &address));
+	CHECK(!memcmp(&address, "\x0a\x14\x1e\x28", 4));
+	/* (another query's, an error, cut short) */
+	CHECK(!game_list_dns_answer(reply, size, 0x1235, &address));
+	reply[3] = 0x83;
+	CHECK(!game_list_dns_answer(reply, size, 0x1234, &address));
+	reply[3] = 0x80;
+	for (index = 0; index < size; index++)
+		CHECK(!game_list_dns_answer(reply, index, 0x1234, &address));
+	/* (any bytes: never past them) */
+	for (index = 0; index < 20000; index++)
+	{
+		int byte, count = 12 + rand() % 120;
+
+		for (byte = 0; byte < count; byte++)
+			reply[byte] = (unsigned char)rand();
+		reply[0] = 0x12;
+		reply[1] = 0x34;
+		reply[2] |= 0x80;
+		reply[3] &= 0xF0;
+		game_list_dns_answer(reply, count, 0x1234, &address);
+	}
+}
+
 int main(int argc, char **argv)
 {
 	long iterations = argc > 1 ? atol(argv[1]) : 200000;
@@ -578,6 +636,7 @@ int main(int argc, char **argv)
 	test_response();
 	test_server_line();
 	test_text();
+	test_dns();
 	fuzz(iterations);
 	if (failures)
 	{
