@@ -32,6 +32,8 @@ writes them through log_address (port/xbox/src/xbox_port.c).
 #include "port/linux/src/p2p.h"
 #include "port/linux/src/port_config.h"
 
+#include "../include/xbox_game_list.h"
+
 int snprintf(char *buffer, size_t size, const char *format, ...);
 int xbox_trace_enabled(void);
 
@@ -670,26 +672,17 @@ static void resolved_keep(const char *host, unsigned long address)
 posix_ulong posix_resolve_ipv4(const char *host)
 {
 	unsigned long address = dotted_quad(host), started;
-	XNDNS *dns = NULL;
-	WSAEVENT event;
 
 	if (address)
 		return address;
 	address = resolved_address(host);
 	if (address)
 		return address;
-	event = WSACreateEvent();
-	if (event == WSA_INVALID_EVENT)
-		return 0;
 	started = GetTickCount();
-	if (XNetDnsLookup(host, event, &dns) == 0 && dns)
-	{
-		WaitForSingleObject(event, 20000);
-		if (dns->iStatus == 0 && dns->cina > 0)
-			address = dns->aina[0].s_addr;
-		XNetDnsRelease(dns);
-	}
-	WSACloseEvent(event);
+	/* (XNet's DNS, then the public DNS if it finds nothing: the game list's
+	lookup, xbox_game_list_fetch.c) */
+	if (game_list_resolve(host, &address) != GAME_LIST_OK)
+		address = 0;
 	if (GetTickCount() - started >= 2000)
 		platform_log("Internet play: looking up %s took %lus (%s)", host, (GetTickCount() - started) / 1000,
 			address ? "found" : "not found");
