@@ -3,8 +3,8 @@ XBOX_PORT.C
 
 What the shared sources ask of the native builds' platform layer
 (port/linux/src) that the console answers itself, until it has more of that
-layer: the log, the screen (640x480, no widescreen), and none of the mouse
-or the high-res HUD and text. Internet play's platform is
+layer: the log, and none of the mouse or the high-res HUD and text. The
+screen is port/xbox/src/xbox_screen.c, internet play's platform
 port/xbox/src/xbox_p2p.c, the settings port/xbox/src/xbox_config.c.
 */
 
@@ -241,22 +241,7 @@ void xbox_watchdog_start(void)
 	CreateThread(NULL, 64 * 1024, xbox_watchdog, NULL, 0, NULL);
 }
 
-/* ---------- the screen: the console's 640x480 */
-
-long halo_screen_width(void)
-{
-	return 640;
-}
-
-long halo_screen_commit(void)
-{
-	return 640;
-}
-
-void halo_screen_ui_offset(unsigned char centered)
-{
-	(void)centered;
-}
+/* (the screen: src/xbox_screen.c) */
 
 /* the game ticks at 30 Hz and draws its ticks: no frames between them */
 int halo_interpolation_enabled(void)
