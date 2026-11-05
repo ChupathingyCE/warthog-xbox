@@ -122,6 +122,13 @@ To check on a console: set the dashboard's video settings (480p on or off,
 Widescreen or Normal), start the game, and read that line. 480p needs the
 component cable; with composite it says 480i whatever the dashboard says.
 
+The console doesn't tell the TV that the picture is wide: 480p and 480i look
+like a 4:3 picture to it. If the picture keeps black bars at the sides, set
+the TV's picture size to stretch it to the whole screen (Wide, Full, 16:9 or
+Stretch, by brand). Some older TVs only offer that for some inputs or
+modes. With a TV that can't stretch it, keep Normal in the dashboard or set
+`display.widescreen = "off"`.
+
 ## Differences from the SDK
 
 `port/xbox/include/halo_xbox_prefix.h` is included before each game unit.
