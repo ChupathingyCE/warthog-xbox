@@ -5,9 +5,10 @@
 #   port/xbox/tests/run.sh               the parsers', the screen's words', the
 #                                        settings record and game type state
 #                                        layouts', console.join's and the memory
-#                                        class's, XLink's, the log tags' and the
-#                                        co-op names' tests, which hosts it
-#                                        joins, tools/xbox_package.py's
+#                                        class's, XLink's, the log tags', the
+#                                        co-op names' and the video modes'
+#                                        tests, which hosts it joins,
+#                                        tools/xbox_package.py's
 #                                        devkit flag,
 #                                        the console's config.toml, and 200,000
 #                                        mutations
@@ -57,6 +58,9 @@ $CC -std=c89 -pedantic -Wall -Wextra -Werror $SAN port/xbox/tests/xlink_test.c $
 $CC -std=c89 -pedantic -Wall -Wextra -Werror $SAN port/xbox/tests/log_tag_test.c $SRC/xbox_log_tag.c \
 	-o "$OUT/log_tag_test"
 "$OUT/log_tag_test"
+$CC -std=c89 -pedantic -Wall -Wextra -Werror $SAN port/xbox/tests/screen_test.c $SRC/xbox_screen_mode.c \
+	-o "$OUT/screen_test"
+"$OUT/screen_test"
 "$OUT/xlink_test"
 $CC -std=c89 -pedantic -Wall -Wextra -Werror $SAN port/xbox/tests/coop_name_test.c $SRC/xbox_coop_name.c \
 	-o "$OUT/coop_name_test"

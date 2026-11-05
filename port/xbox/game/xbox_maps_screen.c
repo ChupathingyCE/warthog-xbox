@@ -663,6 +663,16 @@ static void quad(
 	draw_quad(&bounds, color);
 }
 
+/* the whole screen: the 640 columns, and on a wider one (the console's
+widescreen, src/xbox_screen.c) the sides around them too */
+static void quad_screen(
+	pixel32 color)
+{
+	short extra = (short)((halo_screen_width() - 640) / 2);
+
+	quad((short)-extra, 0, (short)(640 + extra), 480, color);
+}
+
 static void text(
 	long font,
 	short justification,
@@ -1190,7 +1200,7 @@ void maps_screen_render(
 	set_color(&good_color, 1.0f, 0.37f, 0.82f, 0.41f);
 	set_color(&dark_color, 1.0f, 0.06f, 0.06f, 0.06f);
 
-	quad(0, 0, 640, 480, COLOR_BACKGROUND);
+	quad_screen(COLOR_BACKGROUND);
 	text(heading_font != NONE ? heading_font : font, _justify_left, &title_color, SCREEN_LEFT, TITLE_TOP, SCREEN_RIGHT,
 		RULE_Y - 2, "MAP BROWSER");
 	draw_tabs(font, &text_color, &dim_color);
