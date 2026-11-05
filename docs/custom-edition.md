@@ -41,8 +41,12 @@ In xemu at 64 MB (2026-11-03), experimental:
   join offered it, and joined into a game.
 - The Map Browser's search.
 
-Not tested: a real console (only xemu; the page tables' layout on retail
-hardware is what `warthog-ce-alias-poc` checks first), the HUD's button icons
+On real consoles (the test builds from 2026-11-04): testers play them on
+modified retail consoles, stock 64 MB ones included. Their reports fixed a
+map whose name has a `#` in it (reported missing) and a map without Custom
+Edition's resource maps (now refused with a message).
+
+Not tested: the HUD's button icons
 (`ui.map` has none this reads: a warning), large maps at 64 MB (their models
 and BSP vertices now share the tag cache: some won't fit, and are refused
 saying so).
@@ -196,7 +200,7 @@ made case-blind once (`tools/xdk_case_links.py`), and the link's own fix
 
 ## What's left
 
-- A real console, 64 MB above all.
+- More time on real consoles, 64 MB above all.
 - A map the host changes to in the lobby that isn't here (the offer is made
   only as a game is joined), and HaloMD maps.
 - Custom Edition's resource maps from its installer
