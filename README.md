@@ -55,7 +55,8 @@ This repository holds the original Xbox port. The game itself is the
 - Players: the test build holds 32 players. Games past that are left, as a
   full game is.
 - Chat: quick lines on the controller, and a USB keyboard.
-- Not yet: hosting PC players, network co-op, Bink movies, reverb.
+- Sound: the original Xbox reverb, from the game's own effects image.
+- Not yet: hosting PC players, network co-op, Bink movies.
 
 ## What you need
 

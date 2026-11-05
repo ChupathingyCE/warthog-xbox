@@ -95,9 +95,9 @@ xbox_support.cpp` supplies the memory functions that the kernel gave it.
 The files in `port/xbox/src` supply what the later SDK does not:
 
 - `xbox_dsound.c`: the January SDK gave a voice's mix bins as a mask. Later
-  SDKs take a list. The file translates the game's calls. The game's reverb
-  image is for the January DirectSound, so it is not loaded: there is no
-  reverb.
+  SDKs take a list. The file translates the game's calls, and downloads the
+  game's own effects image (reverb and crosstalk), so the Xbox build has the
+  original reverb.
 - `xbox_d3dx.c`: the four D3DX functions that the game calls. The SDK's
   D3DX library needs the SDK's own Direct3D.
 - `xbox_support.cpp`: `fast_ftol_C` (not yet in the reconstruction), and
@@ -370,7 +370,7 @@ Network co-op is not built for the console (`game/xbox_coop.c`): co-op
 games are left out of its lists, and a game that turns co-op is left with
 a message. Known:
 
-- There is no Bink video (the movies are skipped) and no reverb.
+- There is no Bink video (the movies are skipped).
 - The netcode is the PC builds' (distributed). The console joins a PC
   host's game as a client: it folds the PCs' 128-slot game settings record
   and Slayer's state into its 16 slots, and leaves a game that grows past
