@@ -27,6 +27,14 @@ static void expect_width(void)
 		"widescreen dashboard is not 852");
 	expect(xbox_screen_choose_width(XBOX_SCREEN_VIDEO_FLAGS_WIDESCREEN, "off") == 640, "off is not 640");
 	expect(xbox_screen_choose_width(0, "off") == 640, "off on 4:3 is not 640");
+	/* (off as players write it) */
+	expect(xbox_screen_choose_width(XBOX_SCREEN_VIDEO_FLAGS_WIDESCREEN, "Off") == 640, "Off is not 640");
+	expect(xbox_screen_choose_width(XBOX_SCREEN_VIDEO_FLAGS_WIDESCREEN, " OFF ") == 640, "OFF is not 640");
+	expect(xbox_screen_choose_width(XBOX_SCREEN_VIDEO_FLAGS_WIDESCREEN, "4:3") == 640, "4:3 is not 640");
+	expect(xbox_screen_choose_width(XBOX_SCREEN_VIDEO_FLAGS_WIDESCREEN, "false") == 640, "false is not 640");
+	expect(xbox_screen_choose_width(XBOX_SCREEN_VIDEO_FLAGS_WIDESCREEN, "offf") == 852, "offf is off");
+	expect(xbox_screen_choose_width(XBOX_SCREEN_VIDEO_FLAGS_WIDESCREEN, "off the dashboard, please") == 852,
+		"a long setting is off");
 	/* (the dashboard's 480p, 720p, 1080i and letterbox bits change nothing) */
 	expect(xbox_screen_choose_width(0x08 | 0x02 | 0x04 | 0x10, "dashboard") == 640, "HDTV bits made it wide");
 	expect(xbox_screen_choose_width(0x08 | XBOX_SCREEN_VIDEO_FLAGS_WIDESCREEN, "dashboard") == 852,

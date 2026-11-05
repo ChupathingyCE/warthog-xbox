@@ -75,5 +75,10 @@ void halo_screen_device_report(void)
 	ZeroMemory(&mode, sizeof(mode));
 	D3DDevice_GetDisplayMode(&mode);
 	xbox_screen_mode_text(text, sizeof(text), halo_screen_width(), mode.Flags, mode.RefreshRate, XGetAVPack());
-	platform_log("%s", text);
+	/* (and the setting as it was read, and the dashboard's: which of them
+	made the picture what it is) */
+	platform_log("%s; display.widescreen \"%.20s\" (%s), the dashboard %s", text,
+		config_string("display.widescreen"),
+		xbox_screen_setting_off(config_string("display.widescreen")) ? "off" : "follows the dashboard",
+		(XGetVideoFlags() & XC_VIDEO_FLAGS_WIDESCREEN) ? "widescreen" : "4:3");
 }
