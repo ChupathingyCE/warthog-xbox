@@ -236,9 +236,11 @@ static unsigned long __stdcall xbox_watchdog(void *parameter)
 
 void xbox_watchdog_start(void)
 {
-	/* (a stack of its own size: 0 is the main thread's, the XBE's 1 MB, all
-	of it committed memory on the Xbox) */
-	CreateThread(NULL, 64 * 1024, xbox_watchdog, NULL, 0, NULL);
+	/* (a stack of its own size: 0 is the main thread's, the XBE's 768 KB, all
+	of it committed memory on the Xbox. 16 KB, as the retail game's own
+	threads: the deepest it goes is platform_log, a 1 KB line and the C
+	runtime's formatting, under 4 KB) */
+	CreateThread(NULL, 16 * 1024, xbox_watchdog, NULL, 0, NULL);
 }
 
 /* ---------- the screen: the console's 640x480 */
