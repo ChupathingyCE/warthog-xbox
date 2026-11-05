@@ -57,6 +57,7 @@ one; a feature that would is to ask for it through the memory class
 
 | Feature | PC | Xbox | Why, or the plan |
 | --- | --- | --- | --- |
+| Wide screen (16:9) | Yes, the window's shape | Yes, the dashboard's | `display.widescreen`: the 640x480 picture stretched by a 16:9 TV, with the desktop's wide view, HUD and menus; no memory (README "Video modes"). Needs a check on hardware |
 | Field of view, weapon field of view | Yes | Yes | `display.field_of_view`, `display.viewmodel_field_of_view`; wider draws more |
 | Follow camera while waiting to respawn | Yes | Yes | `display.follow_camera` |
 | Power-up timers | Yes | Yes | `display.powerup_timers`, off by default |
