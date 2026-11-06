@@ -86,6 +86,9 @@ static int link_start_thread(void (*function)(void *context), void *context)
 	if (!thread)
 		return 0;
 	xbox_memory_heap_allocation("xbox_console_link.c (thread stack)", 0, LINK_STACK, thread);
+	/* (below the game's thread: a TLS handshake, hundreds of ms of the
+	processor's, would hitch the frames) */
+	SetThreadPriority(thread, THREAD_PRIORITY_BELOW_NORMAL);
 	CloseHandle(thread);
 	return 1;
 }

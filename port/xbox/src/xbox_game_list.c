@@ -308,7 +308,12 @@ void xbox_game_list_request(void)
 	signed table's document; all of it given back when the thread ends) */
 	thread = CreateThread(NULL, LIST_THREAD_STACK, game_list_thread, NULL, 0, NULL);
 	if (thread)
+	{
 		xbox_memory_heap_allocation("xbox_game_list.c (thread stack)", 0, LIST_THREAD_STACK, thread);
+		/* (below the game's thread: a TLS handshake, hundreds of ms of the
+		processor's, would hitch the frames) */
+		SetThreadPriority(thread, THREAD_PRIORITY_BELOW_NORMAL);
+	}
 	if (!thread)
 	{
 		list_error = GAME_LIST_ERROR_CONNECT;

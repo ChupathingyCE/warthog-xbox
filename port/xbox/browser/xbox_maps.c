@@ -222,6 +222,9 @@ static int maps_start(int job)
 		maps.failed = 1;
 		return 0;
 	}
+	/* (below the game's thread: a download's TLS handshake and unpacking
+	would hitch the menu) */
+	SetThreadPriority(thread, THREAD_PRIORITY_BELOW_NORMAL);
 	CloseHandle(thread);
 	return 1;
 }
