@@ -157,8 +157,14 @@ int main(void)
 	record = pc_record(4, 17);
 	CHECK(fold(record, console) == NETWORK_GAME_LAYOUT_TOO_MANY_PLAYERS);
 	free(record);
-	/* (a machine in slot 20: a PC host numbers machines by connection slot) */
+	/* (a machine in slot 20 naming slot 5: not a slot the fold can move) */
 	record = pc_record(3, 3);
+	machine(record, PC, 20)[NETWORK_GAME_LAYOUT_MACHINE_INDEX] = 5;
+	CHECK(fold(record, console) == NETWORK_GAME_LAYOUT_MACHINE_SLOT);
+	free(record);
+	/* (more machines in slots past 17 than free indices: here the header's
+	count, which the PC never lets go past its entries, is not checked) */
+	record = pc_record(17, 3);
 	machine(record, PC, 20)[NETWORK_GAME_LAYOUT_MACHINE_INDEX] = 20;
 	CHECK(fold(record, console) == NETWORK_GAME_LAYOUT_MACHINE_SLOT);
 	free(record);
@@ -168,12 +174,87 @@ int main(void)
 	player(record, PC, 40)[NETWORK_GAME_LAYOUT_PLAYER_LIST_INDEX] = 40;
 	CHECK(fold(record, console) == NETWORK_GAME_LAYOUT_PLAYER_SLOT);
 	free(record);
-	/* (a used player naming a machine past 16 that is in the game) */
+	/* (a used player naming a machine in slot 30: the machine is given a free
+	index, its entry moved into that slot) */
 	record = pc_record(3, 3);
 	machine(record, PC, 30)[NETWORK_GAME_LAYOUT_MACHINE_INDEX] = 30;
+	machine(record, PC, 30)[0] = 'Z';
 	player(record, PC, 1)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] = 30;
-	CHECK(fold(record, console) == NETWORK_GAME_LAYOUT_MACHINE_SLOT);
+	CHECK(fold(record, console) == NETWORK_GAME_LAYOUT_OK);
+	CHECK(player(console, CONSOLE_M, 1)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] == 16);
+	CHECK(machine(console, CONSOLE_M, 16)[0] == 'Z' && machine(console, CONSOLE_M, 16)[NETWORK_GAME_LAYOUT_MACHINE_INDEX] == 16);
 	free(record);
+	/* ([C] Red vs Blue: a dedicated host (#0), two people (#1, #2) and its 8
+	bots, four to a machine on machines named "Bots" in slots 127 and 126,
+	5 machines and 10 players, a team game; the bots' slots after the
+	people's. Each bots' machine is given a free index from the top, its
+	four players with it, and keeps it from one record to the next) */
+	{
+		struct network_game_layout_machine_map kept;
+		unsigned char entry[5];
+		int bot, pass;
+
+		network_game_layout_machine_map_reset(&kept);
+		record = pc_record(3, 10);
+		record[NETWORK_GAME_LAYOUT_MAXIMUM_PLAYERS_OFFSET] = 32;
+		record[NETWORK_GAME_LAYOUT_MACHINE_COUNT_OFFSET] = 5;
+		machine(record, PC, 127)[0] = 'B';
+		machine(record, PC, 127)[NETWORK_GAME_LAYOUT_MACHINE_INDEX] = 127;
+		machine(record, PC, 126)[0] = 'b';
+		machine(record, PC, 126)[NETWORK_GAME_LAYOUT_MACHINE_INDEX] = 126;
+		player(record, PC, 0)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] = 1;
+		player(record, PC, 1)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] = 2;
+		for (bot = 0; bot < 8; bot++)
+		{
+			unsigned char *p = player(record, PC, 2 + bot);
+
+			p[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] = (unsigned char)(bot < 4 ? 127 : 126);
+			p[NETWORK_GAME_LAYOUT_PLAYER_CONTROLLER_INDEX] = (unsigned char)(bot % 4);
+			p[NETWORK_GAME_LAYOUT_PLAYER_TEAM_INDEX] = (unsigned char)(bot % 4 < 2 ? 0 : 1);
+		}
+		for (pass = 0; pass < 2; pass++)
+		{
+			CHECK(network_game_layout_convert_mapped(record, PC, PC, console, CONSOLE_M, CONSOLE_P, &clamped, &kept) ==
+				NETWORK_GAME_LAYOUT_OK);
+			CHECK(clamped && console[NETWORK_GAME_LAYOUT_MAXIMUM_PLAYERS_OFFSET] == CONSOLE_P);
+			CHECK(console[NETWORK_GAME_LAYOUT_MACHINE_COUNT_OFFSET] == 5 + pass);
+			CHECK(machine(console, CONSOLE_M, 16)[0] == 'B' && machine(console, CONSOLE_M, 16)[NETWORK_GAME_LAYOUT_MACHINE_INDEX] == 16);
+			CHECK(machine(console, CONSOLE_M, 15)[0] == 'b' && machine(console, CONSOLE_M, 15)[NETWORK_GAME_LAYOUT_MACHINE_INDEX] == 15);
+			CHECK(machine(console, CONSOLE_M, 3)[NETWORK_GAME_LAYOUT_MACHINE_INDEX] == (pass ? 3 : 0xFF));
+			CHECK(player(console, CONSOLE_M, 0)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] == 1);
+			for (bot = 0; bot < 8; bot++)
+			{
+				unsigned char *p = player(console, CONSOLE_M, 2 + bot);
+
+				CHECK(p[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] == (bot < 4 ? 16 : 15));
+				CHECK(p[NETWORK_GAME_LAYOUT_PLAYER_CONTROLLER_INDEX] == bot % 4);
+			}
+			CHECK(network_game_layout_failing_entry(record, PC, PC, CONSOLE_M, CONSOLE_P, entry) == 0);
+			/* (the next record: a person joined on machine #3, in the slot after the bots') */
+			if (!pass)
+			{
+				record[NETWORK_GAME_LAYOUT_MACHINE_COUNT_OFFSET] = 6;
+				machine(record, PC, 3)[0] = 'D';
+				machine(record, PC, 3)[NETWORK_GAME_LAYOUT_MACHINE_INDEX] = 3;
+				memcpy(player(record, PC, 10), player(record, PC, 1), NETWORK_GAME_LAYOUT_PLAYER_SIZE);
+				player(record, PC, 10)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] = 3;
+				player(record, PC, 10)[NETWORK_GAME_LAYOUT_PLAYER_LIST_INDEX] = 10;
+				player_count(record, PC)[0] = 11;
+			}
+		}
+		CHECK(player(console, CONSOLE_M, 10)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] == 3);
+		CHECK(machine(console, CONSOLE_M, 3)[0] == 'D');
+		/* (a bot of machine #126 joining in progress: the index its machine
+		has, which its entry and its other players hold) */
+		{
+			unsigned char used[CONSOLE_M];
+
+			memset(used, 0, sizeof(used));
+			used[0] = used[1] = used[2] = used[3] = used[16] = 1;
+			CHECK(network_game_layout_machine_map_index(&kept, 126, used, CONSOLE_M) == 15);
+		}
+		free(record);
+	}
 	/* (players of no machine past 16, as a host's bots, from #113 up: given
 	the free indices from the top, the same one for each of a machine's) */
 	record = pc_record(3, 6);

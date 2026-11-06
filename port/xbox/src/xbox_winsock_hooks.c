@@ -287,9 +287,15 @@ static int inbox_take(SOCKET socket, char *buffer, int length, unsigned short *f
 		result = inbox[slot].size < length ? inbox[slot].size : length;
 		memcpy(buffer, inbox[slot].data, (size_t)result);
 		*from_port = inbox[slot].from_port;
-		/* (the rest move up one) */
-		for (later = index; later + 1 < inbox_count; later++)
-			inbox[(inbox_first + later) % INBOX_DATAGRAMS] = inbox[(inbox_first + later + 1) % INBOX_DATAGRAMS];
+		/* (the front of the ring is taken by moving its start; for one behind
+		the front, the ones after it move up one) */
+		if (!index)
+			inbox_first = (inbox_first + 1) % INBOX_DATAGRAMS;
+		else
+		{
+			for (later = index; later + 1 < inbox_count; later++)
+				inbox[(inbox_first + later) % INBOX_DATAGRAMS] = inbox[(inbox_first + later + 1) % INBOX_DATAGRAMS];
+		}
 		inbox_count--;
 		break;
 	}
