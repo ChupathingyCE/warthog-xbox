@@ -12,9 +12,41 @@ host's tests run them (tests/screen_test.c).
 
 int snprintf(char *buffer, size_t size, const char *format, ...);
 
+/* whether display.widescreen says off: "off" in any case, with spaces
+around it, or the other words a player may write for it ("4:3", "false",
+"no", "none", "0") */
+int xbox_screen_setting_off(const char *setting)
+{
+	static const char *const words[] = { "off", "4:3", "false", "no", "none", "0" };
+	char word[16];
+	unsigned long length = 0, index;
+
+	if (!setting)
+		return 0;
+	while (*setting == ' ' || *setting == '\t')
+		setting++;
+	while (setting[length] && length < sizeof(word) - 1)
+	{
+		char letter = setting[length];
+
+		word[length++] = (letter >= 'A' && letter <= 'Z') ? (char)(letter - 'A' + 'a') : letter;
+	}
+	if (setting[length])
+		return 0;
+	while (length && (word[length - 1] == ' ' || word[length - 1] == '\t'))
+		length--;
+	word[length] = 0;
+	for (index = 0; index < sizeof(words) / sizeof(words[0]); index++)
+	{
+		if (!strcmp(word, words[index]))
+			return 1;
+	}
+	return 0;
+}
+
 long xbox_screen_choose_width(unsigned long video_flags, const char *setting)
 {
-	if (setting && !strcmp(setting, "off"))
+	if (xbox_screen_setting_off(setting))
 		return XBOX_SCREEN_WIDTH;
 	return (video_flags & XBOX_SCREEN_VIDEO_FLAGS_WIDESCREEN) ? XBOX_SCREEN_WIDE_WIDTH : XBOX_SCREEN_WIDTH;
 }
