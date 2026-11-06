@@ -371,9 +371,11 @@ games are left out of its lists, and a game that turns co-op is left with
 a message. Known:
 
 - There is no Bink video (the movies are skipped).
+- The loading screen doesn't animate: the desktop's `loading_screen_step_due()`
+  is a stub that always says no on the Xbox (`game/xbox_desktop_stubs.c`).
 - The netcode is the PC builds' (distributed). The console joins a PC
   host's game as a client: it folds the PCs' 128-slot game settings record
-  and Slayer's state into its 16 slots, and leaves a game that grows past
+  and Slayer's state into its slots (16, or 32 in the test builds), and leaves a game that grows past
   them as a full one (docs/cross-play.md, "What is built"). It joins an
   internet game by its invite from ONLINE GAMES (A on a listed game, Y for
   the invite in `console.join`), through the desktop builds' tunnel

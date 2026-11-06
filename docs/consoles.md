@@ -44,3 +44,5 @@ They stay a folder beside it.
 | Console | Emulator | Hardware |
 |---|---|---|
 | Original Xbox | xemu (128 MB, NAT) | devkit, or a modified retail console |
+| Xbox 360 | Xenia Canary (warthog-360's `tools/xenia_smoke.sh`) | RGH/JTAG, or a softmod like BadUpdate or BadAvatar |
+| Wii U | Cemu 2.6 (warthog-wiiu's `tools/cemu_smoke.sh`) | Aroma |
