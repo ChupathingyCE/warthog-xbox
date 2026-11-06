@@ -31,8 +31,13 @@ int vsnprintf(char *buffer, size_t size, const char *format, va_list arguments)
 	if (!size)
 		return _vsnprintf(NULL, 0, format, arguments);
 	length = _vsnprintf(buffer, size, format, arguments);
-	/* (_vsnprintf leaves a full buffer unterminated, and says -1) */
-	buffer[size - 1] = 0;
+	/* _vsnprintf leaves a full buffer unterminated (and says -1, or size
+	when it just fits): terminate it then, and only then. size can be more
+	than the buffer (csprintf passes MAXIMUM_STRING_SIZE for any buffer),
+	so writing buffer[size - 1] every time wrote a zero up to 8 KB past a
+	small buffer */
+	if (length < 0 || (size_t)length >= size)
+		buffer[size - 1] = 0;
 	return length < 0 ? (int)size - 1 : length;
 }
 
