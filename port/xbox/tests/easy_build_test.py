@@ -36,7 +36,10 @@ class Commands(unittest.TestCase):
     def test_configure_defaults(self):
         self.assertEqual(easy_build.configure_args("d.lib", "ox", 32, False, False),
                          ["chupathingyce/configure.py", "--console-port", "port/xbox", "--xbox-d3d8", "d.lib",
-                          "--oxdk", "ox", "--console-players", "32"])
+                          "--oxdk", "ox", "--console-players", "32", "--console-no-debug-asserts"])
+
+    def test_configure_asserts(self):
+        self.assertNotIn("--console-no-debug-asserts", easy_build.configure_args("d.lib", "ox", 32, False, False, True))
 
     def test_configure_options(self):
         args = easy_build.configure_args("d.lib", "ox", 32, True, True)

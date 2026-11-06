@@ -370,12 +370,12 @@ the game list, the claim) is built for size (`-Os`), another 120 KB. The
 game's own code keeps `-O2` and its EBP frames, which the crash reports
 follow, but for the functions that call no other.
 
-The main thread's stack is the XBE's 1 MB, and the console commits all of
-it. `debug.txt` says how much of it the game has used: a `stack:` line at
-the start and one each time the deepest grows by 16 KB
-(`src/xbox_stack.c`). Some of the debug decomp's AI functions keep 80 to
-160 KB of arrays on the stack, so the size is cut only once a campaign
-mission's and a busy match's lines are known.
+The main thread's stack is the XBE's 768 KB (the retail game's is 512 KB),
+and the console commits all of it. `debug.txt` says how much of it the game
+has used: a `stack:` line at the start and one each time the deepest grows
+by 16 KB (`src/xbox_stack.c`). Some of the debug decomp's AI functions keep
+80 to 160 KB of arrays on the stack. The deepest seen so far is 279 KB, in a
+campaign mission.
 
 The debug decomp's developer tools are not in the console's build unless
 it is configured with `--console-debug-tools` (`HALO_CONSOLE_DEBUG_TOOLS`): the
