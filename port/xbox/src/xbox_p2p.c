@@ -607,13 +607,21 @@ posix_ulong posix_local_ipv4_address(void)
 
 void posix_random_bytes(void *buffer, posix_ulong size)
 {
-	/* (XNet's own: its keys' source) */
-	if (XNetRandom((BYTE *)buffer, (UINT)size) != 0)
+	/* (XNet's own: its keys' source. Never weaker bytes in its place: a
+	failure is retried once a second, so a passing one lets internet play go
+	on, and logged every 30 tries, so a lasting one shows in debug.txt
+	instead of a silent stall) */
+	unsigned long tries = 0;
+
+	while (XNetRandom((BYTE *)buffer, (UINT)size) != 0)
 	{
-		platform_log("Internet play: XNetRandom failed; no random bytes");
-		for (;;)
-			Sleep(1000);
+		if (tries % 30 == 0)
+			platform_log("Internet play: XNetRandom failed (%lu tries); waiting for random bytes", tries + 1);
+		tries++;
+		Sleep(1000);
 	}
+	if (tries)
+		platform_log("Internet play: XNetRandom worked after %lu tries", tries + 1);
 }
 
 /* a dotted quad, in network byte order; 0 if it is not one */
