@@ -129,33 +129,50 @@ struct thread_start
 {
 	void *(*start)(void *);
 	void *argument;
+	/* (1 from pthread_create until the thread has read start and argument) */
+	long busy;
 };
 
 #define THREAD_STACK_SIZE (64 * 1024)
 void xbox_memory_heap_allocation(const char *file, long line, unsigned long size, const void *address);
 
 static struct thread_start thread_starts[4];
-static long thread_start_next;
 
 static DWORD WINAPI thread_main(LPVOID parameter)
 {
 	struct thread_start *start = (struct thread_start *)parameter;
+	void *(*function)(void *) = start->start;
+	void *argument = start->argument;
 
-	start->start(start->argument);
+	/* (the slot is free again once read: a later pthread_create may use it) */
+	__atomic_store_n(&start->busy, 0, __ATOMIC_SEQ_CST);
+	function(argument);
 	return 0;
 }
 
 int pthread_create(pthread_t *thread, const pthread_attr_t *attributes, void *(*start)(void *), void *argument)
 {
-	/* (internet play starts its one thread once: a few slots do) */
-	long index = __atomic_fetch_add(&thread_start_next, 1, __ATOMIC_SEQ_CST);
-	struct thread_start *slot;
+	/* (a slot holds a thread's start only until the thread has read it, so
+	internet play can start its thread again however often it is left and
+	rejoined in one boot; the four were used once each before) */
+	long index;
+	struct thread_start *slot = NULL;
 	HANDLE handle;
 
 	(void)attributes;
-	if (index < 0 || index >= (long)(sizeof(thread_starts) / sizeof(thread_starts[0])))
+	for (index = 0; index < (long)(sizeof(thread_starts) / sizeof(thread_starts[0])); index++)
+	{
+		long expected = 0;
+
+		if (__atomic_compare_exchange_n(&thread_starts[index].busy, &expected, 1, 0, __ATOMIC_SEQ_CST,
+			__ATOMIC_SEQ_CST))
+		{
+			slot = &thread_starts[index];
+			break;
+		}
+	}
+	if (!slot)
 		return -1;
-	slot = &thread_starts[index];
 	slot->start = start;
 	slot->argument = argument;
 	/* (64 KB: the tunnel's deepest chain, from p2p_thread to a send through
@@ -164,7 +181,10 @@ int pthread_create(pthread_t *thread, const pthread_attr_t *attributes, void *(*
 	64 MB console is short of, and is given back when the thread ends) */
 	handle = CreateThread(NULL, THREAD_STACK_SIZE, thread_main, slot, 0, NULL);
 	if (!handle)
+	{
+		__atomic_store_n(&slot->busy, 0, __ATOMIC_SEQ_CST);
 		return -1;
+	}
 	xbox_memory_heap_allocation("xbox_p2p.c (thread stack)", index, THREAD_STACK_SIZE, handle);
 	*thread = (pthread_t)handle;
 	return 0;
@@ -587,13 +607,21 @@ posix_ulong posix_local_ipv4_address(void)
 
 void posix_random_bytes(void *buffer, posix_ulong size)
 {
-	/* (XNet's own: its keys' source) */
-	if (XNetRandom((BYTE *)buffer, (UINT)size) != 0)
+	/* (XNet's own: its keys' source. Never weaker bytes in its place: a
+	failure is retried once a second, so a passing one lets internet play go
+	on, and logged every 30 tries, so a lasting one shows in debug.txt
+	instead of a silent stall) */
+	unsigned long tries = 0;
+
+	while (XNetRandom((BYTE *)buffer, (UINT)size) != 0)
 	{
-		platform_log("Internet play: XNetRandom failed; no random bytes");
-		for (;;)
-			Sleep(1000);
+		if (tries % 30 == 0)
+			platform_log("Internet play: XNetRandom failed (%lu tries); waiting for random bytes", tries + 1);
+		tries++;
+		Sleep(1000);
 	}
+	if (tries)
+		platform_log("Internet play: XNetRandom worked after %lu tries", tries + 1);
 }
 
 /* a dotted quad, in network byte order; 0 if it is not one */
