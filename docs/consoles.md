@@ -31,7 +31,9 @@ In the game (the submodule):
 - `port/console/https`: the HTTPS client the consoles share (the game list,
   the signed legacy table, map lists), with the site's keys pinned.
 - `port/console/link`: Link Profile, with the console's own key.
-- `port/console/reports`: reports of joined games, for service records.
+- `port/console/reports`: reports of joined games, for service records, and
+  the claim of the console's own line after each online game, hosted or
+  joined, for its linked Delta profile (`HALO_CONSOLE_GAME_CLAIMS`).
 
 ## Packages
 

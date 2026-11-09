@@ -162,8 +162,10 @@ join = "192.168.1.20"
 
 Many of the PC builds' settings work on the console too: field of view, the
 follow camera, chat, the scoreboard, music and effects volume, the network
-ones. `network.report_joined_games = false` keeps your games off your
-service record. [port/xbox/README.md](port/xbox/README.md) lists them, and
+ones. A console linked to a Delta profile (or with an identity file)
+claims its own line after each online game, hosted or joined, so the game
+shows on your profile. `network.report_joined_games = false` keeps your
+games off your service record. [port/xbox/README.md](port/xbox/README.md) lists them, and
 [port/xbox/FEATURES.md](port/xbox/FEATURES.md) shows which PC features the
 console has.
 

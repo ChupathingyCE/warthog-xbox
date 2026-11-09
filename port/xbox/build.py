@@ -82,6 +82,10 @@ GAME_FLAGS = [
     # the reports of joined games (port/console/reports, port/xbox/src/
     # xbox_reports.c)
     "-DHALO_CONSOLE_GAME_REPORTS",
+    # the claim of the console's own line in each online game, hosted or
+    # joined (port/console/reports/console_claims.c, port/xbox/src/
+    # xbox_claims.c)
+    "-DHALO_CONSOLE_GAME_CLAIMS",
     # no warnings, as the decomp's code has many, but one: a variable read
     # before it is set, as "T *x = &x[i];", where MSVC's 2001 compiler read
     # the global x and clang reads the new local (a10's fog screen crash).
@@ -142,7 +146,7 @@ COLD_SOURCES = (
     "xbox_claim.c", "xbox_claim_run.c", "xbox_config.c", "xbox_coop_name.c", "xbox_direct_join.c",
     "xbox_game_list_fetch.c", "xbox_game_list_parse.c", "xbox_game_list_text.c", "xbox_log_tag.c",
     "xbox_https.c", "xbox_memory.c", "xbox_player_key.c", "xbox_reports.c", "xbox_stack.c", "xbox_xlink.c",
-    "console_reports.c", "game_report.c",
+    "console_reports.c", "game_report.c", "console_claims.c", "xbox_claims.c",
     "monocypher.c", "monocypher-ed25519.c", "p2p_crypto.c", "port_config.c", "tomlc17.c",
 )
 SUPPORT_CXX_FLAGS = ["-fno-exceptions", "-fno-rtti", "-fno-threadsafe-statics"]
@@ -194,8 +198,10 @@ DELTA_SOURCES = [LINUX_SRC / "delta_wire.c", LINUX_SRC / "delta_peer.c", LINUX_S
 CONSOLE_LINK_DIR = Path("port/console/link")
 # the reports of joined games (the game's port/console/reports, and its
 # report's JSON, port/linux/src/game_report.c), over port/xbox/src/
-# xbox_reports.c's hooks
-CONSOLE_REPORTS_SOURCES = [Path("port/console/reports/console_reports.c"), LINUX_SRC / "game_report.c"]
+# xbox_reports.c's hooks; and the claims of the console's own lines, over
+# port/xbox/src/xbox_claims.c's
+CONSOLE_REPORTS_SOURCES = [Path("port/console/reports/console_reports.c"), LINUX_SRC / "game_report.c",
+                           Path("port/console/reports/console_claims.c")]
 QRCODEGEN_DIR = Path("port/third_party/qrcodegen")
 # the settings, D:\config.toml: the desktop builds' port_config.c and its
 # TOML parser (tools/linux_build.py's TOML_DIR)
