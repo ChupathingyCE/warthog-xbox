@@ -89,6 +89,46 @@ used. Its state numbers are the January SDK's, and its device has the
 layout that `source/main/d3d_intimacy.cpp` reads. `port/xbox/src/
 xbox_support.cpp` supplies the memory functions that the kernel gave it.
 
+## Video modes
+
+The game draws 640x480, as the retail game does, and Direct3D picks the
+video mode from the dashboard's settings. That library's table of modes is
+the retail game's, row for row, and the game asks for the same back buffer
+and flags as the retail game, so the console gets the same modes:
+
+- 480p with the component (HD AV) cable and 480p turned on in the
+  dashboard; 480i with anything else. The game never asks for progressive
+  itself, so composite and S-Video keep working.
+- Widescreen (new; the retail game is 4:3 only): with Widescreen set in the
+  dashboard's video settings, and `display.widescreen = "dashboard"` (the
+  default), the game asks for the 16:9 mode. The table has it at 480p and
+  480i for every cable. The picture is still 640x480; a 16:9 TV stretches
+  it to fit. So the game draws the 3D view wider (the same height, more to
+  the sides, as a 16:9 desktop does), and lays the HUD, menus and text out
+  852 units across, which the stretch turns back into the right shapes.
+  The buffers stay the same size: it takes no memory. `"off"` keeps the 4:3
+  picture whatever the dashboard says. `src/xbox_screen.c` is the console's
+  side; the game's is `HALO_CONSOLE_ANAMORPHIC_SCREEN`
+  (`port/linux/include/halo_console_features.h`).
+
+`debug.txt` says which mode the console got, once the device is made:
+
+```
+screen: 480p 60 Hz widescreen (component), 852 units across
+screen: 480i 60 Hz 4:3 (composite), 640 units across
+```
+
+To check on a console: set the dashboard's video settings (480p on or off,
+Widescreen or Normal), start the game, and read that line. 480p needs the
+component cable; with composite it says 480i whatever the dashboard says.
+
+The console doesn't tell the TV that the picture is wide: 480p and 480i look
+like a 4:3 picture to it. If the picture keeps black bars at the sides, set
+the TV's picture size to stretch it to the whole screen (Wide, Full, 16:9 or
+Stretch, by brand). Some older TVs only offer that for some inputs or
+modes. With a TV that can't stretch it, keep Normal in the dashboard or set
+`display.widescreen = "off"`.
+
 ## Differences from the SDK
 
 `port/xbox/include/halo_xbox_prefix.h` is included before each game unit.
@@ -199,7 +239,7 @@ type, gain, obstruction and occlusion). The folder must be there. 0 (the
 default): none.
 
 And the desktop builds' that apply on the console: `display.direct_camera`,
-`display.field_of_view`, `display.viewmodel_field_of_view`,
+`display.widescreen` (see "Video modes"), `display.field_of_view`, `display.viewmodel_field_of_view`,
 `display.match_timer`, `display.version_watermark`, `display.follow_camera`,
 `display.follow_camera_after`, `display.powerup_timers`,
 `display.scoreboard_team_layout`, `display.scoreboard_background`,

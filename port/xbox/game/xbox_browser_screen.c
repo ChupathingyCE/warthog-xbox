@@ -689,6 +689,16 @@ static void quad(
 	draw_quad(&bounds, color);
 }
 
+/* the whole screen: the 640 columns, and on a wider one (the console's
+widescreen, src/xbox_screen.c) the sides around them too */
+static void quad_screen(
+	pixel32 color)
+{
+	short extra = (short)((halo_screen_width() - 640) / 2);
+
+	quad((short)-extra, 0, (short)(640 + extra), 480, color);
+}
+
 /* ASCII text in a box (clipped to it), in a font and color */
 static void text(
 	long font,
@@ -844,7 +854,7 @@ static void draw_offer(
 	set_color(&title_color, 1.0f, 0.55f, 0.75f, 1.0f);
 	set_color(&text_color, 1.0f, 0.93f, 0.95f, 1.0f);
 	set_color(&dim_color, 1.0f, 0.6f, 0.68f, 0.82f);
-	quad(0, 0, 640, 480, 0xA0000000);
+	quad_screen(0xA0000000);
 	quad(x0, y0, x1, y1, COLOR_HEADER);
 	quad(x0, y0, x1, y0 + 2, COLOR_RULE);
 	text(heading_font != NONE ? heading_font : font, _justify_left, &title_color, x0 + 14, y, x1 - 14, y + height + 6,
@@ -939,7 +949,7 @@ static void browser_screen_render_list(
 	column_type = (short)(column_players - COLUMN_GAP - COLUMN_TYPE_WIDTH);
 	column_map = (short)(column_type - COLUMN_GAP - COLUMN_MAP_WIDTH);
 
-	quad(0, 0, 640, 480, COLOR_BACKGROUND);
+	quad_screen(COLOR_BACKGROUND);
 	text(heading_font != NONE ? heading_font : font, _justify_left, &title_color, SCREEN_LEFT, TITLE_TOP,
 		SCREEN_RIGHT, RULE_Y - 2, "ONLINE GAMES");
 	for (index = 0; index < browser_screen.count && list; index++)
