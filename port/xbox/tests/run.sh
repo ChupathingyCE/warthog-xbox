@@ -15,7 +15,7 @@
 #   port/xbox/tests/run.sh --fetch       and the fetch of the real list, over the
 #                                        host's sockets (warthog.milenko.org)
 #   port/xbox/tests/run.sh --xbox        and the Xbox build's own checks
-#                                        (xbox_check.sh: va_start, formats)
+#                                        (xbox_check.sh: va_start, formats, image base)
 #
 # CC picks the compiler (default: Homebrew's clang if there, else cc). The
 # binaries and libFuzzer's corpus go to build/xbox-tests. Run from this
