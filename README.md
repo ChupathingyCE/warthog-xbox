@@ -12,74 +12,175 @@
 </p>
 
 Play Chupathingy on the console Halo was made for. A softmodded or modded
-original Xbox joins the same online games as PCs, Macs and phones. Open
-**Multiplayer > Online Games** and pick a game. System Link works too.
+original Xbox joins the same online games as PCs, Macs, phones and other
+consoles. Open **Multiplayer > Online Games** and pick a game. System Link
+works too.
 
 It runs on a stock 64 MB console. A console with 128 MB gets a little more
 room, and the game plays the same either way.
 
-**Status: test builds.** Online play, up to 32 players, Halo CE+ maps and
-Custom Edition maps work today. Hosting PC players, online co-op and movies
-aren't in yet.
-
-Test builds are shared in #xbox on the [Discord](https://discord.gg/chupathingy).
-You can also build it yourself (below).
+**Status: test builds.** Test builds are shared in #xbox on the
+[Discord](https://discord.gg/chupathingy). You can also build it yourself
+(below).
 
 You need your own copy of Halo. No game files or SDK files are included.
 
 This repository holds the original Xbox port. The game itself is the
 `chupathingyce` submodule. The other consoles have their own repositories:
 [warthog-360](https://github.com/ChupathingyCE/warthog-360),
-[warthog-wiiu](https://github.com/ChupathingyCE/warthog-wiiu) and
-[warthog-switch](https://github.com/ChupathingyCE/warthog-switch).
-
-## Details
-
-- Network: wire `chupa-41a`. Joins hosts of network versions 11 through 41,
-  OpenCE's newest, as the signed compatibility table allows.
-- Online: **Multiplayer > ONLINE GAMES** lists the games online and joins
-  them through the PCs' own tunnel, dedicated servers too.
-- System Link: joins PC hosts and consoles on your network.
-- Memory: 64 MB is the baseline. A console with 128 MB or more (a devkit,
-  or the common upgrade) gets larger texture and sound caches; the game
-  plays the same either way.
-- Maps: the retail maps, and community packs of Xbox maps beside them, Halo CE+ in `D:\maps_cex` ([below](#xbox-map-packs-halo-ce)).
-- Custom Edition maps: Halo PC's Custom Edition maps play as they are, from
-  `D:\maps_ce`, on a 128 MB console (experimental on a stock 64 MB one).
-  **Multiplayer > MAP BROWSER** downloads them from the
-  [xboxhomebrew.store](https://xboxhomebrew.store) archive, and Online Games
-  offers a missing map when you join ([below](#custom-edition-maps)).
-- Service record: the online games you join count on your profile at
-  stats.chupathingy.org, once the console is linked (Online Games, **Start**)
-  or has your identity file.
-- Players: the test build holds 32 players. Games past that are left, as a
-  full game is.
-- Chat: quick lines on the controller, and a USB keyboard.
-- Not yet: hosting PC players, network co-op, Bink movies, reverb.
+[warthog-wiiu](https://github.com/ChupathingyCE/warthog-wiiu),
+[warthog-switch](https://github.com/ChupathingyCE/warthog-switch) and
+[warthog-ps3](https://github.com/ChupathingyCE/warthog-ps3).
 
 ## What you need
 
 - **A console that runs your own code.** A softmodded or hardmodded
   original Xbox, or a development kit. xemu works for testing.
-- **Your own Halo disc's maps.** The North American (NTSC) release,
-  01.10.12.2276, as every Chupathingy build and server uses. The PAL disc's
+- **Your own Halo disc's maps.** Use the North American (NTSC) maps,
+  01.10.12.2276, as every Chupathingy build and server does. The PAL disc's
   maps work too. Warthog never provides maps, disc images or other game
   data, and never links to them. Don't share yours.
-- **To build it** (below): a Mac or Linux computer, your own copy of the
-  Xbox SDK, and your own Aug 2001 `d3d8ntpr.lib`.
+- **A way to copy files to the console**, such as your dashboard's FTP.
+- **To build it yourself** (below): a Mac or Linux computer, your own copy
+  of the Xbox SDK, and your own Aug 2001 `d3d8ntpr.lib`.
 
 ## Install
 
-1. Build `default.xbe` (see "Building it yourself").
-2. Copy the `maps` folder from your own disc (about 2 GB) to your computer.
-3. Lay the game out for the console's hard disk:
-   `python3 tools/xbox_package.py --maps /path/to/maps --out ~/Downloads/Warthog-xbox`.
-   This puts `default.xbe`, your maps and a `config.toml` in one folder.
-4. Copy that folder to the console, for example to `E:\Games\Warthog\`
-   (FTP from your dashboard, or a devkit's tools).
-5. Start `default.xbe` from the dashboard.
+The first time:
 
-`tools/easy_build.py` does steps 1 and 3 for you, with questions.
+1. Get the newest test build from #xbox on the
+   [Discord](https://discord.gg/chupathingy) and unzip it.
+2. Make a folder for it on the console's hard disk, for example
+   `E:\Games\Warthog\`, and copy `default.xbe` into it.
+3. Copy the `maps` folder from your own Halo disc into the same folder, so
+   you have `E:\Games\Warthog\maps\ui.map` and the rest.
+4. Make a text file called `config.toml` in the same folder, with these two
+   lines. Online Games and playing with PCs need them.
+
+   ```toml
+   [console]
+   bypass_security = true
+   ```
+
+5. Start `default.xbe` from your dashboard.
+
+To update, keep a copy of your old `default.xbe`, then replace it with the
+new one. Keep `config.toml` and your maps.
+
+If you build it yourself, `tools/xbox_package.py` makes the whole folder
+for you, `config.toml` included (see "Building it yourself").
+
+## What works
+
+- **Online Games:** lists the games online and joins them, dedicated
+  servers too. It joins OpenCE's newest servers (network version 41) and
+  older ones.
+- **System Link** with PCs and consoles on your network.
+- **Up to 32 players** in the test builds.
+- **Link your Delta profile:** on Online Games, press **Start**, then **A**
+  for a code. Enter the code at stats.chupathingy.org/connect, signed in on
+  your phone or computer, then press **A** on the console. The games you
+  join then count on your service record.
+- **Maps:** the retail maps, the Halo CE+ map pack, and Halo PC's Custom
+  Edition maps ([below](#custom-edition-maps)).
+- **Map Browser:** **Multiplayer > MAP BROWSER** downloads Custom Edition
+  maps, and Online Games offers a missing map when you join.
+- **Split screen** and the campaign, as on the disc. When you join a game
+  in progress, the host waits 5 seconds for your other controllers. Press
+  **A** on them right away. The host needs a current build for this.
+- **Chat:** quick lines on the controller, and a USB keyboard
+  ([below](#chat-and-keyboard)).
+- **Sound:** the original Xbox reverb.
+- **Widescreen and 480p** follow the dashboard's video settings.
+  Widescreen is new in the November test builds and still being tested.
+
+## Known issues
+
+- **No movies.** The intro and other Bink videos are skipped.
+- **The loading screen doesn't animate.**
+- **No hosting for PC players over the internet**, and no online co-op.
+  Co-op games are left out of the console's lists.
+- **Widescreen on your TV.** The console doesn't tell the TV that the
+  picture is wide. If you see black bars at the sides, set the TV's picture
+  size to Wide, Full, 16:9 or Stretch. With a TV that can't stretch it,
+  keep Normal in the dashboard, or set `display.widescreen = "off"` in
+  `config.toml`.
+- **Zoom frame rate.** Sniper and pistol zoom drop to about 20 fps.
+- **First load of a map** after the console starts takes longer than
+  later loads.
+- **Max players.** A game that grows past 32 players is left, as a full
+  one is.
+- **Custom Edition maps on a stock 64 MB console are experimental.** A map
+  too large for its memory is refused with a message. Their HUD button
+  icons are missing.
+- **HaloMD maps** aren't played on the console.
+- **Split screen players who join late** can't change profile or team on
+  the pregame screen
+  ([#83](https://github.com/ChupathingyCE/warthog-xbox/issues/83)).
+
+## Reporting problems
+
+1. Right after the problem, copy `debug.txt` from the game's folder (it's
+   `D:\debug.txt` to the game) to your computer.
+2. Send it at [dump.chupathingy.org](https://dump.chupathingy.org), with
+   "Original Xbox" as the platform. You get a reference code.
+3. Tell us in #warthog-support on the
+   [Discord](https://discord.gg/chupathingy) what you were doing, and give
+   the code.
+
+For a join that fails, set `trace = true` under `[console]` in
+`config.toml` first. It adds the network's steps to `debug.txt`, without
+anyone's address.
+
+## Settings on the console
+
+The settings are in `D:\config.toml` (`D:\` is the game's folder, beside
+`default.xbe`), the same kind of file as the PC builds'. If there's no
+`config.toml`, the first start writes one with every setting, commented out
+at its default. Remove the `# ` in front of one, change its value and
+restart the game. Edit it over FTP, or
+on the computer before copying the folder.
+
+```toml
+[console]
+bypass_security = true
+join = "192.168.1.20"
+```
+
+| Setting (`[console]`) | What it does |
+| --- | --- |
+| `bypass_security` | `true` starts the network in its open mode, which the internet and the PC builds need. The packaging script writes `true`; `--secure` writes `false` for console-only System Link. |
+| `game_list_server` | A host or address (`:port` optional): where to get the game list if `warthog.milenko.org` doesn't resolve. |
+| `join` | A host's LAN address, or an invite (`halo://join/...`). System Link joins the address, ONLINE GAMES' **Y** the invite. |
+| `trace` | `true` writes detailed network traces to `debug.txt`, for reporting a join that fails. Other hosts appear only as tags, never by their addresses. |
+| `memory_class` | `"auto"` (the default): a console with 128 MB or more gets the extras, such as larger texture and sound caches; a stock 64 MB console keeps the Xbox's sizes. `"64"` gives any console the stock sizes, to test the 64 MB baseline or if an extra misbehaves. |
+| `perf_log` | `true` writes a `perf:` line to `debug.txt` once a second: the frame time and each part of the frame. For finding what makes a scene slow. |
+| `debug_geometry` | For development: `true` brings back the debug build's debug lines and triangles, whose buffers take 1.4 MB. Off by default. |
+| `log_flush` | When `debug.txt` is written: `"buffered"` (the default) once a second and at once for a crash; `"every_line"` each line as it comes (slow), for a crash hunt. |
+| `large_caches` | Deprecated and ignored: `memory_class` decides now. |
+| `simulate_64mb` | Deprecated and ignored. A devkit gets 64 MB from the executable's flag: `tools/xbox_package.py --devkit-64mb`. |
+
+Many of the PC builds' settings work on the console too: field of view, the
+follow camera, chat, the scoreboard, music and effects volume, the network
+ones. `network.report_joined_games = false` keeps your games off your
+service record. [port/xbox/README.md](port/xbox/README.md) lists them, and
+[port/xbox/FEATURES.md](port/xbox/FEATURES.md) shows which PC features the
+console has.
+
+`brokers.txt` beside `default.xbe` lists the signalling servers internet
+play uses, one `host:port` a line, if the built-in ones can't be reached.
+
+The game writes its log to `D:\debug.txt` (see "Reporting problems").
+
+## Chat and keyboard
+
+Chat works in a game whose host runs Chupathingy.
+
+- **Controller:** **D-pad up** picks a quick line, **D-pad down** sends it.
+- **USB keyboard** (on a controller port): **T** talks to everyone, **Y** to
+  your team, **H** shows the recent lines.
+
+## Map packs and Custom Edition maps
 
 ### Xbox map packs (Halo CE+)
 
@@ -116,69 +217,9 @@ have, Online Games offers to download it first.
 
 A console with 128 MB plays them. On a stock 64 MB console they are
 experimental: most maps load, and a map too large for the console's memory
-is refused with a message. So far they have been tested in xemu, not yet on
-a real console. [docs/custom-edition.md](docs/custom-edition.md) has the
-details.
-
-## Settings on the console
-
-The settings are in `D:\config.toml` (`D:\` is the game's folder, beside
-`default.xbe`), the same kind of file as the PC builds'. The first start
-writes every setting, commented out at its default. Remove the `# ` in
-front of one, change its value and restart the game. Edit it over FTP, or
-on the computer before copying the folder.
-
-```toml
-[console]
-bypass_security = true
-join = "192.168.1.20"
-```
-
-| Setting (`[console]`) | What it does |
-| --- | --- |
-| `bypass_security` | `true` starts the network in its open mode, which the internet and the PC builds need. The packaging script writes `true`; `--secure` writes `false` for console-only System Link. |
-| `game_list_server` | A host or address (`:port` optional): where to get the game list if `warthog.milenko.org` doesn't resolve. |
-| `join` | A host's LAN address, or an invite (`halo://join/...`). System Link joins the address, ONLINE GAMES' **Y** the invite. |
-| `trace` | `true` writes detailed network traces to `debug.txt`, for reporting a join that fails. Other hosts appear only as tags, never by their addresses. |
-| `memory_class` | `"auto"` (the default): a console with 128 MB or more gets the extras, such as larger texture and sound caches; a stock 64 MB console keeps the Xbox's sizes. `"64"` gives any console the stock sizes, to test the 64 MB baseline or if an extra misbehaves. |
-| `perf_log` | `true` writes a `perf:` line to `debug.txt` once a second: the frame time and each part of the frame. For finding what makes a scene slow. |
-| `debug_geometry` | For development: `true` brings back the debug build's debug lines and triangles, whose buffers take 1.4 MB. Off by default. |
-| `log_flush` | When `debug.txt` is written: `"buffered"` (the default) once a second and at once for a crash; `"every_line"` each line as it comes (slow), for a crash hunt. |
-| `large_caches` | Deprecated and ignored: `memory_class` decides now. |
-| `simulate_64mb` | Deprecated and ignored. A devkit gets 64 MB from the executable's flag: `tools/xbox_package.py --devkit-64mb`. |
-
-Many of the PC builds' settings work on the console too: field of view, the
-follow camera, chat, the scoreboard, music and effects volume, the network
-ones. `network.report_joined_games = false` keeps your games off your
-service record. [port/xbox/README.md](port/xbox/README.md) lists them, and
-[port/xbox/FEATURES.md](port/xbox/FEATURES.md) shows which PC features the
-console has.
-
-`brokers.txt` beside `default.xbe` lists the signalling servers internet
-play uses, one `host:port` a line, if the built-in ones can't be reached.
-
-The game writes its log to `D:\debug.txt`. Attach it to bug reports.
-
-## Chat and keyboard
-
-Chat works in a game whose host runs Chupathingy.
-
-- **Controller:** **D-pad up** picks a quick line, **D-pad down** sends it.
-- **USB keyboard** (on a controller port): **T** talks to everyone, **Y** to
-  your team, **H** shows the recent lines.
-
-## Known quirks
-
-- **Zoom frame rate.** Sniper and pistol zoom drop the frame rate to about
-  20 fps. Being measured (`perf_log`); not fixed yet.
-- **First join of a map.** The first time a map loads after the console
-  starts, it takes longer than later loads, while the console caches it.
-- **Max players.** A game that grows past the console's 32 slots is left,
-  as a full one is.
-- **No network co-op.** Co-op games are left out of the console's lists.
-  Split screen and the campaign play as they always did.
-- **Custom Edition HUD buttons.** The button icons on a Custom Edition map's
-  HUD are missing.
+is refused with a message. A map without Custom Edition's `bitmaps.map`,
+`sounds.map` and `loc.map` beside it is refused with a message too.
+[docs/custom-edition.md](docs/custom-edition.md) has the details.
 
 ## Building it yourself
 

@@ -82,7 +82,15 @@ GAME_FLAGS = [
     # the reports of joined games (port/console/reports, port/xbox/src/
     # xbox_reports.c)
     "-DHALO_CONSOLE_GAME_REPORTS",
-    "-w",
+    # no warnings, as the decomp's code has many, but one: a variable read
+    # before it is set, as "T *x = &x[i];", where MSVC's 2001 compiler read
+    # the global x and clang reads the new local (a10's fog screen crash).
+    # Not the "sometimes" form: in the decomp those are the defaults of
+    # switches that assert, which the testers' build leaves out
+    "-Wno-everything",
+    "-Werror=uninitialized",
+    "-Wno-sometimes-uninitialized",
+    "-Wno-uninitialized-const-pointer",
     "-Wno-error=incompatible-pointer-types",
     "-Wno-error=incompatible-function-pointer-types",
     "-Wno-error=int-conversion",
@@ -113,6 +121,8 @@ SUPPORT_FLAGS = [
     # a format and its arguments that disagree are errors (the console's C
     # runtime has no %z, %ll, %j or %hh either)
     "-Wformat", "-Werror=format",
+    # (a variable read before it is set: GAME_FLAGS)
+    "-Werror=uninitialized", "-Wno-sometimes-uninitialized", "-Wno-uninitialized-const-pointer",
     # (the functions nothing calls left out, as the game's: GAME_FLAGS)
     "-ffunction-sections",
 ]
@@ -138,7 +148,12 @@ COLD_SOURCES = (
 SUPPORT_CXX_FLAGS = ["-fno-exceptions", "-fno-rtti", "-fno-threadsafe-statics"]
 
 LINK_FLAGS = [
-    "/nologo", "/subsystem:windows", "/fixed:no", "/base:0x00010000", "/stack:1048576",
+    # (the main thread's stack: 768 KB, all of it committed on the console.
+    # The deepest seen in any debug.txt is 279 KB, a campaign mission; the
+    # retail game's is 512 KB. /fixed: no .reloc section, as the retail game.
+    # The Xbox loads an image only at its base, and cxbe's fixups are a no-op
+    # when the PE's base is the XBE's 0x10000; the section took 119 KB)
+    "/nologo", "/subsystem:windows", "/fixed", "/base:0x00010000", "/stack:786432",
     "/machine:x86", "/entry:mainCRTStartup",
     # the functions nothing calls are left out (-ffunction-sections), and no
     # two that compile the same are folded into one: the game compares
@@ -219,7 +234,8 @@ XBOX_PORT_GAME_SOURCES = [
 # (port/linux/game/ui_map_list.c, map_packs.c), on the console too
 MAP_LIST_DEFINES = ["-DHALO_MAP_LIST", "-DHALO_CUSTOM_EDITION", "-DHALO_CONSOLE_MAP_BROWSER",
                     # (the console capabilities Custom Edition maps use: halo_port_features.h)
-                    "-DHALO_CONSOLE_CE_BITMAPS", "-DHALO_CONSOLE_CE_SHARED_TAG_CACHE"]
+                    "-DHALO_CONSOLE_CE_BITMAPS", "-DHALO_CONSOLE_CE_SHARED_TAG_CACHE",
+                    "-DHALO_CONSOLE_CE_MODEL_DATA_WINDOWS"]
 # d3d_intimacy.cpp reads the device as the January library named it; the
 # kernel's build of the Aug 2001 library has it in its own namespace (the
 # same layout)

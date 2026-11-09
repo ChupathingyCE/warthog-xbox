@@ -610,3 +610,109 @@ int game_list_parse_server(const char *text, unsigned long size, char *host, int
 	host[colon - start] = 0;
 	return 1;
 }
+
+/* ---------- DNS (game_list_resolve's own lookup) */
+
+int game_list_dns_query(const char *host, unsigned short id, unsigned char *buffer, int size)
+{
+	int length = 12;
+	const char *label = host;
+
+	if (!host || !*host || !buffer || size < 12 + 2 + 4)
+		return 0;
+	memset(buffer, 0, 12);
+	buffer[0] = (unsigned char)(id >> 8);
+	buffer[1] = (unsigned char)id;
+	/* (a standard query, recursion desired; one question) */
+	buffer[2] = 0x01;
+	buffer[5] = 1;
+	while (*label)
+	{
+		const char *dot = strchr(label, '.');
+		int label_length = dot ? (int)(dot - label) : (int)strlen(label);
+
+		if (label_length < 1 || label_length > 63 || length + 1 + label_length + 1 + 4 > size)
+			return 0;
+		buffer[length++] = (unsigned char)label_length;
+		memcpy(buffer + length, label, (size_t)label_length);
+		length += label_length;
+		if (!dot)
+			break;
+		label = dot + 1;
+		/* (a name that ends in a dot is the same name) */
+		if (!*label)
+			break;
+	}
+	buffer[length++] = 0;
+	/* (type A, class IN) */
+	buffer[length++] = 0;
+	buffer[length++] = 1;
+	buffer[length++] = 0;
+	buffer[length++] = 1;
+	return length;
+}
+
+/* past a name at offset (its labels, or a pointer to them, which ends it):
+the offset after it, -1 if it runs past size */
+static int dns_skip_name(const unsigned char *data, int size, int offset)
+{
+	int labels = 0;
+
+	while (offset < size && labels++ < 128)
+	{
+		unsigned char length = data[offset];
+
+		if (!length)
+			return offset + 1;
+		if ((length & 0xC0) == 0xC0)
+			return offset + 2 <= size ? offset + 2 : -1;
+		if (length & 0xC0)
+			return -1;
+		offset += 1 + length;
+	}
+	return -1;
+}
+
+int game_list_dns_answer(const unsigned char *data, int size, unsigned short id, unsigned long *address)
+{
+	int offset, questions, answers;
+
+	if (!data || !address || size < 12)
+		return 0;
+	/* (this query's answer, a response, no error) */
+	if (data[0] != (unsigned char)(id >> 8) || data[1] != (unsigned char)id || !(data[2] & 0x80) ||
+		(data[3] & 0x0F))
+		return 0;
+	questions = data[4] << 8 | data[5];
+	answers = data[6] << 8 | data[7];
+	offset = 12;
+	while (questions-- > 0)
+	{
+		offset = dns_skip_name(data, size, offset);
+		if (offset < 0 || offset + 4 > size)
+			return 0;
+		offset += 4;
+	}
+	while (answers-- > 0)
+	{
+		int type, class_value, length;
+
+		offset = dns_skip_name(data, size, offset);
+		if (offset < 0 || offset + 10 > size)
+			return 0;
+		type = data[offset] << 8 | data[offset + 1];
+		class_value = data[offset + 2] << 8 | data[offset + 3];
+		length = data[offset + 8] << 8 | data[offset + 9];
+		offset += 10;
+		if (offset + length > size)
+			return 0;
+		/* (an alias's record comes first; the address follows) */
+		if (type == 1 && class_value == 1 && length == 4)
+		{
+			memcpy(address, data + offset, 4);
+			return 1;
+		}
+		offset += length;
+	}
+	return 0;
+}

@@ -97,5 +97,8 @@ void xbox_claim_game_ended(void)
 		return;
 	}
 	xbox_memory_heap_allocation("xbox_claim_run.c (thread stack)", 0, CLAIM_STACK, thread);
+	/* (below the game's thread: a TLS handshake, hundreds of ms of the
+	processor's, would hitch the frames) */
+	SetThreadPriority(thread, THREAD_PRIORITY_BELOW_NORMAL);
 	CloseHandle(thread);
 }

@@ -31,8 +31,13 @@ int vsnprintf(char *buffer, size_t size, const char *format, va_list arguments)
 	if (!size)
 		return _vsnprintf(NULL, 0, format, arguments);
 	length = _vsnprintf(buffer, size, format, arguments);
-	/* (_vsnprintf leaves a full buffer unterminated, and says -1) */
-	buffer[size - 1] = 0;
+	/* _vsnprintf leaves a full buffer unterminated (and says -1, or size
+	when it just fits): terminate it then, and only then. size can be more
+	than the buffer (csprintf passes MAXIMUM_STRING_SIZE for any buffer),
+	so writing buffer[size - 1] every time wrote a zero up to 8 KB past a
+	small buffer */
+	if (length < 0 || (size_t)length >= size)
+		buffer[size - 1] = 0;
 	return length < 0 ? (int)size - 1 : length;
 }
 
@@ -236,9 +241,11 @@ static unsigned long __stdcall xbox_watchdog(void *parameter)
 
 void xbox_watchdog_start(void)
 {
-	/* (a stack of its own size: 0 is the main thread's, the XBE's 1 MB, all
-	of it committed memory on the Xbox) */
-	CreateThread(NULL, 64 * 1024, xbox_watchdog, NULL, 0, NULL);
+	/* (a stack of its own size: 0 is the main thread's, the XBE's 768 KB, all
+	of it committed memory on the Xbox. 16 KB, as the retail game's own
+	threads: the deepest it goes is platform_log, a 1 KB line and the C
+	runtime's formatting, under 4 KB) */
+	CreateThread(NULL, 16 * 1024, xbox_watchdog, NULL, 0, NULL);
 }
 
 /* (the screen: src/xbox_screen.c) */

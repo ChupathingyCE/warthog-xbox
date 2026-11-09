@@ -301,14 +301,19 @@ void xbox_game_list_request(void)
 	set_state(_list_fetching);
 	/* (the signed table's cache, and the network rules told of it: once) */
 	xbox_https_table_start();
-	/* (a stack of its own size: 0 is the main thread's, the XBE's 1 MB, all
+	/* (a stack of its own size: 0 is the main thread's, the XBE's 768 KB, all
 	of it committed memory on the Xbox; 48 KB holds the response's buffer
 	and the fetch's frames, CONSOLE_HTTPS_STACK_SIZE more the TLS
 	session's arena and Mbed TLS's frames, and DELTA_REFRESH_STACK_SIZE the
 	signed table's document; all of it given back when the thread ends) */
 	thread = CreateThread(NULL, LIST_THREAD_STACK, game_list_thread, NULL, 0, NULL);
 	if (thread)
+	{
 		xbox_memory_heap_allocation("xbox_game_list.c (thread stack)", 0, LIST_THREAD_STACK, thread);
+		/* (below the game's thread: a TLS handshake, hundreds of ms of the
+		processor's, would hitch the frames) */
+		SetThreadPriority(thread, THREAD_PRIORITY_BELOW_NORMAL);
+	}
 	if (!thread)
 	{
 		list_error = GAME_LIST_ERROR_CONNECT;

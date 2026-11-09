@@ -135,9 +135,9 @@ modes. With a TV that can't stretch it, keep Normal in the dashboard or set
 The files in `port/xbox/src` supply what the later SDK does not:
 
 - `xbox_dsound.c`: the January SDK gave a voice's mix bins as a mask. Later
-  SDKs take a list. The file translates the game's calls. The game's reverb
-  image is for the January DirectSound, so it is not loaded: there is no
-  reverb.
+  SDKs take a list. The file translates the game's calls, and downloads the
+  game's own effects image (reverb and crosstalk), so the Xbox build has the
+  original reverb.
 - `xbox_d3dx.c`: the four D3DX functions that the game calls. The SDK's
   D3DX library needs the SDK's own Direct3D.
 - `xbox_support.cpp`: `fast_ftol_C` (not yet in the reconstruction), and
@@ -370,12 +370,12 @@ the game list, the claim) is built for size (`-Os`), another 120 KB. The
 game's own code keeps `-O2` and its EBP frames, which the crash reports
 follow, but for the functions that call no other.
 
-The main thread's stack is the XBE's 1 MB, and the console commits all of
-it. `debug.txt` says how much of it the game has used: a `stack:` line at
-the start and one each time the deepest grows by 16 KB
-(`src/xbox_stack.c`). Some of the debug decomp's AI functions keep 80 to
-160 KB of arrays on the stack, so the size is cut only once a campaign
-mission's and a busy match's lines are known.
+The main thread's stack is the XBE's 768 KB (the retail game's is 512 KB),
+and the console commits all of it. `debug.txt` says how much of it the game
+has used: a `stack:` line at the start and one each time the deepest grows
+by 16 KB (`src/xbox_stack.c`). Some of the debug decomp's AI functions keep
+80 to 160 KB of arrays on the stack. The deepest seen so far is 279 KB, in a
+campaign mission.
 
 The debug decomp's developer tools are not in the console's build unless
 it is configured with `--console-debug-tools` (`HALO_CONSOLE_DEBUG_TOOLS`): the
@@ -410,10 +410,12 @@ Network co-op is not built for the console (`game/xbox_coop.c`): co-op
 games are left out of its lists, and a game that turns co-op is left with
 a message. Known:
 
-- There is no Bink video (the movies are skipped) and no reverb.
+- There is no Bink video (the movies are skipped).
+- The loading screen doesn't animate: the desktop's `loading_screen_step_due()`
+  is a stub that always says no on the Xbox (`game/xbox_desktop_stubs.c`).
 - The netcode is the PC builds' (distributed). The console joins a PC
   host's game as a client: it folds the PCs' 128-slot game settings record
-  and Slayer's state into its 16 slots, and leaves a game that grows past
+  and Slayer's state into its slots (16, or 32 in the test builds), and leaves a game that grows past
   them as a full one (docs/cross-play.md, "What is built"). It joins an
   internet game by its invite from ONLINE GAMES (A on a listed game, Y for
   the invite in `console.join`), through the desktop builds' tunnel
