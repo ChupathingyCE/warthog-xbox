@@ -155,11 +155,3 @@ boolean object_bounds_cache_out_of_reach(
 	return FALSE;
 }
 
-/* ---------- Delta's table (delta.c is not in the console) */
-
-int delta_capability_disabled(
-	int capability)
-{
-	(void)capability;
-	return 0;
-}

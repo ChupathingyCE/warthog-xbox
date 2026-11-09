@@ -20,8 +20,13 @@ With --devkit-64mb the copied default.xbe asks the kernel for 64 MB
 (XINIT_LIMIT_DEVKIT_MEMORY in the XBE's init flags), so a 128 MB devkit runs
 the game with the memory of a stock console. A stock console ignores the flag.
 
+With --map-pack ID=DIR (again for each pack), a community pack of Xbox maps
+(Halo CE+: cex) goes in OUT/maps_ID: DIR's *.map and its maplist.txt, the
+pack's own maps folder as its release has it. The game plays its maps as
+<file>@ID beside the retail ones (README.md, "Xbox map packs").
+
 The maps are the user's own (the NTSC disc's, 01.10.12.2276); none are in
-this repository.
+this repository, and no pack's files either.
 """
 
 import argparse
@@ -110,7 +115,18 @@ def main() -> int:
                         help="console.game_list_server: the list's server if its name does not resolve")
     parser.add_argument("--devkit-64mb", action="store_true",
                         help="set the XBE's flag that limits a devkit's memory to 64 MB, to test as a stock console")
+    parser.add_argument("--map-pack", action="append", default=[], metavar="ID=DIR",
+                        help="a pack of Xbox maps (its maps folder) for maps_ID: cex=/path/to/Halo CE+ X/maps")
     args = parser.parse_args()
+    packs = []
+    for value in args.map_pack:
+        pack_id, _, folder = value.partition("=")
+        if not re.fullmatch(r"[a-z0-9]{1,8}", pack_id) or pack_id in ("ce", "md", "pc", "de", "fr", "es", "it") or \
+                not folder or not Path(folder).expanduser().is_dir():
+            print(f"--map-pack {value}: ID=DIR, ID 1 to 8 lowercase letters and digits (cex), DIR a folder",
+                  file=sys.stderr)
+            return 1
+        packs.append((pack_id, Path(folder).expanduser()))
     if args.game_list_server and not re.fullmatch(SERVER_PATTERN, args.game_list_server):
         print("--game-list-server: a host or IPv4 address, :port optional", file=sys.stderr)
         return 1
@@ -134,6 +150,12 @@ def main() -> int:
     (out / "default.xbe").write_bytes(image)
     for path in files:
         place(path, out / "maps" / path.name)
+    pack_files = 0
+    for pack_id, folder in packs:
+        (out / f"maps_{pack_id}").mkdir(parents=True, exist_ok=True)
+        for path in sorted(folder.glob("*.map")) + [p for p in [folder / "maplist.txt"] if p.is_file()]:
+            place(path, out / f"maps_{pack_id}" / path.name)
+            pack_files += 1
     config = out / "config.toml"
     text = config.read_text(encoding="utf-8") if config.is_file() else CONFIG_HEADER
     text = set_console_setting(text, "bypass_security", "false" if args.secure else "true")
@@ -150,7 +172,7 @@ def main() -> int:
         if (out / old).exists():
             (out / old).unlink()
     print(f"{out}: default.xbe{' (devkit limited to 64 MB)' if args.devkit_64mb else ''}, "
-          f"{len(files)} map files, config.toml")
+          f"{len(files)} map files{f', {pack_files} map pack files' if packs else ''}, config.toml")
     return 0
 
 

@@ -10,6 +10,10 @@
 # - printf formats: the console's C runtime (2003's) has no %z, %ll, %j or
 #   %hh length modifiers; the units it formats with must not use them.
 #   (Formats against their arguments are -Werror=format in the build.)
+# - the image's base: the build links with /fixed (no .reloc), so cxbe must
+#   place the PE at the base it was linked for (0x10000). If the XBE's
+#   headers grew past 4 KB, cxbe would move it, and nothing would fix the
+#   addresses. Checked when build/xbox/default.xbe is there.
 #
 # Needs a configured Xbox build (build.ninja with the xbox target).
 set -e
@@ -44,5 +48,15 @@ if [ -n "$bad" ]; then
 	failures=$((failures + 1))
 else
 	echo "xbox_check: no %z, %ll, %j, %hh or %t formats"
+fi
+if [ -f build/xbox/default.xbe ]; then
+	# (the XBE header's PE base, 0x13C, against the base build.py links for)
+	if python3 -c 'import struct, sys; d = open(sys.argv[1], "rb").read(0x140); sys.exit(struct.unpack_from("<I", d, 0x13C)[0] != 0x10000)' \
+		build/xbox/default.xbe; then
+		echo "xbox_check: the XBE's image sits at its link base"
+	else
+		echo "xbox_check: cxbe moved the image off its link base (0x10000), and the build has no relocations" >&2
+		failures=$((failures + 1))
+	fi
 fi
 [ "$failures" -eq 0 ]

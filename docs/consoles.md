@@ -1,76 +1,48 @@
 # Other consoles
 
-Warthog is ChupathingyCE's console line. The original Xbox is the one that
-plays: it boots to the menus on a devkit and on modified retail consoles,
-gets the game list and joins a PC host's game as a client (README, "Status").
-Everything else here is scaffolding: a folder, a build generator and a
-packaging script per console, each building a stub that logs a line and
-exits. None of the game is compiled for these consoles yet, and none of
-them has run anything on hardware.
+Warthog is Chupathingy's console line. This repository is the original
+Xbox's. Each other console has a repository of its own, with the game as a
+submodule, the same way:
 
-| Console | Folder | `ninja` target | Toolchain | Status |
-|---|---|---|---|---|
-| Original Xbox | `port/xbox` | `xbox` | clang, lld-link, [OXDK](https://github.com/MrMilenko/OXDK), the user's 5933 XDK | plays: menus, game list, joins PC hosts |
+| Console | Repository |
+|---|---|
+| Original Xbox | this one (`port/xbox`, `ninja xbox`) |
+| Xbox 360 | [ChupathingyCE/warthog-360](https://github.com/ChupathingyCE/warthog-360) |
+| Wii U | [ChupathingyCE/warthog-wiiu](https://github.com/ChupathingyCE/warthog-wiiu) |
+| Nintendo Switch | [ChupathingyCE/warthog-switch](https://github.com/ChupathingyCE/warthog-switch) |
+| PlayStation 3 | [ChupathingyCE/warthog-ps3](https://github.com/ChupathingyCE/warthog-ps3) |
 
 Each port is a `--console-port` of the game's `configure.py`
 (`python3 chupathingyce/configure.py --console-port port/xbox ...`;
-docs/building.md). A target exists only when its toolchain is found. The
-Xbox 360, the Switch and the Wii U are their own repositories,
-[ChupathingyCE/warthog-360](https://github.com/ChupathingyCE/warthog-360),
-[ChupathingyCE/warthog-switch](https://github.com/ChupathingyCE/warthog-switch)
-and [ChupathingyCE/warthog-wiiu](https://github.com/ChupathingyCE/warthog-wiiu).
+docs/building.md). A target exists only when its toolchain is found.
 
-## What each console needs before it plays
-
-The plan's order: the original Xbox first; the Xbox 360 next (in
-[warthog-360](https://github.com/ChupathingyCE/warthog-360); the Wii U, in its own repository, is big-endian
-too, so the byte-order work is shared).
-For any of them:
-
-1. **The game's sources built for it.** Today only the original Xbox compiles
-   `source/`. The others need a platform layer for what `port/linux` gives
-   the desktop builds: files, threads, timing, input, sound and a renderer.
-   `port/linux/src/d3d8_gl.c` (the game's Direct3D 8 calls over OpenGL) is the
-   likely start where there is OpenGL or GLES; the Xbox 360 would go through
-   its own Direct3D 9.
-2. **Byte order (Xbox 360, Wii U).** Maps, saved games and network messages
-   are little-endian Xbox data. The plan in the README ("Xbox 360"): swap tag
-   fields by their definitions as each tag loads, and network fields in the
-   message codec, which already encodes field by field. Not a big-endian
-   aware loader everywhere. `port/console/include/console_endian.h` has the
-   swaps and the unaligned readers for that work; nothing uses it yet.
-3. **Alignment (PowerPC).** Misaligned multi-byte reads from byte buffers
-   trap or are slow: the cache file and network readers' `*(long *)` reads
-   need an audit.
-4. **Memory and limits.** The original Xbox keeps the Xbox's limits (16
-   players and machines, 2,048 objects, a 22 MB texture cache; README,
-   "Memory"). Consoles with more memory could take the desktop builds'
-   capacities, which makes cross-play simpler, but that is a choice to make
-   per console once it runs, not a given: each one's Delta platform key
-   (`port/linux/include/delta.h`, once Delta Peer is in ChupathingyCE) says what it
-   hosts and joins.
-5. **Cross-play.** The network protocol stays the PC builds' (network
-   version and layout); a console adapts to it, never the other way (the
-   game's docs/cross-play.md).
+Every console keeps the network protocol of the PC builds (network version
+and layout). A console adapts to it, never the other way (the game's
+docs/cross-play.md). Code that more than one console needs goes in the
+game behind a console-neutral switch (`HALO_CONSOLE_*`), not an Xbox one.
 
 ## Shared console code (the game's `port/console`)
 
-Headers in the game (the submodule), included as `port/console/include/...`:
+In the game (the submodule):
 
-- `console_common.h`: the console's name and type, a controller state.
-- `console_endian.h`: byte swaps, little-endian readers and writers that
-  are safe at any alignment.
-- `console_input.h`: the controller interface each stub implements (all
-  stubs report no controller).
+- `port/console/include`: the console's name and type, controller input,
+  byte swaps and readers that are safe at any alignment, and the tag and
+  cache byte swaps the big-endian consoles use.
+- `port/console/https`: the HTTPS client the consoles share (the game list,
+  the signed legacy table, map lists), with the site's keys pinned.
+- `port/console/link`: Link Profile, with the console's own key.
+- `port/console/reports`: reports of joined games, for service records.
 
 ## Packages
 
-A console's package holds the stub only, never the
-maps: a package is one installable file, easily passed around, and the maps
-are the user's own. They stay a folder beside it.
+A console's package holds the game only, never the maps: a package is one
+installable file, easily passed around, and the maps are the user's own.
+They stay a folder beside it.
 
-## Testing (once a console runs the game)
+## Testing
 
 | Console | Emulator | Hardware |
 |---|---|---|
 | Original Xbox | xemu (128 MB, NAT) | devkit, or a modified retail console |
+| Xbox 360 | Xenia Canary (warthog-360's `tools/xenia_smoke.sh`) | RGH/JTAG, or a softmod like BadUpdate or BadAvatar |
+| Wii U | Cemu 2.6 (warthog-wiiu's `tools/cemu_smoke.sh`) | Aroma |

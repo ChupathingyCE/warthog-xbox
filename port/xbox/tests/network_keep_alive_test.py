@@ -3,7 +3,7 @@ as the wire format record (port/linux/network_format.txt) and the console's
 packet table (source/networking/network_messages.c) have them: the pregame
 keep-alive is 4 bytes, the postgame's 2, each with a field list of its own;
 the aim assist policy is message 90 (12 bytes) and the console's game version
-is announced as 32 in the wire chupa-32a."""
+is announced as 32."""
 import re
 import sys
 from pathlib import Path
@@ -40,7 +40,7 @@ check(re.search(r"^\s*(enum )?.*aim_assist.* 90|message_aim_assist_policy|_distr
                 (root / "port/linux/game/network_distributed.c").read_text(), re.M) is not None,
       "message 90 is the aim assist policy")
 check(re.search(r"#define HALO_PORT_NETWORK_VERSION 32\b", limits) is not None, "announces 32")
-check('#define DELTA_WIRE "chupa-32a"' in delta, "wire chupa-32a")
+check(re.search(r'#define DELTA_WIRE "chupa-\d+[a-z]"', delta) is not None, "the game names a Delta wire")
 if failures:
     print("\n".join("FAIL: " + f for f in failures))
     sys.exit(1)

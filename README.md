@@ -2,78 +2,143 @@
 
 <h1 align="center">Warthog</h1>
 
-<p align="center"><b>Chupathingy on the original Xbox, playing online with the PCs.</b></p>
+<p align="center"><b>Chupathingy on the original Xbox.</b></p>
 
 <p align="center">
-<a href="https://github.com/ChupathingyCE/chupathingyce">The game (Chupathingy)</a> ·
-<a href="https://halo.milenko.org">Games online now</a> ·
-<a href="https://discord.gg/chupathingy">Discord</a>
+<a href="https://discord.gg/chupathingy">Get the test build (Discord, #xbox)</a> ·
+<a href="https://stats.chupathingy.org">Games online now</a> ·
+<a href="https://github.com/ChupathingyCE/chupathingyce">The game</a> ·
+<a href="https://chupathingy.org">chupathingy.org</a>
 </p>
 
-Warthog is the Halo: Combat Evolved decompilation built back for the
-consoles, on the same game code as
-[Chupathingy](https://github.com/ChupathingyCE/chupathingyce) (the Windows,
-Mac, Linux and Android builds). An original Xbox joins the same games as the
-PCs and Macs, from the **Online Games** list or System Link.
+Play Chupathingy on the console Halo was made for. A softmodded or modded
+original Xbox joins the same online games as PCs, Macs, phones and other
+consoles. Open **Multiplayer > Online Games** and pick a game. System Link
+works too.
 
-This repository holds the console ports only. The game is the
-`chupathingyce` submodule.
+It runs on a stock 64 MB console. A console with 128 MB gets a little more
+room, and the game plays the same either way.
 
-You need your own copy of Halo. No SDK files or game files are included,
-and there is no download yet: you build it yourself.
+**Status: test builds.** Test builds are shared in #xbox on the
+[Discord](https://discord.gg/chupathingy). You can also build it yourself
+(below).
 
-## Status
+You need your own copy of Halo. No game files or SDK files are included.
 
-| Console | Status |
-| --- | --- |
-| Original Xbox | Testing. Up to 32 players. Plays on a stock 64 MB console; 128 MB consoles get extras |
-| Xbox 360 | In development; moved to [warthog-360](https://github.com/ChupathingyCE/warthog-360) |
-| Wii U | Scaffolding only; moved to [warthog-wiiu](https://github.com/ChupathingyCE/warthog-wiiu) |
-
-**Original Xbox**
-- Network version: 32 (wire `chupa-32a`). Joins hosts of network versions
-  11 through 33.
-- Online: **Multiplayer > ONLINE GAMES** lists the games online and joins
-  them through the PCs' own tunnel, dedicated servers too.
-- System Link: joins PC hosts and consoles on your network.
-- Memory: 64 MB is the baseline. A console with 128 MB or more (a devkit,
-  or the common upgrade) gets larger texture and sound caches; the game
-  plays the same either way.
-- Players: the test build holds 32 players. Games past that are left, as a
-  full game is.
-- Chat: quick lines on the controller, and a USB keyboard.
-- Not yet: hosting PC players, network co-op, Bink movies, reverb.
+This repository holds the original Xbox port. The game itself is the
+`chupathingyce` submodule. The other consoles have their own repositories:
+[warthog-360](https://github.com/ChupathingyCE/warthog-360),
+[warthog-wiiu](https://github.com/ChupathingyCE/warthog-wiiu),
+[warthog-switch](https://github.com/ChupathingyCE/warthog-switch) and
+[warthog-ps3](https://github.com/ChupathingyCE/warthog-ps3).
 
 ## What you need
 
 - **A console that runs your own code.** A softmodded or hardmodded
   original Xbox, or a development kit. xemu works for testing.
-- **Your own Halo disc's maps.** The North American (NTSC) release,
-  01.10.12.2276, as every Chupathingy build and server uses. The PAL disc's
+- **Your own Halo disc's maps.** Use the North American (NTSC) maps,
+  01.10.12.2276, as every Chupathingy build and server does. The PAL disc's
   maps work too. Warthog never provides maps, disc images or other game
   data, and never links to them. Don't share yours.
-- **To build it** (below): a Mac or Linux computer, your own copy of the
-  Xbox SDK, and your own Aug 2001 `d3d8ntpr.lib`.
+- **A way to copy files to the console**, such as your dashboard's FTP.
+- **To build it yourself** (below): a Mac or Linux computer, your own copy
+  of the Xbox SDK, and your own Aug 2001 `d3d8ntpr.lib`.
 
 ## Install
 
-1. Build `default.xbe` (see "Building it yourself").
-2. Copy the `maps` folder from your own disc (about 2 GB) to your computer.
-3. Lay the game out for the console's hard disk:
-   `python3 tools/xbox_package.py --maps /path/to/maps --out ~/Downloads/Warthog-xbox`.
-   This puts `default.xbe`, your maps and a `config.toml` in one folder.
-4. Copy that folder to the console, for example to `E:\Games\Warthog\`
-   (FTP from your dashboard, or a devkit's tools).
-5. Start `default.xbe` from the dashboard.
+The first time:
 
-`tools/easy_build.py` does steps 1 and 3 for you, with questions.
+1. Get the newest test build from #xbox on the
+   [Discord](https://discord.gg/chupathingy) and unzip it.
+2. Make a folder for it on the console's hard disk, for example
+   `E:\Games\Warthog\`, and copy `default.xbe` into it.
+3. Copy the `maps` folder from your own Halo disc into the same folder, so
+   you have `E:\Games\Warthog\maps\ui.map` and the rest.
+4. Make a text file called `config.toml` in the same folder, with these two
+   lines. Online Games and playing with PCs need them.
+
+   ```toml
+   [console]
+   bypass_security = true
+   ```
+
+5. Start `default.xbe` from your dashboard.
+
+To update, keep a copy of your old `default.xbe`, then replace it with the
+new one. Keep `config.toml` and your maps.
+
+If you build it yourself, `tools/xbox_package.py` makes the whole folder
+for you, `config.toml` included (see "Building it yourself").
+
+## What works
+
+- **Online Games:** lists the games online and joins them, dedicated
+  servers too. It joins OpenCE's newest servers (network version 41) and
+  older ones.
+- **System Link** with PCs and consoles on your network.
+- **Up to 32 players** in the test builds.
+- **Link your Delta profile:** on Online Games, press **Start**, then **A**
+  for a code. Enter the code at stats.chupathingy.org/connect, signed in on
+  your phone or computer, then press **A** on the console. The games you
+  join then count on your service record.
+- **Maps:** the retail maps, the Halo CE+ map pack, and Halo PC's Custom
+  Edition maps ([below](#custom-edition-maps)).
+- **Map Browser:** **Multiplayer > MAP BROWSER** downloads Custom Edition
+  maps, and Online Games offers a missing map when you join.
+- **Split screen** and the campaign, as on the disc. When you join a game
+  in progress, the host waits 5 seconds for your other controllers. Press
+  **A** on them right away. The host needs a current build for this.
+- **Chat:** quick lines on the controller, and a USB keyboard
+  ([below](#chat-and-keyboard)).
+- **Sound:** the original Xbox reverb.
+- **Widescreen and 480p** follow the dashboard's video settings.
+  Widescreen is new in the November test builds and still being tested.
+
+## Known issues
+
+- **No movies.** The intro and other Bink videos are skipped.
+- **The loading screen doesn't animate.**
+- **No hosting for PC players over the internet**, and no online co-op.
+  Co-op games are left out of the console's lists.
+- **Widescreen on your TV.** The console doesn't tell the TV that the
+  picture is wide. If you see black bars at the sides, set the TV's picture
+  size to Wide, Full, 16:9 or Stretch. With a TV that can't stretch it,
+  keep Normal in the dashboard, or set `display.widescreen = "off"` in
+  `config.toml`.
+- **Zoom frame rate.** Sniper and pistol zoom drop to about 20 fps.
+- **First load of a map** after the console starts takes longer than
+  later loads.
+- **Max players.** A game that grows past 32 players is left, as a full
+  one is.
+- **Custom Edition maps on a stock 64 MB console are experimental.** A map
+  too large for its memory is refused with a message. Their HUD button
+  icons are missing.
+- **HaloMD maps** aren't played on the console.
+- **Split screen players who join late** can't change profile or team on
+  the pregame screen
+  ([#83](https://github.com/ChupathingyCE/warthog-xbox/issues/83)).
+
+## Reporting problems
+
+1. Right after the problem, copy `debug.txt` from the game's folder (it's
+   `D:\debug.txt` to the game) to your computer.
+2. Send it at [dump.chupathingy.org](https://dump.chupathingy.org), with
+   "Original Xbox" as the platform. You get a reference code.
+3. Tell us in #warthog-support on the
+   [Discord](https://discord.gg/chupathingy) what you were doing, and give
+   the code.
+
+For a join that fails, set `trace = true` under `[console]` in
+`config.toml` first. It adds the network's steps to `debug.txt`, without
+anyone's address.
 
 ## Settings on the console
 
 The settings are in `D:\config.toml` (`D:\` is the game's folder, beside
-`default.xbe`), the same kind of file as the PC builds'. The first start
-writes every setting, commented out at its default. Remove the `# ` in
-front of one, change its value and restart the game. Edit it over FTP, or
+`default.xbe`), the same kind of file as the PC builds'. If there's no
+`config.toml`, the first start writes one with every setting, commented out
+at its default. Remove the `# ` in front of one, change its value and
+restart the game. Edit it over FTP, or
 on the computer before copying the folder.
 
 ```toml
@@ -97,14 +162,15 @@ join = "192.168.1.20"
 
 Many of the PC builds' settings work on the console too: field of view, the
 follow camera, chat, the scoreboard, music and effects volume, the network
-ones. [port/xbox/README.md](port/xbox/README.md) lists them, and
+ones. `network.report_joined_games = false` keeps your games off your
+service record. [port/xbox/README.md](port/xbox/README.md) lists them, and
 [port/xbox/FEATURES.md](port/xbox/FEATURES.md) shows which PC features the
 console has.
 
 `brokers.txt` beside `default.xbe` lists the signalling servers internet
 play uses, one `host:port` a line, if the built-in ones can't be reached.
 
-The game writes its log to `D:\debug.txt`. Attach it to bug reports.
+The game writes its log to `D:\debug.txt` (see "Reporting problems").
 
 ## Chat and keyboard
 
@@ -114,16 +180,46 @@ Chat works in a game whose host runs Chupathingy.
 - **USB keyboard** (on a controller port): **T** talks to everyone, **Y** to
   your team, **H** shows the recent lines.
 
-## Known quirks
+## Map packs and Custom Edition maps
 
-- **Zoom frame rate.** Sniper and pistol zoom drop the frame rate to about
-  20 fps. Being measured (`perf_log`); not fixed yet.
-- **First join of a map.** The first time a map loads after the console
-  starts, it takes longer than later loads, while the console caches it.
-- **Max players.** A game that grows past the console's 32 slots is left,
-  as a full one is.
-- **No network co-op.** Co-op games are left out of the console's lists.
-  Split screen and the campaign play as they always did.
+### Xbox map packs (Halo CE+)
+
+Warthog plays community packs of Xbox maps, such as Halo CE+ X (Original
+Xbox) by VKMT, beside your retail maps. A pack's maps reuse the retail
+maps' file names, so each pack has a folder of its own beside `maps`:
+Halo CE+ goes in `D:\maps_cex\`. Copy the contents of the pack's `maps`
+folder there, its `maplist.txt` included, and keep the retail maps in
+`D:\maps\`. With the packaging script:
+`python3 tools/xbox_package.py --maps /path/to/maps --map-pack cex="/path/to/Halo CE+ X/maps" --out ...`.
+
+The pack's maps appear in the multiplayer map list after the retail ones,
+marked [CE+] and named as the pack names them (Abyss, Gothra, ...). Online,
+a CE+ game is joined only with the same version of the pack, and a console
+without it is told which map and folder it needs. The larger CE+ maps use a
+campaign map's cache file on the utility partition. Warthog never provides
+the pack's files: get them from the pack's release page. The pack's own
+menus (`ui.map`) stay unused unless `game.pack_menus = "cex"` is set in
+`D:\config.toml`.
+
+### Custom Edition maps
+
+Custom Edition maps go in `D:\maps_ce\`, with no conversion. Their
+`bitmaps.map`, `sounds.map` and `loc.map` go beside them. They show in the
+multiplayer map list marked [CE], and Online Games lists the Custom Edition
+games hosted by PCs and dedicated servers.
+
+The easy way to get them is **Multiplayer > MAP BROWSER**. It lists the
+[xboxhomebrew.store](https://xboxhomebrew.store) archive (halomaps.org's
+maps) and the store's Xbox map packs, with a picture and details for each.
+**A** installs a map, **Y** removes it, and **X** searches. Each download is
+checked against the store's hash. When you join a game whose map you don't
+have, Online Games offers to download it first.
+
+A console with 128 MB plays them. On a stock 64 MB console they are
+experimental: most maps load, and a map too large for the console's memory
+is refused with a message. A map without Custom Edition's `bitmaps.map`,
+`sounds.map` and `loc.map` beside it is refused with a message too.
+[docs/custom-edition.md](docs/custom-edition.md) has the details.
 
 ## Building it yourself
 
@@ -138,7 +234,8 @@ cd warthog-xbox
 
 You need:
 - Python 3, [ninja](https://ninja-build.org/) and LLVM (clang and lld-link).
-  On macOS: `brew install llvm lld ninja`.
+  On macOS: `brew install llvm lld ninja`. On Linux, see the Linux section
+  of [docs/building.md](docs/building.md).
 - [OXDK](https://github.com/MrMilenko/OXDK) in `~/OXDK` (or `--oxdk DIR`),
   with its `cxbe` built, and your own 5933 Xbox SDK's libraries and headers
   in OXDK's `xbox/xdk/lib` and `xbox/xdk/include`.
@@ -162,7 +259,8 @@ Notes:
   configure builds 16, as the Xbox's own game had.
 - The Xbox 360 port is
   [ChupathingyCE/warthog-360](https://github.com/ChupathingyCE/warthog-360).
-- Windows: no build path yet. Help is welcome in #warthog-dev on the Discord.
+- macOS and Linux build it. Windows: no build path yet. Help is welcome in
+  #warthog-dev on the Discord.
 - Nothing from Microsoft's SDKs is in this repository, and none of it may be
   committed.
 
@@ -234,9 +332,13 @@ not be part of our community.
   toolchain: [OXDK](https://github.com/MrMilenko/OXDK).
 - Libraries: KCP and Monocypher (internet play), zlib, and the libraries
   the game uses, with their licenses in the game's `port/third_party`.
+  [jsmn](https://github.com/zserge/jsmn) by Serge Zaitsev (MIT), the Map
+  Browser's JSON parser (`port/xbox/browser/jsmn.h`).
 
 ### Contributors
 
+- [Jizzy](https://github.com/JizzyRivers): Custom Edition maps on the
+  console, the Map Browser, maps offered on join, and the Linux build fixes.
 - [thelinkin3000](https://github.com/thelinkin3000): the Nintendo Switch
   port, now in [ChupathingyCE/warthog-switch](https://github.com/ChupathingyCE/warthog-switch).
 - CrunchBite (XLink Kai's developer): XLink Kai's addressing for consoles
@@ -248,11 +350,11 @@ not be part of our community.
 ## Links
 
 - The game: [ChupathingyCE/chupathingyce](https://github.com/ChupathingyCE/chupathingyce)
-- Games online now: [halo.milenko.org](https://halo.milenko.org)
+- Games online now: [stats.chupathingy.org](https://stats.chupathingy.org)
 - Discord: [discord.gg/chupathingy](https://discord.gg/chupathingy)
   (#warthog-support for help, #warthog-dev for development)
 
-Halo is a trademark of Microsoft. Warthog is a fan project, not made or
-endorsed by Microsoft, Bungie or 343 Industries, and includes none of the
-game's content. The code is released under the GNU GPL, version 3 or later
+Warthog is an unofficial fan project. It isn't affiliated with or endorsed
+by Microsoft, Xbox Game Studios, Bungie or Halo Studios. Halo is a trademark
+of Microsoft. No game files are included: you bring your own copy. The code is released under the GNU GPL, version 3 or later
 (see [License](#license)).

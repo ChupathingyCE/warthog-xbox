@@ -263,11 +263,15 @@ int xbox_winsock_deliver(unsigned short port, unsigned short from_port, const vo
 	return 1;
 }
 
-/* the oldest datagram queued for the socket's port, taken: its size, or -1 */
-static int inbox_take(SOCKET socket, char *buffer, int length, unsigned short *from_port)
+/* the oldest datagram queued for the socket's port, taken: its size, or -1;
+*truncated set when it was longer than the buffer (what fits is copied, the
+rest dropped, as Winsock does before it fails with WSAEMSGSIZE) */
+static int inbox_take(SOCKET socket, char *buffer, int length, unsigned short *from_port, int *truncated)
 {
 	unsigned short port = 0;
 	int index, result = -1;
+
+	*truncated = 0;
 
 	for (index = 0; index < MAXIMUM_TRACKED_SOCKETS; index++)
 	{
@@ -285,11 +289,18 @@ static int inbox_take(SOCKET socket, char *buffer, int length, unsigned short *f
 		if (inbox[slot].port != port)
 			continue;
 		result = inbox[slot].size < length ? inbox[slot].size : length;
+		*truncated = inbox[slot].size > length;
 		memcpy(buffer, inbox[slot].data, (size_t)result);
 		*from_port = inbox[slot].from_port;
-		/* (the rest move up one) */
-		for (later = index; later + 1 < inbox_count; later++)
-			inbox[(inbox_first + later) % INBOX_DATAGRAMS] = inbox[(inbox_first + later + 1) % INBOX_DATAGRAMS];
+		/* (the front of the ring is taken by moving its start; for one behind
+		the front, the ones after it move up one) */
+		if (!index)
+			inbox_first = (inbox_first + 1) % INBOX_DATAGRAMS;
+		else
+		{
+			for (later = index; later + 1 < inbox_count; later++)
+				inbox[(inbox_first + later) % INBOX_DATAGRAMS] = inbox[(inbox_first + later + 1) % INBOX_DATAGRAMS];
+		}
 		inbox_count--;
 		break;
 	}
@@ -457,7 +468,8 @@ int WSAAPI halo_xbox_recvfrom(SOCKET socket, char *buffer, int length, int flags
 	int *address_length)
 {
 	unsigned short from_port;
-	int result = inbox_take(socket, buffer, length, &from_port);
+	int truncated;
+	int result = inbox_take(socket, buffer, length, &from_port, &truncated);
 
 	/* (a peer's datagram, from its stand-in on 127.0.0.1) */
 	if (result >= 0)
@@ -478,6 +490,12 @@ int WSAAPI halo_xbox_recvfrom(SOCKET socket, char *buffer, int length, int flags
 				platform_log("tunnel: the game read %ld peer datagram(s) (this one %d bytes, %s a peer's)", since,
 					result, is_virtual(in->sin_addr.s_addr) ? "seen as" : "NOT seen as");
 		}
+		/* (longer than the buffer: Winsock's error, the sender filled in) */
+		if (truncated)
+		{
+			WSASetLastError(WSAEMSGSIZE);
+			return SOCKET_ERROR;
+		}
 		return result;
 	}
 	result = recvfrom(socket, buffer, length, flags, address, address_length);
@@ -497,7 +515,8 @@ int WSAAPI halo_xbox_recv(SOCKET socket, char *buffer, int length, int flags)
 	if (socket_type(socket) == SOCK_DGRAM)
 	{
 		unsigned short from_port;
-		int result = inbox_take(socket, buffer, length, &from_port);
+		int truncated;
+		int result = inbox_take(socket, buffer, length, &from_port, &truncated);
 
 		if (result >= 0)
 		{
@@ -506,6 +525,11 @@ int WSAAPI halo_xbox_recv(SOCKET socket, char *buffer, int length, int flags)
 			if (hop_log(_hop_read, &since))
 				platform_log("tunnel: the game read %ld peer datagram(s) (this one %d bytes, on its connected socket)",
 					since, result);
+			if (truncated)
+			{
+				WSASetLastError(WSAEMSGSIZE);
+				return SOCKET_ERROR;
+			}
 			return result;
 		}
 	}

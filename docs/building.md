@@ -1,9 +1,9 @@
 # Building Warthog for the original Xbox
 
-This is how the original Xbox build works today. It is built on macOS with
-[OXDK](https://github.com/MrMilenko/OXDK), clang and lld-link. It should
-build on Linux the same way, but that is untested. There is no Windows
-build path yet; see "Help wanted: Windows tooling" in the README.
+This is how the original Xbox build works today. It is built on macOS or
+Linux with [OXDK](https://github.com/MrMilenko/OXDK), clang and lld-link
+(see "Linux", below, for what differs there). There is no Windows build
+path yet; see "Help wanted: Windows tooling" in CONTRIBUTING.md.
 
 This repository holds the console ports only. The game itself, with the
 code every platform shares, is
@@ -36,7 +36,7 @@ same thing by hand.
 | --- | --- | --- |
 | Python 3 | on `PATH` (3.7 or newer) | 3.9 (macOS's) |
 | [ninja](https://ninja-build.org/) | on `PATH` | 1.13 |
-| LLVM: clang and lld-link | macOS: `brew install llvm lld ninja`. The build looks in `LLVM_DIR`, then Homebrew's `llvm` folder, then `PATH` | Homebrew clang 22.1, LLD 22.1 |
+| LLVM: clang and lld-link | macOS: `brew install llvm lld ninja`. The build looks in `LLVM_DIR`, then Homebrew's `llvm` folder, then `PATH` | Homebrew clang 22.1, LLD 21.1 and 22.1 (if Homebrew's `lld` crashes at start because it loads a newer LLVM's library, install `lld@21` and put its `lld-link` first on `PATH`) |
 | [OXDK](https://github.com/MrMilenko/OXDK), with its `cxbe` built | `~/OXDK` (or `--oxdk DIR`, or `OXDK_DIR`) | |
 | The Xbox SDK's libraries and headers (the 5933 SDK) | OXDK's `xbox/xdk/lib` and `xbox/xdk/include`, set up as OXDK's README says | 5933 |
 | An Aug 2001 Direct3D library, `d3d8ntpr.lib` (the `aug01` i386 build) | anywhere; you give its path to `configure.py` | |
@@ -67,6 +67,22 @@ when the port's `build.py` or the game's build files change, for example
 after a submodule update. If it can't find OXDK or the Direct3D library,
 there is no `xbox` target.
 
+### Linux
+
+Tested on Debian 12 with LLVM 22.1.8 (the release's clang and lld-link) and
+ninja 1.13. Two things differ from macOS:
+
+- **The SDK's file names.** Linux is case sensitive, and the SDK names its
+  files as it pleases (`XTL.h`, `StdIO.h`, `sys/Types.h`). After copying it
+  into OXDK, `python3 tools/xdk_case_links.py port chupathingyce/source
+  chupathingyce/port/console chupathingyce/port/linux/game` adds lower-case
+  symlinks beside the originals and leaves them alone.
+- **lld fills code sections with 0xCC.** The SDK's libraries keep
+  uninitialized data in code sections (`D3D_URW`, `DSOUND_URW`), so what must
+  start as zero started as `0xCCCCCCCC`: `CDirectSound::m_pDirectSound`, and a
+  black screen at boot, the game crashing in `DirectSoundCreate`. The link
+  step zeroes those bytes (`tools/zero_urw.py`, from `halo.map`).
+
 The game's own configure option `--console-players` defaults to 16; give
 `--console-players 32` for the Xbox build testers get (`tools/easy_build.py`
 builds 32 by default).
@@ -79,6 +95,10 @@ desktop ones.
 
 Updating the game is a submodule update: `git -C chupathingyce fetch`,
 check out the commit, then commit the new `chupathingyce` pointer here.
+The pull request's CI runs the host tests only (it has no SDK or Direct3D
+library, so it can't link), so run `ninja xbox` on the new game before
+merging: a function the shared code now calls that the console doesn't give
+(port/xbox/src) fails only at the link.
 
 ## Host tests
 
@@ -161,5 +181,5 @@ on a development kit.
 The settings in `D:\config.toml` (`bypass_security`, `join`, `trace` and
 the rest) are in the README, "Settings on the console", and attach
 `debug.txt` to bug reports. xemu (128 MB, NAT) can run the build too:
-README, "Testing". Questions go to the #warthog-support forum on the
+docs/consoles.md, "Testing". Questions go to the #warthog-support forum on the
 Discord.

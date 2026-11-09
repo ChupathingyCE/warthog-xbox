@@ -14,22 +14,25 @@ one; a feature that would is to ask for it through the memory class
 
 | Feature | PC | Xbox | Why, or the plan |
 | --- | --- | --- | --- |
-| Online Games (the game list) and joining | Yes | Yes | The console's own screen (`game/xbox_browser_screen.c`), over plain HTTP |
+| Online Games (the game list) and joining | Yes | Yes | The console's own screen (`game/xbox_browser_screen.c`), over HTTPS (plain HTTP if HTTPS fails) |
 | Hosting a listed internet game | Yes | Not yet | The console hosts System Link; its games are not listed and PCs do not join it over the internet yet |
 | Invite links | Yes | Yes, from `console.join` | No clipboard on a console |
-| Cross-play with PCs and OpenCE | Yes | Yes | Up to 16 players, network versions as `README.md` says |
+| Cross-play with PCs and OpenCE | Yes | Yes | Up to 32 players in test builds (16 in a build without `--console-players 32`), network versions as `README.md` says |
 | Delta Peer (platform, player ID) | Yes | Yes, as a client | `console.delta`; the player ID from `D:\game_list_player.key` |
 | Text chat | Yes | Yes | Shown lines, quick lines on the D-pad, a USB keyboard's T, Y and H; the client's part only (a console never hosts on Delta) |
 | Server messages | Yes, in a banner | Yes, in the chat lines | The banner is the desktop's overlay; the console shows them as lines |
 | Team changes in a game | Yes | Not yet | Needs CHANGE TEAMS in the console's pause menu (`team_change.c` is 505 lines, little memory) |
-| Delta Profile screen | Yes | Not yet | Its data comes from the site over HTTPS; the console has plain HTTP only. Plan: a plain HTTP player card on the Warthog list server |
-| Profile names and clan tags in games | Yes | Not yet | As Delta Profile: the names come from the site |
+| Delta Profile screen | Yes | Yes, Link Profile | Online Games' Start: link the console to a profile with a code (`D:\delta_device.key`), then its name and clan tag show there |
+| Profile names and clan tags in games | Yes | Not yet | The names come from the site, for each player in the game |
 | Platform logos on the scoreboard | Yes | Not yet | The logos are drawn with the high-res text (cut) |
-| Stats reports of joined games | Yes | Not yet | The signed platform claim is in; the report itself (the scoreboard sent to the site) is not ported |
+| Stats reports of joined games | Yes | Yes | The desktop's report over HTTPS, with the identity file's key or signed by a linked console (`src/xbox_reports.c`); `network.report_joined_games`; about 14 KB of recorder state and a 128 KB thread for a few seconds after each game |
 | Delta Stats of hosted games | Yes | Not yet | Only for a listed host |
 | Moderation (moderator sign-in, kicks) | Yes | Not yet | Desktop and dedicated server only |
 | Network co-op | Yes | Not yet | Not built for the console (`network_coop.c`, 3,100 lines); co-op games are left out of its lists |
-| Custom Edition and HaloMD maps, map downloads | Yes | Cut | 2026-10-19: memory and storage; the console plays the Xbox's maps |
+| Custom Edition maps | Yes | Yes (64 MB experimental) | Played as they are, with no conversion: the shared code's loader (`ce_*.c`), its tag cache at `0x40440000`, the converted vertices in the Xbox's idle tag cache, the bitmaps made the Xbox's as they're read (`docs/custom-edition.md`). A 64 MB console: the Xbox's tag cache by the page tables, the load's memory lent by the texture cache, experimental |
+| Map downloads on join | Yes | Yes, Custom Edition | Online Games offers a missing Custom Edition map (MAP NEEDED) from the store's map index, then joins. HaloMD maps: not yet |
+| Map Browser (Multiplayer menu) | No | Yes | The xboxhomebrew.store archive's Custom Edition maps and the store's Xbox map packs, with screenshots, details, install and remove (`port/xbox/browser`, `game/xbox_maps_screen.c`) |
+| Xbox map packs (Halo CE+ in `maps_cex`) | Yes | Yes | Xbox-format maps, read by the console's own loader; the menus' map list (`ui_map_list.c`, `map_packs.c`) is on the console for them, about 35 KB |
 | Pings in the game list | Yes | Not yet | The console's list shows none; the probe code (`p2p_probe.c`) is already linked |
 
 ## Menus and controls

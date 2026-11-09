@@ -4,7 +4,8 @@ NETWORK_GAME_LAYOUT_TEST.C
 The game settings record between the PC builds' and the console's layouts
 (port/linux/game/network_game_layout.c) on the host: the sizes the game
 asserts, a round trip, and every reason a fold refuses; and the game type
-states' fold (slayer's, as game_engine_slayer.c lays it out).
+states' fold (slayer's, oddball's, king's and race's, as the game's
+game_engine_*.c lay them out).
 port/xbox/tests/run.sh.
 */
 
@@ -156,8 +157,14 @@ int main(void)
 	record = pc_record(4, 17);
 	CHECK(fold(record, console) == NETWORK_GAME_LAYOUT_TOO_MANY_PLAYERS);
 	free(record);
-	/* (a machine in slot 20: a PC host numbers machines by connection slot) */
+	/* (a machine in slot 20 naming slot 5: not a slot the fold can move) */
 	record = pc_record(3, 3);
+	machine(record, PC, 20)[NETWORK_GAME_LAYOUT_MACHINE_INDEX] = 5;
+	CHECK(fold(record, console) == NETWORK_GAME_LAYOUT_MACHINE_SLOT);
+	free(record);
+	/* (more machines in slots past 17 than free indices: here the header's
+	count, which the PC never lets go past its entries, is not checked) */
+	record = pc_record(17, 3);
 	machine(record, PC, 20)[NETWORK_GAME_LAYOUT_MACHINE_INDEX] = 20;
 	CHECK(fold(record, console) == NETWORK_GAME_LAYOUT_MACHINE_SLOT);
 	free(record);
@@ -167,11 +174,137 @@ int main(void)
 	player(record, PC, 40)[NETWORK_GAME_LAYOUT_PLAYER_LIST_INDEX] = 40;
 	CHECK(fold(record, console) == NETWORK_GAME_LAYOUT_PLAYER_SLOT);
 	free(record);
-	/* (a used player naming a machine or team past 16) */
+	/* (a used player naming a machine in slot 30: the machine is given a free
+	index, its entry moved into that slot) */
 	record = pc_record(3, 3);
+	machine(record, PC, 30)[NETWORK_GAME_LAYOUT_MACHINE_INDEX] = 30;
+	machine(record, PC, 30)[0] = 'Z';
 	player(record, PC, 1)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] = 30;
+	CHECK(fold(record, console) == NETWORK_GAME_LAYOUT_OK);
+	CHECK(player(console, CONSOLE_M, 1)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] == 16);
+	CHECK(machine(console, CONSOLE_M, 16)[0] == 'Z' && machine(console, CONSOLE_M, 16)[NETWORK_GAME_LAYOUT_MACHINE_INDEX] == 16);
+	free(record);
+	/* ([C] Red vs Blue: a dedicated host (#0), two people (#1, #2) and its 8
+	bots, four to a machine on machines named "Bots" in slots 127 and 126,
+	5 machines and 10 players, a team game; the bots' slots after the
+	people's. Each bots' machine is given a free index from the top, its
+	four players with it, and keeps it from one record to the next) */
+	{
+		struct network_game_layout_machine_map kept;
+		unsigned char entry[5];
+		int bot, pass;
+
+		network_game_layout_machine_map_reset(&kept);
+		record = pc_record(3, 10);
+		record[NETWORK_GAME_LAYOUT_MAXIMUM_PLAYERS_OFFSET] = 32;
+		record[NETWORK_GAME_LAYOUT_MACHINE_COUNT_OFFSET] = 5;
+		machine(record, PC, 127)[0] = 'B';
+		machine(record, PC, 127)[NETWORK_GAME_LAYOUT_MACHINE_INDEX] = 127;
+		machine(record, PC, 126)[0] = 'b';
+		machine(record, PC, 126)[NETWORK_GAME_LAYOUT_MACHINE_INDEX] = 126;
+		player(record, PC, 0)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] = 1;
+		player(record, PC, 1)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] = 2;
+		for (bot = 0; bot < 8; bot++)
+		{
+			unsigned char *p = player(record, PC, 2 + bot);
+
+			p[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] = (unsigned char)(bot < 4 ? 127 : 126);
+			p[NETWORK_GAME_LAYOUT_PLAYER_CONTROLLER_INDEX] = (unsigned char)(bot % 4);
+			p[NETWORK_GAME_LAYOUT_PLAYER_TEAM_INDEX] = (unsigned char)(bot % 4 < 2 ? 0 : 1);
+		}
+		for (pass = 0; pass < 2; pass++)
+		{
+			CHECK(network_game_layout_convert_mapped(record, PC, PC, console, CONSOLE_M, CONSOLE_P, &clamped, &kept) ==
+				NETWORK_GAME_LAYOUT_OK);
+			CHECK(clamped && console[NETWORK_GAME_LAYOUT_MAXIMUM_PLAYERS_OFFSET] == CONSOLE_P);
+			CHECK(console[NETWORK_GAME_LAYOUT_MACHINE_COUNT_OFFSET] == 5 + pass);
+			CHECK(machine(console, CONSOLE_M, 16)[0] == 'B' && machine(console, CONSOLE_M, 16)[NETWORK_GAME_LAYOUT_MACHINE_INDEX] == 16);
+			CHECK(machine(console, CONSOLE_M, 15)[0] == 'b' && machine(console, CONSOLE_M, 15)[NETWORK_GAME_LAYOUT_MACHINE_INDEX] == 15);
+			CHECK(machine(console, CONSOLE_M, 3)[NETWORK_GAME_LAYOUT_MACHINE_INDEX] == (pass ? 3 : 0xFF));
+			CHECK(player(console, CONSOLE_M, 0)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] == 1);
+			for (bot = 0; bot < 8; bot++)
+			{
+				unsigned char *p = player(console, CONSOLE_M, 2 + bot);
+
+				CHECK(p[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] == (bot < 4 ? 16 : 15));
+				CHECK(p[NETWORK_GAME_LAYOUT_PLAYER_CONTROLLER_INDEX] == bot % 4);
+			}
+			CHECK(network_game_layout_failing_entry(record, PC, PC, CONSOLE_M, CONSOLE_P, entry) == 0);
+			/* (the next record: a person joined on machine #3, in the slot after the bots') */
+			if (!pass)
+			{
+				record[NETWORK_GAME_LAYOUT_MACHINE_COUNT_OFFSET] = 6;
+				machine(record, PC, 3)[0] = 'D';
+				machine(record, PC, 3)[NETWORK_GAME_LAYOUT_MACHINE_INDEX] = 3;
+				memcpy(player(record, PC, 10), player(record, PC, 1), NETWORK_GAME_LAYOUT_PLAYER_SIZE);
+				player(record, PC, 10)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] = 3;
+				player(record, PC, 10)[NETWORK_GAME_LAYOUT_PLAYER_LIST_INDEX] = 10;
+				player_count(record, PC)[0] = 11;
+			}
+		}
+		CHECK(player(console, CONSOLE_M, 10)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] == 3);
+		CHECK(machine(console, CONSOLE_M, 3)[0] == 'D');
+		/* (a bot of machine #126 joining in progress: the index its machine
+		has, which its entry and its other players hold) */
+		{
+			unsigned char used[CONSOLE_M];
+
+			memset(used, 0, sizeof(used));
+			used[0] = used[1] = used[2] = used[3] = used[16] = 1;
+			CHECK(network_game_layout_machine_map_index(&kept, 126, used, CONSOLE_M) == 15);
+		}
+		free(record);
+	}
+	/* (players of no machine past 16, as a host's bots, from #113 up: given
+	the free indices from the top, the same one for each of a machine's) */
+	record = pc_record(3, 6);
+	player(record, PC, 0)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] = 113;
+	player(record, PC, 1)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] = 114;
+	player(record, PC, 4)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] = 113;
+	CHECK(fold(record, console) == NETWORK_GAME_LAYOUT_OK);
+	CHECK(player(console, CONSOLE_M, 0)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] == 16);
+	CHECK(player(console, CONSOLE_M, 1)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] == 15);
+	CHECK(player(console, CONSOLE_M, 4)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] == 16);
+	CHECK(player(console, CONSOLE_M, 2)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] == 2);
+	CHECK(machine(console, CONSOLE_M, 16)[NETWORK_GAME_LAYOUT_MACHINE_INDEX] == 0xFF);
+	free(record);
+	/* (... each keeping its index from one record to the next, while it is
+	free, and a player of such a machine joining in progress given it too) */
+	{
+		struct network_game_layout_machine_map kept;
+		unsigned char used[CONSOLE_M];
+
+		network_game_layout_machine_map_reset(&kept);
+		record = pc_record(3, 4);
+		player(record, PC, 0)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] = 114;
+		CHECK(network_game_layout_convert_mapped(record, PC, PC, console, CONSOLE_M, CONSOLE_P, NULL, &kept) ==
+			NETWORK_GAME_LAYOUT_OK);
+		CHECK(player(console, CONSOLE_M, 0)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] == 16);
+		/* (machine #113's player comes first now: #114's keeps 16) */
+		player(record, PC, 3)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] = 113;
+		memcpy(player(record, PC, 3), player(record, PC, 0), NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX);
+		player(record, PC, 0)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] = 113;
+		player(record, PC, 3)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] = 114;
+		CHECK(network_game_layout_convert_mapped(record, PC, PC, console, CONSOLE_M, CONSOLE_P, NULL, &kept) ==
+			NETWORK_GAME_LAYOUT_OK);
+		CHECK(player(console, CONSOLE_M, 3)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] == 16);
+		CHECK(player(console, CONSOLE_M, 0)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] == 15);
+		free(record);
+		memset(used, 0, sizeof(used));
+		used[0] = used[1] = used[2] = used[15] = used[16] = 1;
+		CHECK(network_game_layout_machine_map_index(&kept, 114, used, CONSOLE_M) == 14);
+		used[14] = 1;
+		CHECK(network_game_layout_machine_map_index(&kept, 114, used, CONSOLE_M) == 13);
+		CHECK(network_game_layout_machine_map_index(&kept, 2, used, CONSOLE_M) == 2);
+		memset(used, 1, sizeof(used));
+		CHECK(network_game_layout_machine_map_index(&kept, 120, used, CONSOLE_M) == -1);
+	}
+	/* (... with no index free: every one a machine's) */
+	record = pc_record(17, 3);
+	player(record, PC, 1)[NETWORK_GAME_LAYOUT_PLAYER_MACHINE_INDEX] = 113;
 	CHECK(fold(record, console) == NETWORK_GAME_LAYOUT_INDEX);
 	free(record);
+	/* (a used player naming a team past 16) */
 	record = pc_record(3, 3);
 	player(record, PC, 1)[NETWORK_GAME_LAYOUT_PLAYER_TEAM_INDEX] = 99;
 	CHECK(fold(record, console) == NETWORK_GAME_LAYOUT_INDEX);
@@ -244,6 +377,104 @@ int main(void)
 				NETWORK_GAME_LAYOUT_OK);
 			CHECK(to[0] == 9 && to[4] == 7 && to[36] == 5 && dropped == 0);
 		}
+	}
+
+	/* a PC host's oddball state: team and individual scores (longs, a
+	slot each), then the balls' spawn timers (16 longs), their carriers (16
+	bytes) and the host's events (4 bytes), whole; 1,108 and 212 bytes */
+	{
+		static const struct network_game_layout_field oddball[] =
+		{
+			{ 4, 1, 0 }, { 4, 1, 0 }, { 4 * 16, 0, 0 }, { 16, 0, 0 }, { 4, 0, 0 },
+		};
+		unsigned char wire[1108], local[212];
+		int dropped, slot;
+
+		CHECK(network_game_layout_fields_size(oddball, 5, PC) == 1108);
+		CHECK(network_game_layout_fields_size(oddball, 5, CONSOLE_P) == 212);
+		memset(wire, 0, sizeof(wire));
+		for (slot = 0; slot < CONSOLE_P; slot++)
+		{
+			wire[slot * 4] = (unsigned char)(slot + 1);
+			wire[512 + slot * 4 + 1] = (unsigned char)(slot + 2);
+		}
+		wire[1024] = 0xA4; /* the first ball's spawn timer: 420 */
+		wire[1025] = 0x01;
+		wire[1088] = 3; /* the first ball's carrier */
+		wire[1089] = 0xFF;
+		wire[1104] = 2; /* resets */
+		wire[1107] = 5; /* the pass's player */
+		CHECK(network_game_layout_fold_fields(wire, sizeof(wire), PC, local, sizeof(local), CONSOLE_P, oddball, 5,
+			&dropped) == NETWORK_GAME_LAYOUT_OK);
+		CHECK(dropped == 0);
+		CHECK(local[0] == 1 && local[15 * 4] == 16 && local[64 + 1] == 2 && local[64 + 15 * 4 + 1] == 17);
+		CHECK(local[128] == 0xA4 && local[129] == 0x01 && local[192] == 3 && local[193] == 0xFF);
+		CHECK(local[208] == 2 && local[211] == 5);
+		/* an individual score past slot 16: dropped and counted */
+		wire[512 + 40 * 4] = 9;
+		CHECK(network_game_layout_fold_fields(wire, sizeof(wire), PC, local, sizeof(local), CONSOLE_P, oddball, 5,
+			&dropped) == NETWORK_GAME_LAYOUT_OK);
+		CHECK(dropped == 1);
+	}
+
+	/* a PC host's king state: team scores and their ticks (longs), who is on
+	the hill (bytes), a slot each, then the hill (284 bytes: its points to
+	hill_id and hill_timer, the last two longs), whole; 1,436 and 428 */
+	{
+		static const struct network_game_layout_field king[] =
+		{
+			{ 4, 1, 0 }, { 4, 1, 0 }, { 1, 1, 0 }, { 284, 0, 0 },
+		};
+		unsigned char wire[1436], local[428];
+		int dropped;
+
+		CHECK(network_game_layout_fields_size(king, 4, PC) == 1436);
+		CHECK(network_game_layout_fields_size(king, 4, CONSOLE_P) == 428);
+		memset(wire, 0, sizeof(wire));
+		wire[0] = 0x2C; /* red's score: 300 */
+		wire[1] = 0x01;
+		wire[4] = 0x5A; /* blue's: 90 */
+		wire[512 + 4] = 0x77;
+		wire[1024 + 1] = 1;
+		wire[1152] = 4; /* hill_point_count */
+		wire[1428] = 12; /* hill_id */
+		wire[1432] = 0x08; /* hill_timer: 1800 */
+		wire[1433] = 0x07;
+		CHECK(network_game_layout_fold_fields(wire, sizeof(wire), PC, local, sizeof(local), CONSOLE_P, king, 4,
+			&dropped) == NETWORK_GAME_LAYOUT_OK);
+		CHECK(dropped == 0);
+		CHECK(local[0] == 0x2C && local[1] == 0x01 && local[4] == 0x5A && local[64 + 4] == 0x77 && local[128 + 1] == 1);
+		CHECK(local[144] == 4 && local[420] == 12 && local[424] == 0x08 && local[425] == 0x07);
+	}
+
+	/* a PC host's race state: race_globals (the lap value, each slot's first
+	flag and laps' flags, the rally flag, each team's laps, the team score,
+	whether the vehicles are added), then the events (bytes) and each
+	player's lap times and laps (shorts), a slot each; 2,704 and 352 */
+	{
+		static const struct network_game_layout_field race[] =
+		{
+			{ 4, 0, 0 }, { 4, 1, 0 }, { 4, 1, 0 }, { 4, 0, 0 }, { 4, 1, 0 }, { 4, 0, 0 }, { 4, 0, 0 },
+			{ 1, 1, 0 }, { 1, 1, 0 }, { 1, 1, 0 }, { 2, 1, 0 }, { 2, 1, 0 }, { 2, 1, 0 },
+		};
+		unsigned char wire[2704], local[352];
+		int dropped;
+
+		CHECK(network_game_layout_fields_size(race, 13, PC) == 2704);
+		CHECK(network_game_layout_fields_size(race, 13, CONSOLE_P) == 352);
+		memset(wire, 0, sizeof(wire));
+		wire[0] = 0x0F; /* lap_completed_value */
+		wire[4 + 2 * 4] = 1; /* slot 2's first flag */
+		wire[1028] = 6; /* rally_flag */
+		wire[1032 + 4] = 3; /* team 1's laps */
+		wire[1544] = 7; /* persistent_team_score */
+		wire[1680 + 15] = 2; /* slot 15's laps (events) */
+		wire[2448 + 15 * 2] = 4; /* slot 15's laps completed */
+		CHECK(network_game_layout_fold_fields(wire, sizeof(wire), PC, local, sizeof(local), CONSOLE_P, race, 13,
+			&dropped) == NETWORK_GAME_LAYOUT_OK);
+		CHECK(dropped == 0);
+		CHECK(local[0] == 0x0F && local[4 + 2 * 4] == 1 && local[132] == 6 && local[136 + 4] == 3 && local[200] == 7);
+		CHECK(local[224 + 15] == 2 && local[320 + 15 * 2] == 4);
 	}
 
 	free(console);

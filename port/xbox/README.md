@@ -95,9 +95,9 @@ xbox_support.cpp` supplies the memory functions that the kernel gave it.
 The files in `port/xbox/src` supply what the later SDK does not:
 
 - `xbox_dsound.c`: the January SDK gave a voice's mix bins as a mask. Later
-  SDKs take a list. The file translates the game's calls. The game's reverb
-  image is for the January DirectSound, so it is not loaded: there is no
-  reverb.
+  SDKs take a list. The file translates the game's calls, and downloads the
+  game's own effects image (reverb and crosstalk), so the Xbox build has the
+  original reverb.
 - `xbox_d3dx.c`: the four D3DX functions that the game calls. The SDK's
   D3DX library needs the SDK's own Direct3D.
 - `xbox_support.cpp`: `fast_ftol_C` (not yet in the reconstruction), and
@@ -117,12 +117,16 @@ inline functions that units call through a prototype.
 ## The game list
 
 At the start, once the network is up, a thread of the game's own gets the
-game list from `http://warthog.milenko.org/v1/console/games` (plain HTTP:
-the console has no TLS) and the game logs it, to the debug monitor as
+game list from `https://stats.chupathingy.org/v1/console/games`, over the
+game's console HTTPS client (`src/xbox_https.c`, the site's key pinned). If
+HTTPS fails, it asks `http://warthog.milenko.org` over plain HTTP instead,
+and a pin or name that is refused keeps it on plain HTTP for the rest of
+the run. A console that plays Custom Edition maps also asks the desktop
+list over HTTPS for its Custom Edition games. The game logs the list, to the debug monitor as
 `halo: game list:` lines and to `debug.txt` as `game list:` lines. Nothing
 waits on it. Multiplayer's ONLINE GAMES shows it (`game/xbox_browser_screen.c`).
 
-- `src/xbox_game_list_fetch.c`: HTTP/1.0 over XNet's Winsock. The host is
+- `src/xbox_game_list_fetch.c`: the plain HTTP fallback, HTTP/1.0 over XNet's Winsock. The host is
   looked up with `XNetDnsLookup`; if it does not resolve,
   `console.game_list_server` names another: a host or an IPv4 address, `:port` optional
   (the request still says `Host: warthog.milenko.org` for an address).
@@ -171,10 +175,16 @@ The console's own, in `[console]`:
 | `log_flush` | `"buffered"` | when `debug.txt` is written: `"buffered"` keeps the game's lines in memory and writes them once a second, when 8 KB wait, and at once for an assert, an exit or a crash; `"every_line"` writes each line as it comes (slow), for a crash hunt |
 
 
-**Player identity (optional).** A copy is anonymous unless its player puts their identity file at `D:\game_list_player.key` (by FTP, next to `config.toml`): the file the site's profile page exports, the same 32-byte player key a desktop copy keeps in `game_list_player.key`, either as the raw bytes or as 64 hex digits (use the hex form if you transfer in ASCII mode). The console never makes a key and never sends it anywhere: it works out the public player ID (the first 16 bytes of the SHA-256 of `halo-ce-universal player id\n` and the key) and wipes the key. On a console the file being there is the consent (`network.share_profile` is a desktop setting): Delta Peer's HELLO adds the `profile` capability and PROFILE carries the ID. Once per boot, after the first online game has ended, the console also makes a signed platform claim over plain HTTP to the site (`GET /v1/claim_challenge`, then `POST /v1/claim_signed`, `xbox_claim.c`): it signs the site's one-time challenge with the Ed25519 key derived from the player key (the desktop builds' moderator key), so the key itself is never sent; a failure is one line in `debug.txt`, with no retry. Neither the key, the signature nor the ID is written to `debug.txt`. Without the file nothing is shown and nothing is sent. The file is the player's identity: it must not be shared.
+**Link Profile (optional).** Online Games' Start opens DELTA PROFILE. A asks for a code: the screen shows it (XXXX-XXXX) and its QR code; enter it at stats.chupathingy.org/connect, signed in on a phone or computer, then press A on the console to confirm. The console makes its own key for this the first time (`D:\delta_device.key`, next to `config.toml`; it never leaves the console, and nothing secret is sent over the plain HTTP the console uses: the game's `port/console/link`, docs/delta.md "Link Profile on a console"). Once linked it keeps the handle in `D:\delta_link.txt`, shows the profile's name and clan tag, and Delta Peer's PROFILE carries its ID, so its games count toward the profile. Unlink it on the site's profile page. Keep `delta_device.key` to yourself: a copy of it plays as your console. An identity file (below) still works and wins when present.
 
+**Player identity (optional).** A copy is anonymous unless its player links it (above) or puts their identity file at `D:\game_list_player.key` (by FTP, next to `config.toml`): the file the site's profile page exports, the same 32-byte player key a desktop copy keeps in `game_list_player.key`, either as the raw bytes or as 64 hex digits (use the hex form if you transfer in ASCII mode). The console never makes a key, and sends it only with a game's report, over HTTPS to the site (below), as a desktop copy does. It works out the public player ID (the first 16 bytes of the SHA-256 of `halo-ce-universal player id\n` and the key) and wipes the key. On a console the file being there is the consent (`network.share_profile` is a desktop setting): Delta Peer's HELLO adds the `profile` capability and PROFILE carries the ID. Once per boot, after the first online game has ended, the console also makes a signed platform claim over plain HTTP to the site (`GET /v1/claim_challenge`, then `POST /v1/claim_signed`, `xbox_claim.c`): it signs the site's one-time challenge with the Ed25519 key derived from the player key (the desktop builds' moderator key), so the key itself is never sent; a failure is one line in `debug.txt`, with no retry. Neither the key, the signature nor the ID is written to `debug.txt`. Without the file or a link nothing is shown and nothing is sent. The file is the player's identity: it must not be shared.
+
+**Reports of joined games.** When an online game the console joined from Online Games ends, it sends the game's report to the site (`POST /v1/client_report` over HTTPS to stats.chupathingy.org, the site's key pinned; `src/xbox_reports.c` over the game's `port/console/reports`), so the game shows on the player's service record. It is the desktop's report: the player's own line in full, everyone else's as the scoreboard's numbers, no addresses. The site keeps games with 2 or more players at the end that lasted 60 seconds or more. With the identity file the report carries its key, as a desktop copy's does; a linked console signs it with its own device key over a one-time challenge instead. A console with neither sends nothing. `network.report_joined_games = false` in `D:\config.toml` turns reports off. The report needs about 128 KB for a few seconds after the game (the HTTPS thread's stack and the report), and is skipped, with a line in `debug.txt`, when less than that and 256 KB more are free.
+
+In a build with the developer tools (`--console-debug-tools`),
 `debug.audio_probe` (in `[debug]`) runs the audio probe
-(`port/linux/game/audio_probe.c`): a probe file's path, such as
+(`port/linux/game/audio_probe.c`; a build without them leaves the probe and
+its two settings out): a probe file's path, such as
 `'D:\audio_probe\retail_maps.txt'` (`tools/audio_probes`). The game plays
 the file's sounds at its spots and records what the console's audio hardware
 plays, its final mix read back from the AC'97 controller's output
@@ -198,15 +208,16 @@ And the desktop builds' that apply on the console: `display.direct_camera`,
 `chat.streamer_mode`, `chat.quick_messages`, `audio.music_volume`,
 `audio.effects_volume`, `game.console_log`, `game.unlock_all_levels`,
 `game.start_with_one_player`, `network.online`, `network.tunnel_port`,
-`network.brokers_file`, and `network.stun_servers`. A wider field of view
+`network.brokers_file`, `network.stun_servers` and
+`network.report_joined_games`. A wider field of view
 draws more of the map each frame: on a stock console, keep the Xbox's 70 if
 a busy map slows down. `FEATURES.md` lists the desktop's features and where
 each stands on the console.
 Another setting the shared code reads is empty, 0 or false on the console,
 as before it had the file.
 
-The switch files that came before it are still read for this release, each
-logged as deprecated in `debug.txt` ("D:\memory_64.txt is deprecated, use
+Use `config.toml` for every setting. The switch files that came before it
+are still read, each logged as deprecated in `debug.txt` ("D:\memory_64.txt is deprecated, use
 console.simulate_64mb in config.toml", which now ignores it): `bypass_security.txt`,
 `memory_64.txt`, `large_caches.txt` and `trace.txt` (an empty file turns
 the setting on), and `join.txt` and `game_list.txt` (one line, used when
@@ -319,12 +330,12 @@ the game list, the claim) is built for size (`-Os`), another 120 KB. The
 game's own code keeps `-O2` and its EBP frames, which the crash reports
 follow, but for the functions that call no other.
 
-The main thread's stack is the XBE's 1 MB, and the console commits all of
-it. `debug.txt` says how much of it the game has used: a `stack:` line at
-the start and one each time the deepest grows by 16 KB
-(`src/xbox_stack.c`). Some of the debug decomp's AI functions keep 80 to
-160 KB of arrays on the stack, so the size is cut only once a campaign
-mission's and a busy match's lines are known.
+The main thread's stack is the XBE's 768 KB (the retail game's is 512 KB),
+and the console commits all of it. `debug.txt` says how much of it the game
+has used: a `stack:` line at the start and one each time the deepest grows
+by 16 KB (`src/xbox_stack.c`). Some of the debug decomp's AI functions keep
+80 to 160 KB of arrays on the stack. The deepest seen so far is 279 KB, in a
+campaign mission.
 
 The debug decomp's developer tools are not in the console's build unless
 it is configured with `--console-debug-tools` (`HALO_CONSOLE_DEBUG_TOOLS`): the
@@ -351,16 +362,20 @@ modified retail consoles, gets its address by DHCP, shows the game list
 (ONLINE GAMES) and joins [D] dedicated servers and PC hosts through the PCs'
 tunnel. It targets a stock 64 MB console (first matches played on October 18);
 128 MB only adds extras (see "Memory"). Music and the campaign's effects
-play. The code is ChupathingyCE's at network version 28 (it joins hosts of 11
-through 30).
+play. The game is on wire `chupa-41a`: it joins hosts of network versions 11
+through 41 (OpenCE's newest), the range the signed legacy table gives.
+Custom Edition maps play on a 128 MB console and, experimentally, on a
+64 MB one (`docs/custom-edition.md`).
 Network co-op is not built for the console (`game/xbox_coop.c`): co-op
 games are left out of its lists, and a game that turns co-op is left with
 a message. Known:
 
-- There is no Bink video (the movies are skipped) and no reverb.
+- There is no Bink video (the movies are skipped).
+- The loading screen doesn't animate: the desktop's `loading_screen_step_due()`
+  is a stub that always says no on the Xbox (`game/xbox_desktop_stubs.c`).
 - The netcode is the PC builds' (distributed). The console joins a PC
   host's game as a client: it folds the PCs' 128-slot game settings record
-  and Slayer's state into its 16 slots, and leaves a game that grows past
+  and Slayer's state into its slots (16, or 32 in the test builds), and leaves a game that grows past
   them as a full one (docs/cross-play.md, "What is built"). It joins an
   internet game by its invite from ONLINE GAMES (A on a listed game, Y for
   the invite in `console.join`), through the desktop builds' tunnel

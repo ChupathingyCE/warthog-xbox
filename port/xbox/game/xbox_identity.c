@@ -1,12 +1,10 @@
 /*
 XBOX_IDENTITY.C
 
-Which build this is, and the network versions it plays with, as the
-desktop builds' build_identity.c and delta.c answer them. The console has
-no version of its own yet (no release) and no Delta legacy table (it
-fetches none and keeps no cache), so its numbers are the built-in ones of
-halo_port_limits.h: it announces HALO_PORT_NETWORK_VERSION and joins
-hosts of HALO_PORT_NETWORK_VERSION_MINIMUM through _MAXIMUM.
+Which build this is, as the desktop builds' build_identity.c answers it.
+The network versions it plays with are the game's delta.c's: the built-in
+ones of halo_port_limits.h, widened by the signed legacy table the console
+fetches over HTTPS (xbox_https.c) and caches in D:\delta_legacy.signed.
 */
 
 #ifdef HALO_XBOX_CONSOLE
@@ -32,26 +30,6 @@ char const *build_identity(
 	}
 
 	return identity;
-}
-
-/* ---------- the legacy table's numbers (halo_port_limits.h) */
-
-int delta_legacy_announce(
-	void)
-{
-	return HALO_PORT_NETWORK_VERSION;
-}
-
-int delta_legacy_minimum(
-	void)
-{
-	return HALO_PORT_NETWORK_VERSION_MINIMUM;
-}
-
-int delta_legacy_maximum(
-	void)
-{
-	return HALO_PORT_NETWORK_VERSION_MAXIMUM;
 }
 
 #endif

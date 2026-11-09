@@ -180,7 +180,9 @@ int game_list_parse_response(const char *data, unsigned long size, struct game_l
 		}
 		if (equal_ignoring_case(line, colon, "content-length"))
 		{
-			long value = parse_number(line + start, end - start, 9, GAME_LIST_RESPONSE_SIZE);
+			/* (no more than the response that came: the console list's buffer, or a
+			larger one's, the desktop list's Custom Edition games' ) */
+			long value = parse_number(line + start, end - start, 9, (long)size);
 
 			if (value < 0 || (response->content_length >= 0 && response->content_length != value))
 				return GAME_LIST_ERROR_CONTENT_LENGTH;
@@ -363,18 +365,24 @@ static int parse_state(char *destination, const char *text, unsigned long length
 }
 
 #define GAME_FIELDS 10
+/* the fields read, at most: the ten, the host's platform, hosting and
+protocol (passed over), and an Xbox map pack's map's name and its pack's
+tag */
+#define GAME_FIELDS_READ 15
 
-/* a game's line: its ten fields, tab separated (more after them are a later
-format's, and left alone); 0 if one is missing or out of bounds */
+/* a game's line: its ten fields, tab separated, and the map pack's two after
+the host's three (more after them are a later format's, and left alone); 0
+if one of the ten is missing or out of bounds (a map pack field that is
+out of bounds is left empty) */
 static int parse_game(const char *line, unsigned long length, struct game_list_game *game)
 {
-	const char *fields[GAME_FIELDS];
-	unsigned long sizes[GAME_FIELDS];
+	const char *fields[GAME_FIELDS_READ];
+	unsigned long sizes[GAME_FIELDS_READ];
 	unsigned long start = 0, index;
 	int count = 0;
 	long engine, players, maximum_players, version;
 
-	for (index = 0; index <= length && count < GAME_FIELDS; index++)
+	for (index = 0; index <= length && count < GAME_FIELDS_READ; index++)
 	{
 		if (index == length || line[index] == '\t')
 		{
@@ -402,11 +410,88 @@ static int parse_game(const char *line, unsigned long length, struct game_list_g
 	{
 		return 0;
 	}
+	/* (an Xbox map pack's map's name and its pack's tag, only for a map of a
+	pack, <file>@<pack>) */
+	if (count >= 15 && strchr(game->map, '@') && sizes[13] && sizes[14] &&
+		(!copy_text(game->map_title, GAME_LIST_MAP_TITLE_LENGTH, fields[13], sizes[13], 1) ||
+		!copy_text(game->map_tag, GAME_LIST_MAP_TAG_LENGTH, fields[14], sizes[14], 1)))
+	{
+		game->map_title[0] = 0;
+		game->map_tag[0] = 0;
+	}
 	game->engine = (short)engine;
 	game->players = (short)players;
 	game->maximum_players = (short)maximum_players;
 	game->version = (unsigned short)version;
 	return 1;
+}
+
+/* one line of the desktop list (/v1/games.txt?fields=23: invite name map engine
+players maximum_players open version age score_limit teams roster region platform
+hosting protocol machines gametype ...): 1 with a Custom Edition game, else 0 */
+#define DESKTOP_FIELDS_READ 18
+static int parse_custom_edition_game(const char *line, unsigned long length, struct game_list_game *game)
+{
+	const char *fields[DESKTOP_FIELDS_READ];
+	unsigned long sizes[DESKTOP_FIELDS_READ];
+	unsigned long start = 0, index;
+	int count = 0;
+	long engine, players, maximum_players, version;
+
+	for (index = 0; index <= length && count < DESKTOP_FIELDS_READ; index++)
+	{
+		if (index == length || line[index] == '\t')
+		{
+			fields[count] = line + start;
+			sizes[count] = index - start;
+			count++;
+			start = index + 1;
+		}
+	}
+	if (count < DESKTOP_FIELDS_READ || sizes[2] < 4 || memcmp(fields[2] + sizes[2] - 3, "@ce", 3))
+		return 0;
+	memset(game, 0, sizeof(*game));
+	engine = parse_number(fields[3], sizes[3], 2, 15);
+	players = parse_number(fields[4], sizes[4], 3, 255);
+	maximum_players = parse_number(fields[5], sizes[5], 3, 255);
+	version = parse_number(fields[7], sizes[7], 5, 65535);
+	if (!parse_invite(game->invite, fields[0], sizes[0]) ||
+		!copy_text(game->name, GAME_LIST_NAME_LENGTH, fields[1], sizes[1], 1) ||
+		!copy_text(game->map, GAME_LIST_MAP_LENGTH, fields[2], sizes[2], 1) ||
+		engine < 0 || players < 0 || maximum_players < 0 || version < 0 ||
+		!copy_text(game->gametype, GAME_LIST_GAMETYPE_LENGTH, fields[17], sizes[17], 0) ||
+		!copy_text(game->region, GAME_LIST_REGION_LENGTH, fields[12], sizes[12], 0))
+	{
+		return 0;
+	}
+	strcpy(game->state, sizes[6] == 1 && fields[6][0] == '1' ? "open" : "closed");
+	game->engine = (short)engine;
+	game->players = (short)players;
+	game->maximum_players = (short)maximum_players;
+	game->version = (unsigned short)version;
+	return 1;
+}
+
+int game_list_add_custom_edition(const char *text, unsigned long size, struct game_list *list)
+{
+	unsigned long offset = 0;
+	int added = 0;
+
+	while (offset < size && list->count < GAME_LIST_MAXIMUM_GAMES)
+	{
+		unsigned long end = offset;
+
+		while (end < size && text[end] != '\n')
+			end++;
+		if (parse_custom_edition_game(text + offset, end > offset && text[end - 1] == '\r' ? end - offset - 1 : end - offset,
+			&list->games[list->count]))
+		{
+			list->count++;
+			added++;
+		}
+		offset = end + 1;
+	}
+	return added;
 }
 
 int game_list_parse(const char *text, unsigned long size, struct game_list *list)
@@ -524,4 +609,110 @@ int game_list_parse_server(const char *text, unsigned long size, char *host, int
 	}
 	host[colon - start] = 0;
 	return 1;
+}
+
+/* ---------- DNS (game_list_resolve's own lookup) */
+
+int game_list_dns_query(const char *host, unsigned short id, unsigned char *buffer, int size)
+{
+	int length = 12;
+	const char *label = host;
+
+	if (!host || !*host || !buffer || size < 12 + 2 + 4)
+		return 0;
+	memset(buffer, 0, 12);
+	buffer[0] = (unsigned char)(id >> 8);
+	buffer[1] = (unsigned char)id;
+	/* (a standard query, recursion desired; one question) */
+	buffer[2] = 0x01;
+	buffer[5] = 1;
+	while (*label)
+	{
+		const char *dot = strchr(label, '.');
+		int label_length = dot ? (int)(dot - label) : (int)strlen(label);
+
+		if (label_length < 1 || label_length > 63 || length + 1 + label_length + 1 + 4 > size)
+			return 0;
+		buffer[length++] = (unsigned char)label_length;
+		memcpy(buffer + length, label, (size_t)label_length);
+		length += label_length;
+		if (!dot)
+			break;
+		label = dot + 1;
+		/* (a name that ends in a dot is the same name) */
+		if (!*label)
+			break;
+	}
+	buffer[length++] = 0;
+	/* (type A, class IN) */
+	buffer[length++] = 0;
+	buffer[length++] = 1;
+	buffer[length++] = 0;
+	buffer[length++] = 1;
+	return length;
+}
+
+/* past a name at offset (its labels, or a pointer to them, which ends it):
+the offset after it, -1 if it runs past size */
+static int dns_skip_name(const unsigned char *data, int size, int offset)
+{
+	int labels = 0;
+
+	while (offset < size && labels++ < 128)
+	{
+		unsigned char length = data[offset];
+
+		if (!length)
+			return offset + 1;
+		if ((length & 0xC0) == 0xC0)
+			return offset + 2 <= size ? offset + 2 : -1;
+		if (length & 0xC0)
+			return -1;
+		offset += 1 + length;
+	}
+	return -1;
+}
+
+int game_list_dns_answer(const unsigned char *data, int size, unsigned short id, unsigned long *address)
+{
+	int offset, questions, answers;
+
+	if (!data || !address || size < 12)
+		return 0;
+	/* (this query's answer, a response, no error) */
+	if (data[0] != (unsigned char)(id >> 8) || data[1] != (unsigned char)id || !(data[2] & 0x80) ||
+		(data[3] & 0x0F))
+		return 0;
+	questions = data[4] << 8 | data[5];
+	answers = data[6] << 8 | data[7];
+	offset = 12;
+	while (questions-- > 0)
+	{
+		offset = dns_skip_name(data, size, offset);
+		if (offset < 0 || offset + 4 > size)
+			return 0;
+		offset += 4;
+	}
+	while (answers-- > 0)
+	{
+		int type, class_value, length;
+
+		offset = dns_skip_name(data, size, offset);
+		if (offset < 0 || offset + 10 > size)
+			return 0;
+		type = data[offset] << 8 | data[offset + 1];
+		class_value = data[offset + 2] << 8 | data[offset + 3];
+		length = data[offset + 8] << 8 | data[offset + 9];
+		offset += 10;
+		if (offset + length > size)
+			return 0;
+		/* (an alias's record comes first; the address follows) */
+		if (type == 1 && class_value == 1 && length == 4)
+		{
+			memcpy(address, data + offset, 4);
+			return 1;
+		}
+		offset += length;
+	}
+	return 0;
 }

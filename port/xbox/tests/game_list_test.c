@@ -388,12 +388,34 @@ static void test_text(void)
 	CHECK(game_list_map_name("levels\\test\\carousel\\carousel", text, sizeof(text)) && !strcmp(text, "Derelict"));
 	CHECK(game_list_map_name("levels/test/putput/putput", text, sizeof(text)) && !strcmp(text, "Chiron TL-34"));
 	CHECK(game_list_map_name("HangEmHigh", text, sizeof(text)) && !strcmp(text, "Hang 'Em High"));
-	CHECK(!game_list_map_name("timberland@ce", text, sizeof(text)) && !strcmp(text, "timberland (PC)"));
+	CHECK(!game_list_map_name("timberland@ce", text, sizeof(text)) && !strcmp(text, "timberland (CE)"));
 	CHECK(!game_list_map_name("levels\\test\\gephyrophobia\\gephyrophobia@md", text, sizeof(text)) &&
 		!strcmp(text, "gephyrophobia (MD)"));
 	CHECK(!game_list_map_name("bloodgulch@xx", text, sizeof(text)) && !strcmp(text, "bloodgulch (?)"));
 	CHECK(!game_list_map_name("levels\\b30\\b30", text, sizeof(text)) && !strcmp(text, "b30"));
 	CHECK(!game_list_map_name("bloodgulc", text, sizeof(text)) && !strcmp(text, "bloodgulc"));
+	/* (an Xbox map pack's map: the list's name and tag for it, fields 14 and
+	15 after the host's three; a list without them, or with them on another
+	map, as before) */
+	{
+		static const char pack_list[] =
+			"warthog-list 1 4\n"
+			INVITE_A "\t[D] CE+\twizard@cex\t2\tSlayer\t0\t16\t32\t\topen\tpc_linux\tdedicated\tdelta\tGothra\tCE+\n"
+			INVITE_B "\tNo pack fields\tbloodgulch@cex\t2\tSlayer\t0\t16\t32\t\topen\n"
+			INVITE_A "\tNot a pack\tbloodgulch\t2\tSlayer\t0\t16\t32\t\topen\t\t\t\tAbyss\tCE+\n"
+			INVITE_B "\tToo long\twizard@cex\t2\tSlayer\t0\t16\t32\t\topen\t\t\t\tGothra\tTOOLONG\tmore\n"
+			"end\n";
+
+		CHECK(parse_list(pack_list, sizeof(pack_list) - 1, &list) == GAME_LIST_OK && list.count == 4);
+		CHECK(!strcmp(list.games[0].map_title, "Gothra") && !strcmp(list.games[0].map_tag, "CE+"));
+		CHECK(!game_list_game_map_name(&list.games[0], text, sizeof(text)) && !strcmp(text, "Gothra (CE+)"));
+		CHECK(!list.games[1].map_title[0]);
+		CHECK(!game_list_game_map_name(&list.games[1], text, sizeof(text)) && !strcmp(text, "bloodgulch (?)"));
+		CHECK(!list.games[2].map_title[0]);
+		CHECK(game_list_game_map_name(&list.games[2], text, sizeof(text)) && !strcmp(text, "Blood Gulch"));
+		CHECK(!list.games[3].map_title[0] && !list.games[3].map_tag[0]);
+		CHECK(!game_list_game_map_name(&list.games[0], small, sizeof(small)) && !strcmp(small, "Got"));
+	}
 	CHECK(!game_list_map_name("", text, sizeof(text)) && !strcmp(text, ""));
 	/* (cut to the room, always terminated) */
 	CHECK(game_list_map_name("bloodgulch", small, sizeof(small)) && !strcmp(small, "Blo"));
@@ -548,6 +570,64 @@ static void fuzz(long iterations)
 	}
 }
 
+/* the public DNS lookup's query and answers (game_list_resolve) */
+static void test_dns(void)
+{
+	unsigned char query[300], reply[512];
+	unsigned long address = 0;
+	int length, size, index;
+	static const unsigned char name[] = "\x05stats\x0b" "chupathingy\x03org";
+
+	length = game_list_dns_query("stats.chupathingy.org", 0x1234, query, (int)sizeof(query));
+	CHECK(length == 12 + (int)sizeof(name) + 4);
+	CHECK(query[0] == 0x12 && query[1] == 0x34 && query[2] == 0x01 && query[5] == 1);
+	CHECK(!memcmp(query + 12, name, sizeof(name)));
+	CHECK(query[length - 3] == 1 && query[length - 1] == 1);
+	CHECK(game_list_dns_query("stats.chupathingy.org.", 1, query, (int)sizeof(query)) == length);
+	CHECK(!game_list_dns_query("", 1, query, (int)sizeof(query)));
+	CHECK(!game_list_dns_query("a..b", 1, query, (int)sizeof(query)));
+	CHECK(!game_list_dns_query("stats.chupathingy.org", 1, query, 20));
+
+	/* (an answer: the question, an alias, then the address, by pointers) */
+	length = game_list_dns_query("stats.chupathingy.org", 0x1234, query, (int)sizeof(query));
+	memcpy(reply, query, (size_t)length);
+	reply[2] = 0x81;
+	reply[3] = 0x80;
+	reply[7] = 2;
+	size = length;
+	{
+		static const unsigned char alias[] = { 0xC0, 12, 0, 5, 0, 1, 0, 0, 0, 60, 0, 6, 3, 'w', 'w', 'w', 0xC0, 12 };
+		static const unsigned char record[] = { 0xC0, 12, 0, 1, 0, 1, 0, 0, 0, 60, 0, 4, 10, 20, 30, 40 };
+
+		memcpy(reply + size, alias, sizeof(alias));
+		size += (int)sizeof(alias);
+		memcpy(reply + size, record, sizeof(record));
+		size += (int)sizeof(record);
+	}
+	CHECK(game_list_dns_answer(reply, size, 0x1234, &address));
+	CHECK(!memcmp(&address, "\x0a\x14\x1e\x28", 4));
+	/* (another query's, an error, cut short) */
+	CHECK(!game_list_dns_answer(reply, size, 0x1235, &address));
+	reply[3] = 0x83;
+	CHECK(!game_list_dns_answer(reply, size, 0x1234, &address));
+	reply[3] = 0x80;
+	for (index = 0; index < size; index++)
+		CHECK(!game_list_dns_answer(reply, index, 0x1234, &address));
+	/* (any bytes: never past them) */
+	for (index = 0; index < 20000; index++)
+	{
+		int byte, count = 12 + rand() % 120;
+
+		for (byte = 0; byte < count; byte++)
+			reply[byte] = (unsigned char)rand();
+		reply[0] = 0x12;
+		reply[1] = 0x34;
+		reply[2] |= 0x80;
+		reply[3] &= 0xF0;
+		game_list_dns_answer(reply, count, 0x1234, &address);
+	}
+}
+
 int main(int argc, char **argv)
 {
 	long iterations = argc > 1 ? atol(argv[1]) : 200000;
@@ -556,6 +636,7 @@ int main(int argc, char **argv)
 	test_response();
 	test_server_line();
 	test_text();
+	test_dns();
 	fuzz(iterations);
 	if (failures)
 	{

@@ -56,7 +56,7 @@ int game_list_map_name(const char *map, char *text, unsigned long size)
 	for (at = 0; at < end && map[at] != '@'; at++)
 		;
 	if (at < end)
-		family = !strcmp(map + at, "@ce") ? "PC" : !strcmp(map + at, "@md") ? "MD" : "?";
+		family = !strcmp(map + at, "@ce") ? "CE" : !strcmp(map + at, "@md") ? "MD" : "?";
 	for (index = 0; index < at; index++)
 	{
 		if (map[index] == '\\' || map[index] == '/')
@@ -94,6 +94,28 @@ int game_list_map_name(const char *map, char *text, unsigned long size)
 		text[index + 3] = family[1] ? family[1] : ')';
 		text[index + 4] = family[1] ? ')' : 0;
 		text[index + 5] = 0;
+	}
+	return 0;
+}
+
+int game_list_game_map_name(const struct game_list_game *game, char *text, unsigned long size)
+{
+	unsigned long length;
+
+	if (!game->map_title[0] || !game->map_tag[0] || !strchr(game->map, '@'))
+		return game_list_map_name(game->map, text, size);
+	if (!size)
+		return 0;
+	copy(text, size, game->map_title, (unsigned long)strlen(game->map_title));
+	length = (unsigned long)strlen(text);
+	if (size > length + strlen(game->map_tag) + 3)
+	{
+		text[length] = ' ';
+		text[length + 1] = '(';
+		copy(text + length + 2, size - length - 2, game->map_tag, (unsigned long)strlen(game->map_tag));
+		length = (unsigned long)strlen(text);
+		text[length] = ')';
+		text[length + 1] = 0;
 	}
 	return 0;
 }
