@@ -66,7 +66,8 @@ one; a feature that would is to ask for it through the memory class
 | Version watermark | Yes | Yes | `display.version_watermark` |
 | High-res HUD and text | Yes | Cut | 2026-10-19: the atlas's texture memory |
 | Names above players' heads | Yes | Cut | Retail names the player under the reticle only |
-| High frame rates, interpolation, smooth object functions | Yes | Cut | The console draws at the Xbox's 30; 384 KB for the functions |
+| High frame rates, interpolation, smooth object functions | Yes | 60, the view only | `display.frame_rate = 60` (off by default): the view turns every frame and eases into each tick, objects stay as the tick left them; no memory (README "60 frames a second"). Object blending and smooth functions are cut (about 0.5 MB and 384 KB) |
+| Flicker filter | No (no TV) | Yes | `display.flicker_filter`, 0 to 5, the retail 5 by default |
 | Anti-aliasing, anisotropic filtering, shadows, per-pixel lighting, full model detail, far clip | Yes | Cut | The desktop renderer's; a cost on the console's GPU |
 | The desktop's loading screen | Yes | Cut | The Xbox's own |
 

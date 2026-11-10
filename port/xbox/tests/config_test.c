@@ -75,6 +75,8 @@ int main(int argc, char **argv)
 		expect(!strcmp(config_string("console.delta"), "auto"), "console.delta is not auto");
 		expect(!strcmp(config_string("console.memory_class"), "auto"), "console.memory_class is not auto");
 		expect(!strcmp(config_string("display.widescreen"), "dashboard"), "display.widescreen is not dashboard");
+		expect(config_integer("display.frame_rate") == 30, "display.frame_rate is not 30");
+		expect(config_integer("display.flicker_filter") == 5, "display.flicker_filter is not 5");
 		expect_shared();
 		text = file_text();
 		expect(text != NULL, "no config.toml written");
@@ -87,6 +89,8 @@ int main(int argc, char **argv)
 			expect(strstr(text, "# log_flush = \"buffered\"\n") != NULL, "no log_flush");
 			expect(strstr(text, "# memory_class = \"auto\"\n") != NULL, "no memory_class");
 			expect(strstr(text, "# widescreen = \"dashboard\"\n") != NULL, "no display.widescreen");
+			expect(strstr(text, "# frame_rate = 30\n") != NULL, "no display.frame_rate");
+			expect(strstr(text, "# flicker_filter = 5\n") != NULL, "no display.flicker_filter");
 			expect(strstr(text, "# game_list_server = \"\"\n") != NULL, "no game_list_server");
 			expect(strstr(text, "# online = true\n") != NULL, "no network.online");
 			expect(strstr(text, "fullscreen") == NULL, "a desktop setting written");

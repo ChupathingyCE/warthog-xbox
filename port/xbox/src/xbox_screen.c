@@ -52,6 +52,30 @@ void halo_screen_ui_offset(unsigned char centered)
 	(void)centered;
 }
 
+/* 60 frames a second over the 30 Hz ticks (display.frame_rate), or the
+game's one a tick: read once, as the device is made once (rasterizer_xbox.c,
+HALO_CONSOLE_FRAME_RATE). Between the ticks only the view moves, which takes
+no memory (render_interpolation.c, HALO_CONSOLE_VIEW_INTERPOLATION) */
+static short frame_rate;
+
+short halo_console_frame_rate(void)
+{
+	if (!frame_rate)
+		frame_rate = xbox_screen_choose_frame_rate(config_integer("display.frame_rate"));
+	return frame_rate;
+}
+
+int halo_interpolation_enabled(void)
+{
+	return halo_console_frame_rate() == 60;
+}
+
+/* the TV encoder's flicker filter (display.flicker_filter, the game's 5) */
+long halo_console_flicker_filter(void)
+{
+	return xbox_screen_choose_flicker_filter(config_integer("display.flicker_filter"));
+}
+
 unsigned long halo_screen_present_flags(void)
 {
 	return halo_screen_width() > XBOX_SCREEN_WIDTH ? D3DPRESENTFLAG_WIDESCREEN : 0;
@@ -81,4 +105,6 @@ void halo_screen_device_report(void)
 		config_string("display.widescreen"),
 		xbox_screen_setting_off(config_string("display.widescreen")) ? "off" : "follows the dashboard",
 		(XGetVideoFlags() & XC_VIDEO_FLAGS_WIDESCREEN) ? "widescreen" : "4:3");
+	platform_log("screen: %d frames a second (display.frame_rate), flicker filter %ld", halo_console_frame_rate(),
+		halo_console_flicker_filter());
 }
