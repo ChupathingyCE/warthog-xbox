@@ -12,6 +12,16 @@ host's tests run them (tests/screen_test.c).
 
 int snprintf(char *buffer, size_t size, const char *format, ...);
 
+short xbox_screen_choose_frame_rate(long setting)
+{
+	return setting == 60 ? 60 : 30;
+}
+
+long xbox_screen_choose_flicker_filter(long setting)
+{
+	return setting < 0 ? 0 : setting > 5 ? 5 : setting;
+}
+
 /* whether display.widescreen says off: "off" in any case, with spaces
 around it, or the other words a player may write for it ("4:3", "false",
 "no", "none", "0") */

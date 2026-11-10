@@ -129,6 +129,30 @@ Stretch, by brand). Some older TVs only offer that for some inputs or
 modes. With a TV that can't stretch it, keep Normal in the dashboard or set
 `display.widescreen = "off"`.
 
+### 60 frames a second
+
+`display.frame_rate = 60` draws 60 frames a second over the game's 30 ticks,
+as the H1 Performance Build does (its 60 fps patch is theboy181's). The
+default, 30, draws one frame a tick, as the retail game did. At 60:
+
+- the game still ticks at 30, so play and the network are the same;
+- on foot in first person the view turns with the stick every frame and
+  eases into each tick's place; everything else stays where the tick put
+  it. Nothing is blended between ticks the way the PC builds blend every
+  object, so it takes no memory;
+- a scene that can't hold 60 drops to a steady 30 until it can again
+  (the game's own frame rate stabilization), rather than judder.
+
+`debug.txt` says which it got, with the flicker filter:
+
+```
+screen: 60 frames a second (display.frame_rate), flicker filter 5
+```
+
+`display.flicker_filter` (0 to 5) is how much an interlaced (480i) picture
+is softened against flicker. The retail game used 5. The H1 Performance
+Build uses 1: sharper, with more flicker. It does nothing at 480p.
+
 ## Differences from the SDK
 
 `port/xbox/include/halo_xbox_prefix.h` is included before each game unit.
@@ -239,7 +263,7 @@ type, gain, obstruction and occlusion). The folder must be there. 0 (the
 default): none.
 
 And the desktop builds' that apply on the console: `display.direct_camera`,
-`display.widescreen` (see "Video modes"), `display.field_of_view`, `display.viewmodel_field_of_view`,
+`display.widescreen`, `display.frame_rate`, `display.flicker_filter` (see "Video modes"), `display.field_of_view`, `display.viewmodel_field_of_view`,
 `display.match_timer`, `display.version_watermark`, `display.follow_camera`,
 `display.follow_camera_after`, `display.powerup_timers`,
 `display.scoreboard_team_layout`, `display.scoreboard_background`,

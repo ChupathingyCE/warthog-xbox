@@ -44,6 +44,23 @@ static void expect_width(void)
 	expect(xbox_screen_choose_width(XBOX_SCREEN_VIDEO_FLAGS_WIDESCREEN, NULL) == 852, "no setting is not dashboard");
 }
 
+/* display.frame_rate and display.flicker_filter */
+static void expect_frames_and_filter(void)
+{
+	expect(xbox_screen_choose_frame_rate(30) == 30, "30 is not 30");
+	expect(xbox_screen_choose_frame_rate(60) == 60, "60 is not 60");
+	/* (anything else is the game's 30: 0 from a setting that isn't a number) */
+	expect(xbox_screen_choose_frame_rate(0) == 30, "0 is not 30");
+	expect(xbox_screen_choose_frame_rate(59) == 30, "59 is not 30");
+	expect(xbox_screen_choose_frame_rate(120) == 30, "120 is not 30");
+	expect(xbox_screen_choose_frame_rate(-60) == 30, "-60 is not 30");
+	expect(xbox_screen_choose_flicker_filter(5) == 5, "5 is not 5");
+	expect(xbox_screen_choose_flicker_filter(1) == 1, "1 is not 1");
+	expect(xbox_screen_choose_flicker_filter(0) == 0, "0 is not 0");
+	expect(xbox_screen_choose_flicker_filter(-3) == 0, "-3 is not 0");
+	expect(xbox_screen_choose_flicker_filter(9) == 5, "9 is not 5");
+}
+
 static void expect_units(void)
 {
 	long x;
@@ -103,6 +120,7 @@ int main(void)
 {
 	expect_width();
 	expect_units();
+	expect_frames_and_filter();
 	expect_text();
 	if (failures)
 		return 1;
