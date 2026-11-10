@@ -427,6 +427,18 @@ static void ce_bitmap_channels(
 	}
 }
 
+/* a HUD meter's bitmap that ce_bitmap_channels left in Halo PC's channels (a
+compressed one, as Custom Edition's own shield and health meters are, or one
+not of 32 bits or linear, which aren't laid out): the meter shader reads them
+where they are (rasterizer_xbox_dynavobgeom.c) */
+boolean platform_ce_meter_in_pc_channels(
+	struct bitmap_data const *bitmap)
+{
+	return bitmap && ce_hud_bitmap_is_meter(bitmap) &&
+		(TEST_FLAG(bitmap->flags, _bitmap_compressed_bit) || TEST_FLAG(bitmap->flags, _bitmap_linear_bit) ||
+		bitmap_format_get_bits_per_pixel(bitmap->format) != 32);
+}
+
 /* (the large ones said, as each is laid out: what's drawn wrong on a console short
 of memory is then in the log) */
 char const *tag_get_name(long tag_index);
