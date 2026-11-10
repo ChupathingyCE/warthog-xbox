@@ -33,7 +33,7 @@ jobs:
       - name: Configure, without any console SDK
         run: |
           python3 chupathingyce/configure.py --console-port port/xbox \
-            --console-players 32
+            --console-no-debug-asserts --console-players 32
           test -f build.ninja
       - name: Original Xbox host tests
         run: sh port/xbox/tests/run.sh
