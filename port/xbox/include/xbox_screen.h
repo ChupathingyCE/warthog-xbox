@@ -32,6 +32,12 @@ screen width units across; each the nearest */
 long xbox_screen_interface_x(long width, long physical_x);
 long xbox_screen_physical_x(long width, long interface_x);
 
+/* the frames a second for display.frame_rate: 60 when it says 60, else the
+game's 30 */
+short xbox_screen_choose_frame_rate(long setting);
+/* the flicker filter's level for display.flicker_filter, 0 to 5 */
+long xbox_screen_choose_flicker_filter(long setting);
+
 /* the mode's debug.txt line: "screen: 480p widescreen (component), 852
 units across" */
 void xbox_screen_mode_text(char *text, unsigned long size, long width, unsigned long mode_flags,

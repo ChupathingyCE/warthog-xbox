@@ -248,13 +248,8 @@ void xbox_watchdog_start(void)
 	CreateThread(NULL, 16 * 1024, xbox_watchdog, NULL, 0, NULL);
 }
 
-/* (the screen: src/xbox_screen.c) */
-
-/* the game ticks at 30 Hz and draws its ticks: no frames between them */
-int halo_interpolation_enabled(void)
-{
-	return 0;
-}
+/* (the screen, and the frames between the ticks at display.frame_rate 60:
+src/xbox_screen.c) */
 
 /* ---------- input: the controller only */
 
