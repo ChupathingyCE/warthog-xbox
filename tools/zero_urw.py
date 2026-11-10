@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 JizzyRivers and Warthog's contributors
+# Part of Warthog: under its license, with its console SDK permission (README.md, "License").
 """lld fills a code section's file bytes with 0xCC, and the sdk libraries keep uninitialized data
 (*_URW: D3D_URW, DSOUND_URW...) inside code sections, so what must start as zero starts as
 0xCCCCCCCC as far as the section's last file block reaches (CDirectSound::m_pDirectSound: a crash in

@@ -1,4 +1,10 @@
 /*
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ * Copyright (C) 2026 JizzyRivers and Warthog's contributors
+ * Part of Warthog: under its license, with its console SDK permission (README.md, "License").
+ */
+
+/*
 XBOX_MAPS_SCREEN.C
 
 The Multiplayer menu's MAP BROWSER: the store's maps (xboxhomebrew.store) on a
