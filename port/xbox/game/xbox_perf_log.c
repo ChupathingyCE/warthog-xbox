@@ -234,6 +234,52 @@ static void perf_second_log(unsigned long milliseconds, __int64 now)
 			perf_milliseconds(perf.phase_total[_halo_perf_texture_wait], frames),
 			(double)halo_perf_counters[_halo_perf_texture_loads] / frame_count);
 	}
+
+	/* the objects' update split (objects_update), in a second that ran it */
+	if (perf.phase_total[_halo_perf_tick_objects] > 0)
+	{
+		static int const object_parts[] =
+		{
+			_halo_perf_objects_bipeds,
+			_halo_perf_objects_vehicles,
+			_halo_perf_objects_weapons,
+			_halo_perf_objects_items,
+			_halo_perf_objects_projectiles,
+			_halo_perf_objects_other_types,
+			_halo_perf_objects_damage,
+			_halo_perf_objects_nodes,
+			_halo_perf_objects_functions,
+			_halo_perf_objects_lights,
+			_halo_perf_objects_activation,
+			_halo_perf_objects_garbage
+		};
+		__int64 other = perf.phase_total[_halo_perf_tick_objects];
+		double ticks = halo_perf_counters[_halo_perf_ticks] > 0 ? (double)halo_perf_counters[_halo_perf_ticks] : 1.0;
+		int index;
+
+		/* (the objects' update less its parts: the loops over the objects
+		and the deletions) */
+		for (index = 0; index < (int)NUMBEROF(object_parts); index++)
+			other -= perf.phase_total[object_parts[index]];
+		error(_error_log,
+			"perf: objects detail: %.0f updated a tick; bipeds %.1f vehicles %.1f weapons %.1f items %.1f "
+			"projectiles %.1f other types %.1f; damage %.1f nodes %.1f functions %.1f lights %.1f "
+			"activation %.1f garbage %.1f other %.1f",
+			(double)halo_perf_counters[_halo_perf_objects_updated] / ticks,
+			perf_milliseconds(perf.phase_total[_halo_perf_objects_bipeds], frames),
+			perf_milliseconds(perf.phase_total[_halo_perf_objects_vehicles], frames),
+			perf_milliseconds(perf.phase_total[_halo_perf_objects_weapons], frames),
+			perf_milliseconds(perf.phase_total[_halo_perf_objects_items], frames),
+			perf_milliseconds(perf.phase_total[_halo_perf_objects_projectiles], frames),
+			perf_milliseconds(perf.phase_total[_halo_perf_objects_other_types], frames),
+			perf_milliseconds(perf.phase_total[_halo_perf_objects_damage], frames),
+			perf_milliseconds(perf.phase_total[_halo_perf_objects_nodes], frames),
+			perf_milliseconds(perf.phase_total[_halo_perf_objects_functions], frames),
+			perf_milliseconds(perf.phase_total[_halo_perf_objects_lights], frames),
+			perf_milliseconds(perf.phase_total[_halo_perf_objects_activation], frames),
+			perf_milliseconds(perf.phase_total[_halo_perf_objects_garbage], frames),
+			perf_milliseconds(other, frames));
+	}
 }
 
 static void perf_second_start(unsigned long milliseconds, __int64 now)
