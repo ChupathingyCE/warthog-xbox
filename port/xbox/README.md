@@ -395,7 +395,7 @@ the game list, the claim) is built for size (`-Os`), another 120 KB. The
 game's own code keeps `-O2` and its EBP frames, which the crash reports
 follow, but for the functions that call no other.
 
-The main thread's stack is the XBE's 768 KB (the retail game's is 512 KB),
+The main thread's stack is the XBE's 512 KB (the retail game's size),
 and the console commits all of it. `debug.txt` says how much of it the game
 has used: a `stack:` line at the start and one each time the deepest grows
 by 16 KB (`src/xbox_stack.c`). Some of the debug decomp's AI functions keep

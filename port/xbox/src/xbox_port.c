@@ -11,6 +11,7 @@ port/xbox/src/xbox_p2p.c, the settings port/xbox/src/xbox_config.c.
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "../include/xbox_stack.h"
 #include <string.h>
 
 #include "port/linux/include/halo_ui_pointer.h"
@@ -206,7 +207,7 @@ __declspec(dllimport) void __stdcall Sleep(unsigned long milliseconds);
 volatile unsigned long xbox_main_loops;
 const char *volatile xbox_main_stage = "start";
 
-static unsigned long __stdcall xbox_watchdog(void *parameter)
+static unsigned long __stdcall xbox_watchdog_body(void *parameter)
 {
 	unsigned long last_loops = 0, still = 0;
 
@@ -239,9 +240,11 @@ static unsigned long __stdcall xbox_watchdog(void *parameter)
 	return 0;
 }
 
+XBOX_STACK_THREAD(xbox_watchdog, "watchdog", 16 * 1024, xbox_watchdog_body)
+
 void xbox_watchdog_start(void)
 {
-	/* (a stack of its own size: 0 is the main thread's, the XBE's 768 KB, all
+	/* (a stack of its own size: 0 is the main thread's, the XBE's 512 KB, all
 	of it committed memory on the Xbox. 16 KB, as the retail game's own
 	threads: the deepest it goes is platform_log, a 1 KB line and the C
 	runtime's formatting, under 4 KB) */
