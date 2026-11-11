@@ -131,6 +131,21 @@ SUPPORT_FLAGS = [
 # exchange and signatures (Monocypher, p2p_crypto.c), the game list, the
 # claim and the player key. Monocypher alone goes from 83 KB to 18 KB
 COLD_FLAGS = ["-Os"]
+# The game's directories whose code is not in a frame's or a tick's hot
+# paths, built -Os like the port's cold units: the menus and HUD screens,
+# the scripts, saves, the cache's file code, the shell, tags and text, the
+# tools' leftovers. What runs every tick or every frame (ai, camera, effects,
+# game, input, items, the main loop, math, memory, models, objects, physics,
+# the rasterizer and render, structures, units, sound, the network in
+# networking, bungie_net and port/linux/game) stays -O2. About 56 KB of the image a 64 MB console
+# has back (measured on the 32-player build: .text 2,424 -> 2,368 KB; every
+# unit -Os would be 324 KB, but untested for frame time).
+COLD_GAME_DIRS = (
+    "source/bink/", "source/bitmaps/", "source/cache/", "source/cutscene/", "source/devices/",
+    "source/dialogs/", "source/editor/", "source/hs/", "source/interface/", "source/saved films/",
+    "source/saved games/", "source/scenario/", "source/shaders/", "source/shell/", "source/strings/",
+    "source/tag_files/", "source/text/", "source/tool/",
+)
 # the port's own units (not the decomp's, whose globals keep their
 # neighbors: GAME_FLAGS) with each global in a section of its own, so that
 # the linker leaves out the data nothing reads too: tables of the desktop's
@@ -426,7 +441,8 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
         # (the script console is not the console's: telnet_console.h)
         if port.game_relative(source) == "source/networking/telnet_console.c":
             continue
-        add_object(source, " ".join(["-std=gnu89", game_cflags, *flags]), [semantics_header, prefix_header],
+        cold = COLD_FLAGS if port.game_relative(source).startswith(COLD_GAME_DIRS) else []
+        add_object(source, " ".join(["-std=gnu89", game_cflags, *flags, *cold]), [semantics_header, prefix_header],
                    _inline_export_wrapper(port, source, build_dir))
     # the game's C++, which the native builds replace (d3d8_gl.c): the frame
     # counter read out of the console's Direct3D device
