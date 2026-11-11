@@ -8,7 +8,7 @@ logged, and used for what may grow with it: 64 MB is the baseline, and a
 console above it has the extras (console_memory_extras,
 port/linux/include/halo_console_memory.h, which this port answers). The
 game's own limits never change with it: the network, the game state and
-the objects stay the Xbox's (docs/cross-play.md), so every console plays
+the objects stay the Xbox's, so every console plays
 the same game.
 */
 

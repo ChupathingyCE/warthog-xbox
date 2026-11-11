@@ -338,8 +338,8 @@ The 64 MB class's sizes are the ones it had before the classes (the image
 grows by 40 bytes). Only what is drawn, heard and buffered on the console
 changes: the game's limits (players, machines, objects, particles, the game
 state) and what goes on the wire stay the Xbox's on every console, so all
-of them, and the PCs, play the same game; docs/cross-play.md has why the
-bigger game state needs more than a bigger console. The high-res text is
+of them, and the PCs, play the same game (a bigger game state needs more
+than a bigger console). The high-res text is
 not among the extras: the Xbox build leaves it out (it draws the maps' own
 fonts, as retail did).
 
@@ -464,7 +464,7 @@ a message. Known:
 - The netcode is the PC builds' (distributed). The console joins a PC
   host's game as a client: it folds the PCs' 128-slot game settings record
   and Slayer's state into its slots (16, or 32 in the test builds), and leaves a game that grows past
-  them as a full one (docs/cross-play.md, "What is built"). It joins an
+  them as a full one. It joins an
   internet game by its invite from ONLINE GAMES (A on a listed game, Y for
   the invite in `console.join`), through the desktop builds' tunnel
   (`port/linux/src/p2p*.c`, built as they are; `src/xbox_p2p.c` and
