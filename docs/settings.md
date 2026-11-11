@@ -25,8 +25,8 @@ frame_rate = 60
 ```
 
 Older test builds used empty switch files beside `default.xbe`, such as
-`bypass_security.txt`, `trace.txt` or `join.txt`. They still work for now.
-`debug.txt` says which setting to use instead. Use `config.toml`.
+`bypass_security.txt`, `trace.txt` or `join.txt`. The game no longer reads
+them. Put the same settings in `config.toml`.
 
 ## The console's own settings (`[console]`)
 
