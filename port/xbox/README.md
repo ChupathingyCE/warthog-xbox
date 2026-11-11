@@ -164,9 +164,24 @@ homebrew that keeps the default shares. That old ID is listed as an
 alternate title ID, and at the first start the game copies its own saves
 (folders with `blam.sav` or `blam.lst`) from `E:\UDATA\ffff0002` to the new
 folder. It never copies over a save that's already there and never changes
-the old folder. `debug.txt` lists each one ("saves: copied ..."), and
-`T:\saves_moved.dat` marks the copy as done. The retail game's ID,
-`0x4D530004`, is never used: its saves and cache stay its own.
+the old folder. `debug.txt` lists each one ("saves: copied ..."). A save is
+copied whole or not at all: `T:\saves_copying.dat` names the one being
+copied, so if the power goes in the middle the half copy is removed and
+copied again at the next start, and `SaveMeta.xbx` goes last, so a half
+copy is never listed as a save. `T:\saves_moved.dat` marks the copy as
+done, so a save deleted later stays deleted, as long as the game's own data
+(`E:\TDATA\43480001`) is kept; clearing it copies the old saves once more.
+The retail game's ID, `0x4D530004`, is never used: its saves and cache stay
+its own. No retail game uses the publisher code "CH" (checked against
+xboxdevwiki's publisher list and xemu's title database).
+
+What players see after the update:
+- The dashboard's Memory screen lists "Halo" twice: Warthog's new entry
+  (with the helmet picture) and the old one (cxbe's ID, shared with other
+  homebrew). The old one can be deleted once the profiles show up in the
+  game.
+- The first start rebuilds the Z: cache (Warthog has a partition of its
+  own now), so the first map loads take longer, once.
 
 The certificate also carries the retail game's rating, M, so the
 dashboard's parental control can block the game as it did retail Halo.
