@@ -17,10 +17,11 @@ the host too.
 #define __XBOX_GAME_LIST_H
 
 #define GAME_LIST_HOST "warthog.milenko.org"
-/* a build of more than 16 players (configure.py --console-players) asks
-for the games set for up to its own count; a stock build's plain request
-gets those of up to 16 */
-#if defined(HALO_CONSOLE_PLAYERS) && HALO_CONSOLE_PLAYERS > 16
+/* every build asks for the games set for up to its own count of players
+(configure.py --console-players): 16 for a stock build, 32 for the test
+builds. A plain request gets the games of up to 32, which a stock build
+would leave as soon as it joined */
+#ifdef HALO_CONSOLE_PLAYERS
 #define GAME_LIST_STRING_OF(x) #x
 #define GAME_LIST_STRING(x) GAME_LIST_STRING_OF(x)
 #define GAME_LIST_PATH "/v1/console/games?packs=1&players=" GAME_LIST_STRING(HALO_CONSOLE_PLAYERS)

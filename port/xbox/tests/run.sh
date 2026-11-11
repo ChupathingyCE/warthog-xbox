@@ -41,6 +41,13 @@ $CC -std=c89 -pedantic -Wall -Wextra -Werror $SAN -c $SRC/xbox_game_list_parse.c
 $CC -std=c89 -pedantic -Wall -Wextra -Werror $SAN -c $SRC/xbox_game_list_text.c -o "$OUT/text.o"
 $CC -Wall -Wextra $SAN port/xbox/tests/game_list_test.c "$OUT/parse.o" "$OUT/text.o" -o "$OUT/game_list_test"
 "$OUT/game_list_test" 200000
+# (every build asks the list for the games of up to its own players: a
+# stock build of 16 too, or it gets games of 32 it would leave)
+for players in 16 32; do
+	printf '#include "port/xbox/include/xbox_game_list.h"\nGAME_LIST_PATH\n' |
+		$CC -E -P -DHALO_CONSOLE_PLAYERS=$players -x c - | grep -qF "players=\" \"$players\"" ||
+		{ echo "game list path: no players=$players"; exit 1; }
+done
 $CC -std=c89 -pedantic -Wall -Wextra -Werror $SAN -iquote "$G" port/xbox/tests/network_game_layout_test.c \
 	$G/port/linux/game/network_game_layout.c -o "$OUT/network_game_layout_test"
 $CC -std=c99 -pedantic -Wall -Wextra -Werror $SAN -iquote "$G" port/xbox/tests/network_rules_console_test.c \
