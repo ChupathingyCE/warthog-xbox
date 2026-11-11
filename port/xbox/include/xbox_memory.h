@@ -83,7 +83,7 @@ in a box when the main menu is up, with the memory class's message if
 there is one; the first one given is kept */
 void xbox_boot_warning(const wchar_t *text);
 /* a test build of more than 16 players' memory line (the main loop, each
-map's start and end); nothing in a stock build */
+map's start and end); a stock build logs the free memory alone */
 void xbox_memory_log_point(const char *where);
 
 /* Delta Peer's memory class (struct delta_platform_key's memory_class,
