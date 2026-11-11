@@ -29,6 +29,7 @@ game is not reported, and debug.txt says so.
 #include "../include/xbox_https.h"
 #include "../include/xbox_memory.h"
 #include "../include/xbox_player_key.h"
+#include "../include/xbox_stack.h"
 
 /* xbox_port.c's: safe from any thread, reaches debug.txt from the main loop */
 void platform_log(const char *format, ...);
@@ -67,13 +68,15 @@ struct report_start
 
 static struct report_start report_start;
 
-static unsigned long __stdcall report_thread(void *parameter)
+static unsigned long __stdcall report_thread_body(void *parameter)
 {
 	struct report_start *start = parameter;
 
 	start->function(start->context);
 	return 0;
 }
+
+XBOX_STACK_THREAD(report_thread, "reports", REPORT_STACK, report_thread_body)
 
 static int report_start_thread(void (*function)(void *context), void *context)
 {
