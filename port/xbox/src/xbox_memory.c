@@ -527,7 +527,10 @@ void xbox_memory_log_point(const char *where)
 	memory.object_pool_used_peak = 0;
 	memory.object_pool_contiguous_least = 0;
 #else
-	(void)where;
+	/* (a stock build: the free memory alone, which a join's map start is
+	the one to watch - the network's pool, console.xnet_pages, and the
+	connection's queues are taken by then) */
+	xbox_boot_log("memory: %lu KB free at %s", xbox_memory_free() >> 10, where);
 #endif
 }
 
