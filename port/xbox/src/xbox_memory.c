@@ -97,6 +97,7 @@ int xbox_memory_delta_class_of(int memory_class)
 #include <wchar.h>
 
 #include "../include/xbox_config.h"
+#include "../include/xbox_saves.h"
 #include "port/linux/src/port_config.h"
 
 unsigned long __cdecl DbgPrint(const char *format, ...);
@@ -424,6 +425,8 @@ void xbox_memory_startup(void)
 	/* (the settings first: the memory's are among them) */
 	xbox_config_startup();
 	memory_read();
+	/* (the saves of the title ID before 0.9.1, once: xbox_saves.c) */
+	xbox_saves_move_old();
 }
 
 /* physical_memory_allocate's: each cache as it is made */

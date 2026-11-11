@@ -21,7 +21,9 @@ tools, asks for the files you supply, builds and packages
   On macOS: `brew install llvm ninja`. The build looks for LLVM in `LLVM_DIR`
   and then in Homebrew's folder.
 - [OXDK](https://github.com/MrMilenko/OXDK) in `~/OXDK` (or give
-  `--oxdk DIR`, or set `OXDK_DIR`), with its `cxbe` built.
+  `--oxdk DIR`, or set `OXDK_DIR`), with its `cxbe` built. An OXDK whose
+  `cxbe` has no `-TITLEID` still builds, but the XBE then keeps `cxbe`'s
+  title ID and has no rating or save picture (see "Title ID and saves").
 - The Xbox SDK's libraries and headers in OXDK's `xbox/xdk/lib` and
   `xbox/xdk/include`, as the OXDK instructions tell. This repository does not
   supply them. The SDK comes as a Windows installer that installs into
@@ -152,6 +154,42 @@ screen: 60 frames a second (display.frame_rate), flicker filter 5
 `display.flicker_filter` (0 to 5) is how much an interlaced (480i) picture
 is softened against flicker. The retail game used 5. The H1 Performance
 Build uses 1: sharper, with more flicker. It does nothing at 480p.
+
+## Title ID and saves
+
+The XBE's certificate gives Warthog its own title ID, `0x43480001`, so its
+saves are in `E:\UDATA\43480001` and its cache has a Z: partition of its
+own. Builds before 0.9.1 had `cxbe`'s default, `0xFFFF0002`, which every
+homebrew that keeps the default shares. That old ID is listed as an
+alternate title ID, and at the first start the game copies its own saves
+(folders with `blam.sav` or `blam.lst`) from `E:\UDATA\ffff0002` to the new
+folder. It never copies over a save that's already there and never changes
+the old folder. `debug.txt` lists each one ("saves: copied ..."). A save is
+copied whole or not at all: `T:\saves_copying.dat` names the one being
+copied, so if the power goes in the middle the half copy is removed and
+copied again at the next start, and `SaveMeta.xbx` goes last, so a half
+copy is never listed as a save. `T:\saves_moved.dat` marks the copy as
+done, so a save deleted later stays deleted, as long as the game's own data
+(`E:\TDATA\43480001`) is kept; clearing it copies the old saves once more.
+The retail game's ID, `0x4D530004`, is never used: its saves and cache stay
+its own. No retail game uses the publisher code "CH" (checked against
+xboxdevwiki's publisher list and xemu's title database).
+
+What players see after the update:
+- The dashboard's Memory screen lists Warthog's new entry, "Warthog" (with
+  the helmet picture), beside the old one, "Halo" (cxbe's ID, shared with
+  other homebrew). The old one can be deleted once the profiles show up in
+  the game.
+- The first start rebuilds the Z: cache (Warthog has a partition of its
+  own now), so the first map loads take longer, once.
+
+The certificate names the game "Warthog" for the dashboard, and carries
+the retail game's rating, M, so the dashboard's parental control can block
+the game as it did retail Halo.
+The dashboard shows Warthog's own pictures (the ChupathingyCE helmet):
+`port/xbox/art/TitleImage.xbx` and `SaveImage.xbx`, made from the PNGs
+beside them by `tools/xbox_images.py`. They aren't loaded with the game,
+so they cost no memory.
 
 ## Differences from the SDK
 
