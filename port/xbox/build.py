@@ -484,6 +484,11 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
     support_cflags = " ".join([*SUPPORT_FLAGS, players_flag, f"-iquote {_quote(game)}", link_include,
                                f"-I{_quote(xdk / 'include')}"])
     for source in sorted((PORT_DIR / "src").glob("*.c")):
+        # (the audio probe's recording of the console's own output is a
+        # developer's tool: only in a build with --console-debug-tools, as the
+        # probe itself, include/halo_xbox_features.h)
+        if source.name == "xbox_audio_capture.c" and "-DHALO_CONSOLE_DEBUG_TOOLS" not in defines:
+            continue
         # (the reports name the build: "Warthog 0.8.1d")
         version_flags = [f'-DHALO_VERSION=\\"{version()}\\"'] if source.name == "xbox_reports.c" else []
         add_object(source, " ".join([support_cflags, *PORT_DATA_FLAGS, *version_flags,

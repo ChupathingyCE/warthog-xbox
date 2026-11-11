@@ -13,6 +13,7 @@ failure is one line in debug.txt; there is no retry.
 
 #include "../include/xbox_claim.h"
 #include "../include/xbox_game_list.h"
+#include "../include/xbox_stack.h"
 
 ULONG __cdecl DbgPrint(PCSTR format, ...);
 void xbox_memory_heap_allocation(const char *file, long line, unsigned long size, const void *address);
@@ -50,7 +51,7 @@ static int claim_transport(void *context, const char *path, const char *body, in
 	return 1;
 }
 
-static unsigned long __stdcall claim_thread(void *parameter)
+static unsigned long __stdcall claim_thread_body(void *parameter)
 {
 	struct claim_site site;
 	int result;
@@ -81,6 +82,8 @@ static unsigned long __stdcall claim_thread(void *parameter)
 		platform_log("claim: no platform claim (%s)", xbox_claim_result_string(result));
 	return 0;
 }
+
+XBOX_STACK_THREAD(claim_thread, "claim", CLAIM_STACK, claim_thread_body)
 
 void xbox_claim_game_ended(void)
 {

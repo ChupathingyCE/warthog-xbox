@@ -22,6 +22,7 @@ console's own link.
 #include "../include/xbox_claim.h"
 #include "../include/xbox_game_list.h"
 #include "../include/xbox_player_key.h"
+#include "../include/xbox_stack.h"
 
 void xbox_memory_heap_allocation(const char *file, long line, unsigned long size, const void *address);
 /* xbox_port.c's: safe from any thread, reaches debug.txt from the main loop */
@@ -67,13 +68,15 @@ struct link_thread
 
 static struct link_thread link_thread_start;
 
-static unsigned long __stdcall link_thread(void *parameter)
+static unsigned long __stdcall link_thread_body(void *parameter)
 {
 	struct link_thread *start = parameter;
 
 	start->function(start->context);
 	return 0;
 }
+
+XBOX_STACK_THREAD(link_thread, "link", LINK_STACK, link_thread_body)
 
 static int link_start_thread(void (*function)(void *context), void *context)
 {
