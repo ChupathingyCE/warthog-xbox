@@ -82,12 +82,13 @@ You can use AI tools when you contribute. You're responsible for what you submit
 - **A letter after it** is a hotfix of that release: crash, security or network fixes only, no features. Letters start at `a`, in order: 0.7.5, then 0.7.5a, 0.7.5b.
 - **1.0.0** comes once the game is feature-complete and stable on every platform.
 
-Test builds are the `nightly` release and `-testing` tags, outside the numbering. The network version is separate from the release version: a hotfix changes it only when cross-play needs it.
+Test builds are the `nightly` release and `-testing` tags, outside the numbering. The Xbox's test builds are shared in #xbox on the Discord. The network version is separate from the release version: a hotfix changes it only when cross-play needs it.
 
 ## Bugs
 
 Use the bug report form, or #warthog-support on the
-[Discord](https://discord.gg/chupathingy). Attach `D:\debug.txt`; for a
+[Discord](https://discord.gg/chupathingy). Send `debug.txt` at
+[dump.chupathingy.org](https://dump.chupathingy.org) and give the code; for a
 join that fails, run once with `trace = true` in the `[console]` section of
 `D:\config.toml` (it shows other hosts only as tags, never their Ethernet
 addresses).

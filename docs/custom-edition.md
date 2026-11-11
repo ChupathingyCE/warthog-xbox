@@ -12,9 +12,19 @@ A Map Browser in the Multiplayer menu downloads them from the
 maps, mirrored), and Online Games lists the Custom Edition games hosted on
 the desktop builds and the dedicated servers, so the console can join them.
 
-`port/xbox/FEATURES.md` listed Custom Edition maps as cut for memory and
-storage on 2026-10-19. This is the case for putting them back: on a console
-of 128 MB, and, experimentally, on a stock 64 MB one.
+Custom Edition maps were cut from the Xbox build on 2026-10-19, for memory
+and storage. They came back in the November test builds: on a console of
+128 MB, and, experimentally, on a stock 64 MB one.
+
+## Getting the maps onto the console
+
+1. Make a `maps_ce` folder next to `default.xbe`.
+2. Copy `bitmaps.map`, `sounds.map` and `loc.map` from your own Halo
+   Custom Edition install into it.
+3. Add maps with **Multiplayer > MAP BROWSER**, or copy `.map` files into
+   `maps_ce` yourself.
+
+They show in the multiplayer map list marked `[CE]`.
 
 ## What was tested
 
@@ -60,7 +70,7 @@ it there with `VirtualAlloc` once the caches are made
 
 **A 64 MB console** has no room for a second tag cache, so the range is the
 Xbox tag cache's own, which holds nothing while a Custom Edition map is
-loaded (`src/xbox_ce_files.c`, tried alone first in `warthog-ce-alias-poc`):
+loaded (`src/xbox_ce_files.c`):
 
 - **The page tables.** The range at `0x40440000` is mapped onto the Xbox tag
   cache's physical pages (the kernel's page tables at `0xC0000000`, its
@@ -198,13 +208,13 @@ As `docs/building.md` says. On Linux, its "Linux" section: the SDK's names
 made case-blind once (`tools/xdk_case_links.py`), and the link's own fix
 (`tools/zero_urw.py`). The image is 5852 KB with all of this, from 5254 KB.
 
-## What's left
+## Not done yet
 
 - More time on real consoles, 64 MB above all.
-- A map the host changes to in the lobby that isn't here (the offer is made
-  only as a game is joined), and HaloMD maps.
-- Custom Edition's resource maps from its installer
-  (`halocesetup_en_1.00.exe`, the desktop builds' `ce_installer.c`), at boot
-  before the caches are made, where a 64 MB console has the memory.
-- DXT multipurpose maps' channels; the HUD's button icons on Custom Edition
-  maps.
+- A map the host changes to in the lobby that isn't on the console. The
+  download is offered only as a game is joined.
+- HaloMD maps.
+- Custom Edition's resource maps from its installer. Today you copy them
+  yourself.
+- DXT multipurpose maps' channels, and the HUD's button icons on Custom
+  Edition maps.

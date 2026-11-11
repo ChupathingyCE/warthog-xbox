@@ -18,7 +18,7 @@ one; a feature that would is to ask for it through the memory class
 | Hosting a listed internet game | Yes | Not yet | The console hosts System Link; its games are not listed and PCs do not join it over the internet yet |
 | Invite links | Yes | Yes, from `console.join` | No clipboard on a console |
 | Cross-play with PCs and OpenCE | Yes | Yes | Up to 32 players in test builds (16 in a build without `--console-players 32`), network versions as `README.md` says |
-| Delta Peer (platform, player ID) | Yes | Yes, as a client | `console.delta`; the player ID from `D:\game_list_player.key` |
+| Delta Peer (platform, player ID) | Yes | Yes, as a client | `console.delta`; the player ID from a linked profile or `D:\game_list_player.key` |
 | Text chat | Yes | Yes | Shown lines, quick lines on the D-pad, a USB keyboard's T, Y and H; the client's part only (a console never hosts on Delta) |
 | Server messages | Yes, in a banner | Yes, in the chat lines | The banner is the desktop's overlay; the console shows them as lines |
 | Team changes in a game | Yes | Not yet | Needs CHANGE TEAMS in the console's pause menu (`team_change.c` is 505 lines, little memory) |
@@ -62,6 +62,7 @@ one; a feature that would is to ask for it through the memory class
 | Follow camera while waiting to respawn | Yes | Yes | `display.follow_camera` |
 | Power-up timers | Yes | Yes | `display.powerup_timers`, off by default |
 | Match timer | Yes | Yes | `display.match_timer`, off by default |
+| Medals as you earn them | Yes | Yes, as HUD messages | `display.medals`, off by default |
 | Scoreboard: team columns, panel, quit players | Yes | Yes | `display.scoreboard_*`, `display.show_quit_players` |
 | Version watermark | Yes | Yes | `display.version_watermark` |
 | High-res HUD and text | Yes | Cut | 2026-10-19: the atlas's texture memory |
