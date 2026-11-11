@@ -263,6 +263,12 @@ def add_arguments(parser: Any) -> None:
         type=Path,
         help="OXDK checkout for `ninja xbox` (default: OXDK_DIR, or ~/OXDK)",
     )
+    parser.add_argument(
+        "--xbox-old-flag-files",
+        action="store_true",
+        help="also read the switch files config.toml replaced (D:\\memory_64.txt, join.txt and the rest), "
+             "as builds before 0.9.1 did (port/xbox/README.md)",
+    )
 
 
 def _oxdk_dir(sln: Any) -> Path:
@@ -465,8 +471,11 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
     add_object(game / CONSOLE_LINK_DIR / "console_link_panel.c",
                " ".join(["-std=gnu89", game_cflags, link_include, *PORT_DATA_FLAGS]), [semantics_header, prefix_header])
 
-    support_cflags = " ".join([*SUPPORT_FLAGS, players_flag, f"-iquote {_quote(game)}", link_include,
-                               f"-I{_quote(xdk / 'include')}"])
+    # (the old switch files beside default.xbe, read only when asked for:
+    # src/xbox_config.c)
+    old_flag_files = ["-DXBOX_OLD_FLAG_FILES"] if getattr(sln.args, "xbox_old_flag_files", False) else []
+    support_cflags = " ".join([*SUPPORT_FLAGS, players_flag, *old_flag_files, f"-iquote {_quote(game)}",
+                               link_include, f"-I{_quote(xdk / 'include')}"])
     for source in sorted((PORT_DIR / "src").glob("*.c")):
         # (the reports name the build: "Warthog 0.8.1d")
         version_flags = [f'-DHALO_VERSION=\\"{version()}\\"'] if source.name == "xbox_reports.c" else []

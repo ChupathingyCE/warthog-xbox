@@ -32,8 +32,8 @@ maps_<pack>, so the list sends their games too, each with its map's name
 and its pack's tag in the line's 14th and 15th fields; a build before map
 packs asks without it and gets none of them) */
 #define GAME_LIST_PORT 80
-/* console.game_list_server in D:\config.toml (once D:\game_list.txt, still
-read for one release): a host or an IPv4 address, ":port" optional; used
+/* console.game_list_server in D:\config.toml (once D:\game_list.txt, read
+now only by a --xbox-old-flag-files build): a host or an IPv4 address, ":port" optional; used
 when the list's host does not resolve */
 #define GAME_LIST_FALLBACK_SETTING "console.game_list_server"
 #define GAME_LIST_FALLBACK_FILE "D:\\game_list.txt"

@@ -281,11 +281,12 @@ Another setting the shared code reads is empty, 0 or false on the console,
 as before it had the file.
 
 Use `config.toml` for every setting. The switch files that came before it
-are still read, each logged as deprecated in `debug.txt` ("D:\memory_64.txt is deprecated, use
-console.simulate_64mb in config.toml", which now ignores it): `bypass_security.txt`,
-`memory_64.txt`, `large_caches.txt` and `trace.txt` (an empty file turns
+are no longer read, as the retail game read none: `bypass_security.txt`,
+`memory_64.txt`, `large_caches.txt` and `trace.txt` (an empty file turned
 the setting on), and `join.txt` and `game_list.txt` (one line, used when
-the setting is empty).
+the setting was empty). A build configured with `--xbox-old-flag-files`
+still reads them, each logged as deprecated in `debug.txt` ("D:\memory_64.txt
+is deprecated, use console.simulate_64mb in config.toml").
 
 ## Memory
 
