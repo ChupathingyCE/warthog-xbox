@@ -1,8 +1,8 @@
 /*
 XBOX_DIRECT_JOIN.H
 
-console.join in D:\config.toml (once D:\join.txt, still read for one
-release), for testing joins without the game list:
+console.join in D:\config.toml (once D:\join.txt, read now only by a
+--xbox-old-flag-files build), for testing joins without the game list:
 
 - an IPv4 address (a.b.c.d): System Link joins that host directly, without
   its advertisement, which a host broadcasts only on its own network; the
@@ -37,11 +37,11 @@ digits in lower case and a terminator: XBOX_DIRECT_JOIN_INVITE_LENGTH + 1
 bytes); 1 if it is one */
 int xbox_direct_join_parse_invite(const char *text, unsigned long size, char *invite);
 
-/* the invite in console.join (or D:\join.txt, read each time); 0 if there
+/* the invite in console.join (or D:\join.txt in a --xbox-old-flag-files build); 0 if there
 is none */
 int xbox_direct_join_invite(char *invite);
 
-/* the address in console.join (or D:\join.txt, read each time), host byte
+/* the address in console.join (or D:\join.txt in a --xbox-old-flag-files build), host byte
 order: 0 if there is none or it is no such address (told once in
 debug.txt) */
 int xbox_direct_join_address(unsigned long *address);
