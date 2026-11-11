@@ -26,6 +26,7 @@ The same thread then fetches the signed legacy table when it is due
 #include "../include/xbox_config.h"
 #include "../include/xbox_game_list.h"
 #include "../include/xbox_https.h"
+#include "../include/xbox_stack.h"
 #include "port/console/https/console_https.h"
 #include "port/linux/include/delta.h"
 #include "port/linux/src/port_config.h"
@@ -232,7 +233,7 @@ static void fetch_custom_edition_games(void)
 		free(buffer);
 }
 
-static unsigned long __stdcall game_list_thread(void *parameter)
+static unsigned long __stdcall game_list_thread_body(void *parameter)
 {
 	/* (the stack's: the thread has no other use for it, and the heap has
 	no 10 KB to spare on a 64 MB console while a game is open) */
@@ -287,6 +288,8 @@ static unsigned long __stdcall game_list_thread(void *parameter)
 	xbox_https_table_refresh();
 	return 0;
 }
+
+XBOX_STACK_THREAD(game_list_thread, "game list", LIST_THREAD_STACK, game_list_thread_body)
 
 void xbox_game_list_request(void)
 {

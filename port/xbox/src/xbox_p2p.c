@@ -23,6 +23,7 @@ writes them through log_address (port/xbox/src/xbox_port.c).
 */
 
 #include <xtl.h>
+#include "../include/xbox_stack.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -138,7 +139,7 @@ void xbox_memory_heap_allocation(const char *file, long line, unsigned long size
 
 static struct thread_start thread_starts[4];
 
-static DWORD WINAPI thread_main(LPVOID parameter)
+static DWORD WINAPI thread_main_body(LPVOID parameter)
 {
 	struct thread_start *start = (struct thread_start *)parameter;
 	void *(*function)(void *) = start->start;
@@ -149,6 +150,8 @@ static DWORD WINAPI thread_main(LPVOID parameter)
 	function(argument);
 	return 0;
 }
+
+XBOX_STACK_THREAD(thread_main, "p2p", THREAD_STACK_SIZE, thread_main_body)
 
 int pthread_create(pthread_t *thread, const pthread_attr_t *attributes, void *(*start)(void *), void *argument)
 {
