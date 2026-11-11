@@ -17,10 +17,11 @@ the host too.
 #define __XBOX_GAME_LIST_H
 
 #define GAME_LIST_HOST "warthog.milenko.org"
-/* a build of more than 16 players (configure.py --console-players) asks
-for the games set for up to its own count; a stock build's plain request
-gets those of up to 16 */
-#if defined(HALO_CONSOLE_PLAYERS) && HALO_CONSOLE_PLAYERS > 16
+/* every build asks for the games set for up to its own count of players
+(configure.py --console-players): 16 for a stock build, 32 for the test
+builds. A plain request gets the games of up to 32, which a stock build
+would leave as soon as it joined */
+#ifdef HALO_CONSOLE_PLAYERS
 #define GAME_LIST_STRING_OF(x) #x
 #define GAME_LIST_STRING(x) GAME_LIST_STRING_OF(x)
 #define GAME_LIST_PATH "/v1/console/games?packs=1&players=" GAME_LIST_STRING(HALO_CONSOLE_PLAYERS)
@@ -32,8 +33,8 @@ maps_<pack>, so the list sends their games too, each with its map's name
 and its pack's tag in the line's 14th and 15th fields; a build before map
 packs asks without it and gets none of them) */
 #define GAME_LIST_PORT 80
-/* console.game_list_server in D:\config.toml (once D:\game_list.txt, still
-read for one release): a host or an IPv4 address, ":port" optional; used
+/* console.game_list_server in D:\config.toml (once D:\game_list.txt, read
+now only by a --xbox-old-flag-files build): a host or an IPv4 address, ":port" optional; used
 when the list's host does not resolve */
 #define GAME_LIST_FALLBACK_SETTING "console.game_list_server"
 #define GAME_LIST_FALLBACK_FILE "D:\\game_list.txt"

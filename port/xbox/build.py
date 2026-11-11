@@ -37,6 +37,7 @@ None of the SDK's files belong in this repository. See port/xbox/README.md.
 
 import os
 import shlex
+import subprocess
 from pathlib import Path
 from typing import Any, List, Optional
 
@@ -131,6 +132,21 @@ SUPPORT_FLAGS = [
 # exchange and signatures (Monocypher, p2p_crypto.c), the game list, the
 # claim and the player key. Monocypher alone goes from 83 KB to 18 KB
 COLD_FLAGS = ["-Os"]
+# With --xbox-os-game-dirs (off by default), the game's directories below
+# are built -Os like the port's cold units, for a smaller image. They are not
+# all cold: the texture and sound caches (cache/), the HUD, first-person
+# weapons and draw_string (interface/), the scripts' runtime (hs/), wind and
+# the shaders, devices, tag_groups and bitmaps all run every frame or tick.
+# What it costs in frame time is not measured yet, so the default build
+# stays -O2. Measured on the 32-player build: .text 2,424 -> 2,368 KB, 56 KB
+# of the image a 64 MB console would have back (every game unit -Os would be
+# 324 KB).
+COLD_GAME_DIRS = (
+    "source/bink/", "source/bitmaps/", "source/cache/", "source/cutscene/", "source/devices/",
+    "source/dialogs/", "source/editor/", "source/hs/", "source/interface/", "source/saved films/",
+    "source/saved games/", "source/scenario/", "source/shaders/", "source/shell/", "source/strings/",
+    "source/tag_files/", "source/text/", "source/tool/",
+)
 # the port's own units (not the decomp's, whose globals keep their
 # neighbors: GAME_FLAGS) with each global in a section of its own, so that
 # the linker leaves out the data nothing reads too: tables of the desktop's
@@ -148,12 +164,12 @@ COLD_SOURCES = (
 SUPPORT_CXX_FLAGS = ["-fno-exceptions", "-fno-rtti", "-fno-threadsafe-statics"]
 
 LINK_FLAGS = [
-    # (the main thread's stack: 768 KB, all of it committed on the console.
-    # The deepest seen in any debug.txt is 279 KB, a campaign mission; the
-    # retail game's is 512 KB. /fixed: no .reloc section, as the retail game.
+    # (the main thread's stack: 512 KB, the retail game's, all of it
+    # committed on the console. The deepest seen in any debug.txt is 279 KB,
+    # a campaign mission, with the debug asserts in; it was 1 MB, then 768 KB. /fixed: no .reloc section, as the retail game.
     # The Xbox loads an image only at its base, and cxbe's fixups are a no-op
     # when the PE's base is the XBE's 0x10000; the section took 119 KB)
-    "/nologo", "/subsystem:windows", "/fixed", "/base:0x00010000", "/stack:786432",
+    "/nologo", "/subsystem:windows", "/fixed", "/base:0x00010000", "/stack:524288",
     "/machine:x86", "/entry:mainCRTStartup",
     # the functions nothing calls are left out (-ffunction-sections), and no
     # two that compile the same are folded into one: the game compares
@@ -263,6 +279,52 @@ def add_arguments(parser: Any) -> None:
         type=Path,
         help="OXDK checkout for `ninja xbox` (default: OXDK_DIR, or ~/OXDK)",
     )
+    parser.add_argument(
+        "--xbox-os-game-dirs",
+        action="store_true",
+        help="build the game's menu, script, cache, tag and text code -Os for a 56 KB smaller XBE; "
+             "frame time not yet measured (port/xbox/build.py, COLD_GAME_DIRS)",
+    )
+    parser.add_argument(
+        "--xbox-old-flag-files",
+        action="store_true",
+        help="also read the switch files config.toml replaced (D:\\memory_64.txt, join.txt and the rest), "
+             "as builds before 0.9.1 did (port/xbox/README.md)",
+    )
+
+
+# The XBE's certificate (include/xbox_saves.h has the same numbers): Warthog's
+# own title ID ("CH" and 1; never the retail game's 0x4D530004), the ID of
+# the builds before 0.9.1 (cxbe's default, 0xFFFF0002) as an alternate so
+# their saves can be copied over (src/xbox_saves.c), and the retail game's
+# rating, M (2), so the dashboard's parental control works as it did.
+XBE_TITLE_ID = "43480001"
+XBE_OLD_TITLE_ID = "FFFF0002"
+XBE_RATINGS = "2"
+# (the dashboard's pictures of the game: port/xbox/art, tools/xbox_images.py)
+
+
+def _cxbe_certificate_flags(cxbe: Path, port_dir: Path) -> List[str]:
+    """cxbe's options for the certificate and the pictures, those this cxbe
+    has: an OXDK from before -TITLEID builds the XBE as before (cxbe's
+    default title ID), with a note to update it."""
+    try:
+        usage = subprocess.run([str(cxbe)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=30,
+                               check=False).stdout.decode("utf-8", "replace")
+    except (OSError, subprocess.SubprocessError):
+        usage = ""
+    art = port_dir / "art"
+    flags: List[str] = []
+    if "-TITLEID" in usage:
+        flags += [f"-TITLEID:{XBE_TITLE_ID}", f"-ALTTITLEID:{XBE_OLD_TITLE_ID}", f"-RATINGS:{XBE_RATINGS}"]
+    if "-TITLEIMAGE" in usage:
+        flags.append(f"-TITLEIMAGE:{_quote(art / 'TitleImage.xbx')}")
+    if "-SAVEIMAGE" in usage:
+        flags.append(f"-SAVEIMAGE:{_quote(art / 'SaveImage.xbx')}")
+    if "-TITLEID" not in usage or "-SAVEIMAGE" not in usage:
+        print("port/xbox: this OXDK's cxbe has no -TITLEID/-SAVEIMAGE: the XBE keeps cxbe's title ID "
+              "0xFFFF0002, no rating and no save picture (update OXDK and run make in xbox/tools/cxbe)")
+    return flags
 
 
 def _oxdk_dir(sln: Any) -> Path:
@@ -349,7 +411,8 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
     )
     n.rule(
         name="xbox_cxbe",
-        command=f"{_quote(cxbe)} -MODE:RETAIL -TITLE:\"Halo\" -LIMIT64MB:no -OUT:$out $in",
+        command=f"{_quote(cxbe)} -MODE:RETAIL -TITLE:\"Warthog\" -LIMIT64MB:no "
+                + " ".join(_cxbe_certificate_flags(cxbe, PORT_DIR)) + " -OUT:$out $in",
         description="XBOX XBE $out",
     )
     n.rule(
@@ -422,11 +485,14 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
         # co-op's: port/xbox/game/xbox_coop.c answers them on the console)
         f"-idirafter {_quote(game / PORT_LINUX_GAME)}",
     ])
+    # (the game's -Os directories, only when asked for: COLD_GAME_DIRS)
+    os_game_dirs = getattr(sln.args, "xbox_os_game_dirs", False)
     for source, flags in port.game_units(sln, config):
         # (the script console is not the console's: telnet_console.h)
         if port.game_relative(source) == "source/networking/telnet_console.c":
             continue
-        add_object(source, " ".join(["-std=gnu89", game_cflags, *flags]), [semantics_header, prefix_header],
+        cold = COLD_FLAGS if os_game_dirs and port.game_relative(source).startswith(COLD_GAME_DIRS) else []
+        add_object(source, " ".join(["-std=gnu89", game_cflags, *flags, *cold]), [semantics_header, prefix_header],
                    _inline_export_wrapper(port, source, build_dir))
     # the game's C++, which the native builds replace (d3d8_gl.c): the frame
     # counter read out of the console's Direct3D device
@@ -465,8 +531,11 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
     add_object(game / CONSOLE_LINK_DIR / "console_link_panel.c",
                " ".join(["-std=gnu89", game_cflags, link_include, *PORT_DATA_FLAGS]), [semantics_header, prefix_header])
 
-    support_cflags = " ".join([*SUPPORT_FLAGS, players_flag, f"-iquote {_quote(game)}", link_include,
-                               f"-I{_quote(xdk / 'include')}"])
+    # (the old switch files beside default.xbe, read only when asked for:
+    # src/xbox_config.c)
+    old_flag_files = ["-DXBOX_OLD_FLAG_FILES"] if getattr(sln.args, "xbox_old_flag_files", False) else []
+    support_cflags = " ".join([*SUPPORT_FLAGS, players_flag, *old_flag_files, f"-iquote {_quote(game)}",
+                               link_include, f"-I{_quote(xdk / 'include')}"])
     for source in sorted((PORT_DIR / "src").glob("*.c")):
         # (the audio probe's recording of the console's own output is a
         # developer's tool: only in a build with --console-debug-tools, as the
@@ -579,6 +648,7 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
             "libs": " ".join([_quote(d3d8), *LIBRARIES]),
         },
     )
-    n.build(outputs=xbe, rule="xbox_cxbe", inputs=exe, implicit=[cxbe])
+    n.build(outputs=xbe, rule="xbox_cxbe", inputs=exe,
+            implicit=[cxbe, PORT_DIR / "art" / "TitleImage.xbx", PORT_DIR / "art" / "SaveImage.xbx"])
     n.build(outputs="xbox", rule="phony", inputs=xbe)
     n.newline()
