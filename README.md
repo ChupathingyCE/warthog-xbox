@@ -93,6 +93,9 @@ for you, `config.toml` included (see "Building it yourself").
 - **Sound:** the original Xbox reverb.
 - **Widescreen and 480p** follow the dashboard's video settings.
   Widescreen is new in the November test builds and still being tested.
+- **60 frames a second** as a setting (`display.frame_rate = 60`). It is
+  new and still being tested. The game still runs 30 ticks a second, so it
+  plays the same online.
 
 ## Known issues
 
@@ -118,6 +121,24 @@ for you, `config.toml` included (see "Building it yourself").
   the pregame screen
   ([#83](https://github.com/ChupathingyCE/warthog-xbox/issues/83)).
 
+## Troubleshooting
+
+- **The game doesn't reach the menus.** Check that the `maps` folder, with
+  `ui.map` in it, is next to `default.xbe`. Then send `debug.txt` (below).
+- **Online Games says "Online play needs console.bypass_security."** Add
+  `bypass_security = true` under `[console]` in `config.toml`.
+- **"Could not reach the game list."** Check the dashboard's network
+  settings. If your DNS can't find the list, set `console.game_list_server`
+  ([docs/settings.md](docs/settings.md)).
+- **A game says its map is missing.** A Custom Edition map is offered for
+  download. A Halo CE+ map needs the pack in `maps_cex`
+  ([below](#xbox-map-packs-halo-ce)).
+- **A Custom Edition map is refused.** On a stock 64 MB console, large maps
+  don't fit. Check that `bitmaps.map`, `sounds.map` and `loc.map` are in
+  `maps_ce` too.
+- **Black bars at the sides in widescreen.** See "Known issues" above.
+- **Choppy at 60 frames a second.** Set `display.frame_rate = 30`.
+
 ## Reporting problems
 
 1. Right after the problem, copy `debug.txt` from the game's folder (it's
@@ -134,43 +155,35 @@ anyone's address.
 
 ## Settings on the console
 
-The settings are in `D:\config.toml` (`D:\` is the game's folder, beside
-`default.xbe`), the same kind of file as the PC builds'. If there's no
-`config.toml`, the first start writes one with every setting, commented out
-at its default. Remove the `# ` in front of one, change its value and
-restart the game. Edit it over FTP, or
-on the computer before copying the folder.
+The settings are in `config.toml`, next to `default.xbe`. The game calls
+that folder `D:\`. If there's no `config.toml`, the first start writes one
+with every setting, commented out at its default. Remove the `# ` in front
+of one, change its value and restart the game. Edit it over FTP, or on your
+computer before you copy the folder.
 
 ```toml
 [console]
 bypass_security = true
-join = "192.168.1.20"
+
+[display]
+frame_rate = 60
 ```
 
-| Setting (`[console]`) | What it does |
-| --- | --- |
-| `bypass_security` | `true` starts the network in its open mode, which the internet and the PC builds need. The packaging script writes `true`; `--secure` writes `false` for console-only System Link. |
-| `game_list_server` | A host or address (`:port` optional): where to get the game list if `warthog.milenko.org` doesn't resolve. |
-| `join` | A host's LAN address, or an invite (`halo://join/...`). System Link joins the address, ONLINE GAMES' **Y** the invite. |
-| `trace` | `true` writes detailed network traces to `debug.txt`, for reporting a join that fails. Other hosts appear only as tags, never by their addresses. |
-| `memory_class` | `"auto"` (the default): a console with 128 MB or more gets the extras, such as larger texture and sound caches; a stock 64 MB console keeps the Xbox's sizes. `"64"` gives any console the stock sizes, to test the 64 MB baseline or if an extra misbehaves. |
-| `perf_log` | `true` writes a `perf:` line to `debug.txt` once a second: the frame time and each part of the frame. For finding what makes a scene slow. |
-| `debug_geometry` | For development: `true` brings back the debug build's debug lines and triangles, whose buffers take 1.4 MB. Off by default. |
-| `log_flush` | When `debug.txt` is written: `"buffered"` (the default) once a second and at once for a crash; `"every_line"` each line as it comes (slow), for a crash hunt. |
-| `large_caches` | Deprecated and ignored: `memory_class` decides now. |
-| `simulate_64mb` | Deprecated and ignored. A devkit gets 64 MB from the executable's flag: `tools/xbox_package.py --devkit-64mb`. |
+The ones players use most:
 
-Many of the PC builds' settings work on the console too: field of view, the
-follow camera, chat, the scoreboard, music and effects volume, the network
-ones. `network.report_joined_games = false` keeps your games off your
-service record. [port/xbox/README.md](port/xbox/README.md) lists them, and
+| Setting | What it does |
+| --- | --- |
+| `console.bypass_security` | `true` is needed for Online Games and playing with PCs. |
+| `display.widescreen` | `"off"` keeps the 4:3 picture even with Widescreen on in the dashboard. |
+| `display.frame_rate` | `60` turns the view every frame. `30`, the default, draws as the original game did. |
+| `display.flicker_filter` | From 0 to 5. Lower is sharper on a 480i TV, with more flicker. The default is 5. |
+| `display.field_of_view` | From 50 to 120. The default is 70. |
+| `network.report_joined_games` | `false` keeps your games off your service record. |
+| `console.trace` | `true` adds a join's network steps to `debug.txt`, for a bug report. |
+
+[docs/settings.md](docs/settings.md) lists every setting the console reads.
 [port/xbox/FEATURES.md](port/xbox/FEATURES.md) shows which PC features the
 console has.
-
-`brokers.txt` beside `default.xbe` lists the signalling servers internet
-play uses, one `host:port` a line, if the built-in ones can't be reached.
-
-The game writes its log to `D:\debug.txt` (see "Reporting problems").
 
 ## Chat and keyboard
 
@@ -337,7 +350,7 @@ not be part of our community.
 
 ### Contributors
 
-- [Jizzy](https://github.com/JizzyRivers): Custom Edition maps on the
+- [JizzyRivers](https://github.com/JizzyRivers): Custom Edition maps on the
   console, the Map Browser, maps offered on join, and the Linux build fixes.
 - [thelinkin3000](https://github.com/thelinkin3000): the Nintendo Switch
   port, now in [ChupathingyCE/warthog-switch](https://github.com/ChupathingyCE/warthog-switch).

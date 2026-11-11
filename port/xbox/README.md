@@ -18,7 +18,7 @@ tools, asks for the files you supply, builds and packages
 ## Requirements
 
 - Python, [ninja](https://ninja-build.org/) and LLVM (clang and lld-link).
-  On macOS: `brew install llvm ninja`. The build looks for LLVM in `LLVM_DIR`
+  On macOS: `brew install llvm lld ninja`. The build looks for LLVM in `LLVM_DIR`
   and then in Homebrew's folder.
 - [OXDK](https://github.com/MrMilenko/OXDK) in `~/OXDK` (or give
   `--oxdk DIR`, or set `OXDK_DIR`), with its `cxbe` built.
@@ -222,28 +222,29 @@ its default, each with its help; a setting is chosen by taking out its
 `tools/xbox_package.py` writes the file with `console.bypass_security`
 (and `console.game_list_server` with `--game-list-server`).
 
-The console's own, in `[console]`:
+Every setting the console reads, with its default, is in
+[docs/settings.md](../../docs/settings.md). This section covers how the
+console's side works.
 
-| Setting | Default | What it does |
-|---|---|---|
-| `bypass_security` | `false` | XNet starts insecure: the internet, the game list and play with PCs need it (`tools/xbox_package.py` writes `true` unless `--secure`); internet play (`network.online`) is off without it |
-| `game_list_server` | `""` | the list's server (host or address, `:port` optional) when `warthog.milenko.org` does not resolve |
-| `join` | `""` | a host's LAN address (System Link joins it directly) or an invite (ONLINE GAMES' Y joins it) |
-| `trace` | `false` | the bring-up traces: the main loop each second, every hop of an internet join, the advertisements seen, other hosts only as `enet#` tags (salted per run), never their Ethernet addresses; and XLink Kai's address for the console |
-| `memory_class` | `"auto"` | the memory class (see "Memory"): `"auto"` is the console's own, so a console of 128 MB or more has the extras; `"64"` holds any console to the 64 MB baseline's sizes |
-| `large_caches` | `false` | deprecated and ignored (`debug.txt` says so): a console of 128 MB or more has the larger caches on its own (`memory_class`) |
-| `debug_geometry` | `false` | the debug build's debug geometry (lines and triangles drawn by debug commands): its three 480 KB buffers are made at the start only with it on. For development, on a console with room (a devkit) |
-| `simulate_64mb` | `false` | deprecated and ignored (`debug.txt` says so): a devkit gets 64 MB from the XBE's flag now, `tools/xbox_package.py --devkit-64mb` (see "Memory") |
-| `delta` | `"auto"` | Delta Peer as a client: joining a game whose host offers it (the desktop builds and the dedicated servers), the console says it is an Xbox, with its memory class, and nothing else, so that the stats site, the scoreboard and the server show Xbox. `"auto"` and `"on"` send it; `"off"` keeps the legacy protocol alone. A host without Delta, or any failure, leaves the game as it was. About 50 KB of the console's memory (all static: its code and 11 KB of data) |
-| `perf_log` | `false` | the frame timing log: once a second a `perf:` line in `debug.txt` with the frame time (average and worst), each part of the frame (game ticks, the render's parts, sound, network, present, the wait for the screen), the draws and objects, and a line when the player zooms. For finding what makes a scene slow |
-| `log_flush` | `"buffered"` | when `debug.txt` is written: `"buffered"` keeps the game's lines in memory and writes them once a second, when 8 KB wait, and at once for an assert, an exit or a crash; `"every_line"` writes each line as it comes (slow), for a crash hunt |
+The desktop builds' settings marked for the console apply too. A wider
+field of view draws more of the map each frame: on a stock console, keep
+the Xbox's 70 if a busy map slows down. `FEATURES.md` lists the desktop's
+features and where each stands on the console. Another setting the shared
+code reads is empty, 0 or false on the console, as before it had the file.
 
+### Link Profile
 
-**Link Profile (optional).** Online Games' Start opens DELTA PROFILE. A asks for a code: the screen shows it (XXXX-XXXX) and its QR code; enter it at stats.chupathingy.org/connect, signed in on a phone or computer, then press A on the console to confirm. The console makes its own key for this the first time (`D:\delta_device.key`, next to `config.toml`; it never leaves the console, and nothing secret is sent over the plain HTTP the console uses: the game's `port/console/link`, docs/delta.md "Link Profile on a console"). Once linked it keeps the handle in `D:\delta_link.txt`, shows the profile's name and clan tag, and Delta Peer's PROFILE carries its ID, so its games count toward the profile. Unlink it on the site's profile page. Keep `delta_device.key` to yourself: a copy of it plays as your console. An identity file (below) still works and wins when present.
+Optional. Online Games' Start opens DELTA PROFILE. A asks for a code: the screen shows it (XXXX-XXXX) and its QR code; enter it at stats.chupathingy.org/connect, signed in on a phone or computer, then press A on the console to confirm. The console makes its own key for this the first time (`D:\delta_device.key`, next to `config.toml`; it never leaves the console, and nothing secret is sent over the plain HTTP the console uses: the game's `port/console/link`, docs/delta.md "Link Profile on a console"). Once linked it keeps the handle in `D:\delta_link.txt`, shows the profile's name and clan tag, and Delta Peer's PROFILE carries its ID, so its games count toward the profile. Unlink it on the site's profile page. Keep `delta_device.key` to yourself: a copy of it plays as your console. An identity file (below) still works and wins when present.
 
-**Player identity (optional).** A copy is anonymous unless its player links it (above) or puts their identity file at `D:\game_list_player.key` (by FTP, next to `config.toml`): the file the site's profile page exports, the same 32-byte player key a desktop copy keeps in `game_list_player.key`, either as the raw bytes or as 64 hex digits (use the hex form if you transfer in ASCII mode). The console never makes a key, and sends it only with a game's report, over HTTPS to the site (below), as a desktop copy does. It works out the public player ID (the first 16 bytes of the SHA-256 of `halo-ce-universal player id\n` and the key) and wipes the key. On a console the file being there is the consent (`network.share_profile` is a desktop setting): Delta Peer's HELLO adds the `profile` capability and PROFILE carries the ID. Once per boot, after the first online game has ended, the console also makes a signed platform claim over plain HTTP to the site (`GET /v1/claim_challenge`, then `POST /v1/claim_signed`, `xbox_claim.c`): it signs the site's one-time challenge with the Ed25519 key derived from the player key (the desktop builds' moderator key), so the key itself is never sent; a failure is one line in `debug.txt`, with no retry. Neither the key, the signature nor the ID is written to `debug.txt`. Without the file or a link nothing is shown and nothing is sent. The file is the player's identity: it must not be shared.
+### Player identity
 
-**Reports of joined games.** When an online game the console joined from Online Games ends, it sends the game's report to the site (`POST /v1/client_report` over HTTPS to stats.chupathingy.org, the site's key pinned; `src/xbox_reports.c` over the game's `port/console/reports`), so the game shows on the player's service record. It is the desktop's report: the player's own line in full, everyone else's as the scoreboard's numbers, no addresses. The site keeps games with 2 or more players at the end that lasted 60 seconds or more. With the identity file the report carries its key, as a desktop copy's does; a linked console signs it with its own device key over a one-time challenge instead. A console with neither sends nothing. `network.report_joined_games = false` in `D:\config.toml` turns reports off. The report needs about 128 KB for a few seconds after the game (the HTTPS thread's stack and the report), and is skipped, with a line in `debug.txt`, when less than that and 256 KB more are free.
+Optional. A copy is anonymous unless its player links it (above) or puts their identity file at `D:\game_list_player.key` (by FTP, next to `config.toml`): the file the site's profile page exports, the same 32-byte player key a desktop copy keeps in `game_list_player.key`, either as the raw bytes or as 64 hex digits (use the hex form if you transfer in ASCII mode). The console never makes a key, and sends it only with a game's report, over HTTPS to the site (below), as a desktop copy does. It works out the public player ID (the first 16 bytes of the SHA-256 of `halo-ce-universal player id\n` and the key) and wipes the key. On a console the file being there is the consent (`network.share_profile` is a desktop setting): Delta Peer's HELLO adds the `profile` capability and PROFILE carries the ID. Once per boot, after the first online game has ended, the console also makes a signed platform claim over plain HTTP to the site (`GET /v1/claim_challenge`, then `POST /v1/claim_signed`, `xbox_claim.c`): it signs the site's one-time challenge with the Ed25519 key derived from the player key (the desktop builds' moderator key), so the key itself is never sent; a failure is one line in `debug.txt`, with no retry. Neither the key, the signature nor the ID is written to `debug.txt`. Without the file or a link nothing is shown and nothing is sent. The file is the player's identity: it must not be shared.
+
+### Reports of joined games
+
+When an online game the console joined from Online Games ends, it sends the game's report to the site (`POST /v1/client_report` over HTTPS to stats.chupathingy.org, the site's key pinned; `src/xbox_reports.c` over the game's `port/console/reports`), so the game shows on the player's service record. It is the desktop's report: the player's own line in full, everyone else's as the scoreboard's numbers, no addresses. The site keeps games with 2 or more players at the end that lasted 60 seconds or more. With the identity file the report carries its key, as a desktop copy's does; a linked console signs it with its own device key over a one-time challenge instead. A console with neither sends nothing. `network.report_joined_games = false` in `D:\config.toml` turns reports off. The report needs about 128 KB for a few seconds after the game (the HTTPS thread's stack and the report), and is skipped, with a line in `debug.txt`, when less than that and 256 KB more are free.
+
+### The audio probe
 
 In a build with the developer tools (`--console-debug-tools`),
 `debug.audio_probe` (in `[debug]`) runs the audio probe
@@ -262,23 +263,7 @@ player's position each second, and every sound a channel starts, with its
 type, gain, obstruction and occlusion). The folder must be there. 0 (the
 default): none.
 
-And the desktop builds' that apply on the console: `display.direct_camera`,
-`display.widescreen`, `display.frame_rate`, `display.flicker_filter` (see "Video modes"), `display.field_of_view`, `display.viewmodel_field_of_view`,
-`display.match_timer`, `display.version_watermark`, `display.follow_camera`,
-`display.follow_camera_after`, `display.powerup_timers`,
-`display.scoreboard_team_layout`, `display.scoreboard_background`,
-`display.scoreboard_background_color`, `display.show_quit_players`,
-`display.server_messages`, `chat.enabled`, `chat.show`, `chat.filter`,
-`chat.streamer_mode`, `chat.quick_messages`, `audio.music_volume`,
-`audio.effects_volume`, `game.console_log`, `game.unlock_all_levels`,
-`game.start_with_one_player`, `network.online`, `network.tunnel_port`,
-`network.brokers_file`, `network.stun_servers` and
-`network.report_joined_games`. A wider field of view
-draws more of the map each frame: on a stock console, keep the Xbox's 70 if
-a busy map slows down. `FEATURES.md` lists the desktop's features and where
-each stands on the console.
-Another setting the shared code reads is empty, 0 or false on the console,
-as before it had the file.
+### The old switch files
 
 Use `config.toml` for every setting. The switch files that came before it
 are still read, each logged as deprecated in `debug.txt` ("D:\memory_64.txt is deprecated, use
@@ -346,9 +331,9 @@ Peer's platform key's `memory_class` (log2 of the megabytes: 6, 7 or 8).
 The network tables hold 16 players (`HALO_CONSOLE_PLAYERS`, as the Xbox's;
 `configure.py --console-players`, console-neutral like `--console-debug-tools`): the
 players, the machines (one more, for a dedicated host) and the internet tunnel's peers. A host's game with
-more machines or players is left as a full game, never overflowed. A test
-build with 32 or 64 (`configure.py --console-players 32`) is more than a stock
-console's memory holds, and says so on screen when the main menu comes up.
+more machines or players is left as a full game, never overflowed. A build
+of more than 16 (`configure.py --console-players 32`, the test builds) says
+so on screen when the main menu comes up ("Test build: up to 32 players").
 
 A stock 64 MB console has about what the Xbox game had: its caches (game
 state, tags, textures, sound: 51 MB) are the Xbox's, so the image and the
@@ -416,8 +401,8 @@ nothing without them.
 At the start `debug.txt` says whether the console's address is XLink
 Kai's for its MAC: yes or no. Kai's address itself (`10.252.EE.FF`, mask
 `255.255.0.0`, from the MAC's last two bytes) is logged only with
-`console.trace`. The "XLink mode" that would set it is a design
-(docs/xlink.md).
+`console.trace`. [docs/xlink.md](../../docs/xlink.md) says how to set it
+in the dashboard.
 
 ## Status
 
