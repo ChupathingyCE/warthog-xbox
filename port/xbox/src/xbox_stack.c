@@ -2,8 +2,8 @@
 XBOX_STACK.C
 
 How much of the main thread's stack the game has used, at most. The stack
-is the XBE's (/stack in port/xbox/build.py: 768 KB; the January build's
-was 1 MB, the retail game's 512 KB), and the console gives a thread all of
+is the XBE's (/stack in port/xbox/build.py: 512 KB, the retail game's; the
+January build's was 1 MB, then 768 KB), and the console gives a thread all of
 its stack up front, so each KB of it is a KB the heap does not have. Some
 of the debug decomp's functions keep large arrays on the stack (the AI's
 firing positions and flee searches, near 100 KB each); the deepest seen in

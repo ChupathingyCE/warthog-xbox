@@ -241,7 +241,7 @@ static unsigned long __stdcall xbox_watchdog(void *parameter)
 
 void xbox_watchdog_start(void)
 {
-	/* (a stack of its own size: 0 is the main thread's, the XBE's 768 KB, all
+	/* (a stack of its own size: 0 is the main thread's, the XBE's 512 KB, all
 	of it committed memory on the Xbox. 16 KB, as the retail game's own
 	threads: the deepest it goes is platform_log, a 1 KB line and the C
 	runtime's formatting, under 4 KB) */
