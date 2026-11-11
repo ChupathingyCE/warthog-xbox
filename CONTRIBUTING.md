@@ -58,8 +58,7 @@ Contributors are credited in the release notes.
   game, never copied or patched here.
 - `port/xbox/tests/run.sh` passes (the Port tests check runs it).
 - The game protocol stays the PC builds': the console adapts to their
-  network version and layout, never the other way (the game's
-  docs/cross-play.md).
+  network version and layout, never the other way.
 - Nothing logs an IP address whole unless it is a LAN one: go through
   `log_address`.
 - Commit messages, pull requests and issues are public, and they're posted
