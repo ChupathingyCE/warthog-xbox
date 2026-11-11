@@ -284,6 +284,12 @@ def add_arguments(parser: Any) -> None:
         help="build the game's menu, script, cache, tag and text code -Os for a 56 KB smaller XBE; "
              "frame time not yet measured (port/xbox/build.py, COLD_GAME_DIRS)",
     )
+    parser.add_argument(
+        "--xbox-old-flag-files",
+        action="store_true",
+        help="also read the switch files config.toml replaced (D:\\memory_64.txt, join.txt and the rest), "
+             "as builds before 0.9.1 did (port/xbox/README.md)",
+    )
 
 
 def _oxdk_dir(sln: Any) -> Path:
@@ -489,8 +495,11 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
     add_object(game / CONSOLE_LINK_DIR / "console_link_panel.c",
                " ".join(["-std=gnu89", game_cflags, link_include, *PORT_DATA_FLAGS]), [semantics_header, prefix_header])
 
-    support_cflags = " ".join([*SUPPORT_FLAGS, players_flag, f"-iquote {_quote(game)}", link_include,
-                               f"-I{_quote(xdk / 'include')}"])
+    # (the old switch files beside default.xbe, read only when asked for:
+    # src/xbox_config.c)
+    old_flag_files = ["-DXBOX_OLD_FLAG_FILES"] if getattr(sln.args, "xbox_old_flag_files", False) else []
+    support_cflags = " ".join([*SUPPORT_FLAGS, players_flag, *old_flag_files, f"-iquote {_quote(game)}",
+                               link_include, f"-I{_quote(xdk / 'include')}"])
     for source in sorted((PORT_DIR / "src").glob("*.c")):
         # (the audio probe's recording of the console's own output is a
         # developer's tool: only in a build with --console-debug-tools, as the
