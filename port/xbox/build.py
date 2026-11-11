@@ -131,6 +131,21 @@ SUPPORT_FLAGS = [
 # exchange and signatures (Monocypher, p2p_crypto.c), the game list, the
 # claim and the player key. Monocypher alone goes from 83 KB to 18 KB
 COLD_FLAGS = ["-Os"]
+# With --xbox-os-game-dirs (off by default), the game's directories below
+# are built -Os like the port's cold units, for a smaller image. They are not
+# all cold: the texture and sound caches (cache/), the HUD, first-person
+# weapons and draw_string (interface/), the scripts' runtime (hs/), wind and
+# the shaders, devices, tag_groups and bitmaps all run every frame or tick.
+# What it costs in frame time is not measured yet, so the default build
+# stays -O2. Measured on the 32-player build: .text 2,424 -> 2,368 KB, 56 KB
+# of the image a 64 MB console would have back (every game unit -Os would be
+# 324 KB).
+COLD_GAME_DIRS = (
+    "source/bink/", "source/bitmaps/", "source/cache/", "source/cutscene/", "source/devices/",
+    "source/dialogs/", "source/editor/", "source/hs/", "source/interface/", "source/saved films/",
+    "source/saved games/", "source/scenario/", "source/shaders/", "source/shell/", "source/strings/",
+    "source/tag_files/", "source/text/", "source/tool/",
+)
 # the port's own units (not the decomp's, whose globals keep their
 # neighbors: GAME_FLAGS) with each global in a section of its own, so that
 # the linker leaves out the data nothing reads too: tables of the desktop's
@@ -148,12 +163,12 @@ COLD_SOURCES = (
 SUPPORT_CXX_FLAGS = ["-fno-exceptions", "-fno-rtti", "-fno-threadsafe-statics"]
 
 LINK_FLAGS = [
-    # (the main thread's stack: 768 KB, all of it committed on the console.
-    # The deepest seen in any debug.txt is 279 KB, a campaign mission; the
-    # retail game's is 512 KB. /fixed: no .reloc section, as the retail game.
+    # (the main thread's stack: 512 KB, the retail game's, all of it
+    # committed on the console. The deepest seen in any debug.txt is 279 KB,
+    # a campaign mission, with the debug asserts in; it was 1 MB, then 768 KB. /fixed: no .reloc section, as the retail game.
     # The Xbox loads an image only at its base, and cxbe's fixups are a no-op
     # when the PE's base is the XBE's 0x10000; the section took 119 KB)
-    "/nologo", "/subsystem:windows", "/fixed", "/base:0x00010000", "/stack:786432",
+    "/nologo", "/subsystem:windows", "/fixed", "/base:0x00010000", "/stack:524288",
     "/machine:x86", "/entry:mainCRTStartup",
     # the functions nothing calls are left out (-ffunction-sections), and no
     # two that compile the same are folded into one: the game compares
@@ -262,6 +277,18 @@ def add_arguments(parser: Any) -> None:
         metavar="DIR",
         type=Path,
         help="OXDK checkout for `ninja xbox` (default: OXDK_DIR, or ~/OXDK)",
+    )
+    parser.add_argument(
+        "--xbox-os-game-dirs",
+        action="store_true",
+        help="build the game's menu, script, cache, tag and text code -Os for a 56 KB smaller XBE; "
+             "frame time not yet measured (port/xbox/build.py, COLD_GAME_DIRS)",
+    )
+    parser.add_argument(
+        "--xbox-old-flag-files",
+        action="store_true",
+        help="also read the switch files config.toml replaced (D:\\memory_64.txt, join.txt and the rest), "
+             "as builds before 0.9.1 did (port/xbox/README.md)",
     )
 
 
@@ -422,11 +449,14 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
         # co-op's: port/xbox/game/xbox_coop.c answers them on the console)
         f"-idirafter {_quote(game / PORT_LINUX_GAME)}",
     ])
+    # (the game's -Os directories, only when asked for: COLD_GAME_DIRS)
+    os_game_dirs = getattr(sln.args, "xbox_os_game_dirs", False)
     for source, flags in port.game_units(sln, config):
         # (the script console is not the console's: telnet_console.h)
         if port.game_relative(source) == "source/networking/telnet_console.c":
             continue
-        add_object(source, " ".join(["-std=gnu89", game_cflags, *flags]), [semantics_header, prefix_header],
+        cold = COLD_FLAGS if os_game_dirs and port.game_relative(source).startswith(COLD_GAME_DIRS) else []
+        add_object(source, " ".join(["-std=gnu89", game_cflags, *flags, *cold]), [semantics_header, prefix_header],
                    _inline_export_wrapper(port, source, build_dir))
     # the game's C++, which the native builds replace (d3d8_gl.c): the frame
     # counter read out of the console's Direct3D device
@@ -465,8 +495,11 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
     add_object(game / CONSOLE_LINK_DIR / "console_link_panel.c",
                " ".join(["-std=gnu89", game_cflags, link_include, *PORT_DATA_FLAGS]), [semantics_header, prefix_header])
 
-    support_cflags = " ".join([*SUPPORT_FLAGS, players_flag, f"-iquote {_quote(game)}", link_include,
-                               f"-I{_quote(xdk / 'include')}"])
+    # (the old switch files beside default.xbe, read only when asked for:
+    # src/xbox_config.c)
+    old_flag_files = ["-DXBOX_OLD_FLAG_FILES"] if getattr(sln.args, "xbox_old_flag_files", False) else []
+    support_cflags = " ".join([*SUPPORT_FLAGS, players_flag, *old_flag_files, f"-iquote {_quote(game)}",
+                               link_include, f"-I{_quote(xdk / 'include')}"])
     for source in sorted((PORT_DIR / "src").glob("*.c")):
         # (the audio probe's recording of the console's own output is a
         # developer's tool: only in a build with --console-debug-tools, as the
