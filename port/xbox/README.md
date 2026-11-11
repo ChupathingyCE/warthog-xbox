@@ -176,15 +176,16 @@ its own. No retail game uses the publisher code "CH" (checked against
 xboxdevwiki's publisher list and xemu's title database).
 
 What players see after the update:
-- The dashboard's Memory screen lists "Halo" twice: Warthog's new entry
-  (with the helmet picture) and the old one (cxbe's ID, shared with other
-  homebrew). The old one can be deleted once the profiles show up in the
-  game.
+- The dashboard's Memory screen lists Warthog's new entry, "Warthog" (with
+  the helmet picture), beside the old one, "Halo" (cxbe's ID, shared with
+  other homebrew). The old one can be deleted once the profiles show up in
+  the game.
 - The first start rebuilds the Z: cache (Warthog has a partition of its
   own now), so the first map loads take longer, once.
 
-The certificate also carries the retail game's rating, M, so the
-dashboard's parental control can block the game as it did retail Halo.
+The certificate names the game "Warthog" for the dashboard, and carries
+the retail game's rating, M, so the dashboard's parental control can block
+the game as it did retail Halo.
 The dashboard shows Warthog's own pictures (the ChupathingyCE helmet):
 `port/xbox/art/TitleImage.xbx` and `SaveImage.xbx`, made from the PNGs
 beside them by `tools/xbox_images.py`. They aren't loaded with the game,

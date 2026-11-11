@@ -384,7 +384,7 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
     )
     n.rule(
         name="xbox_cxbe",
-        command=f"{_quote(cxbe)} -MODE:RETAIL -TITLE:\"Halo\" -LIMIT64MB:no "
+        command=f"{_quote(cxbe)} -MODE:RETAIL -TITLE:\"Warthog\" -LIMIT64MB:no "
                 + " ".join(_cxbe_certificate_flags(cxbe, PORT_DIR)) + " -OUT:$out $in",
         description="XBOX XBE $out",
     )
