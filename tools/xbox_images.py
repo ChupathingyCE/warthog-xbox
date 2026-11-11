@@ -27,7 +27,8 @@ IMAGES = (("title-image.png", "TitleImage.xbx", 128), ("save-image.png", "SaveIm
 # the end marker, padding to the header size, then the texture's bytes
 XPR_HEADER_SIZE = 2048
 D3DCOMMON_TYPE_TEXTURE = 0x00040000
-# the texture's format word: DMA channel A, border from the texture, a 2D
+# the texture's format word: DMA channel A, the border color from the
+# sampler's border color register (D3DFORMAT_BORDERSOURCE_COLOR), a 2D
 # texture (dimension 2), D3DFMT_DXT1 (0x0C), one mip level, and log2 of
 # the width and height
 DXT1 = 0x0C
