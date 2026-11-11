@@ -94,6 +94,7 @@ int xbox_memory_delta_class_of(int memory_class)
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
+#include <wchar.h>
 
 #include "../include/xbox_config.h"
 #include "../include/xbox_saves.h"
@@ -214,6 +215,8 @@ static struct
 	void *screen_effect_target;
 	int screen_effect_target_tried;
 	const wchar_t *message;
+	/* (another start's warning, shown with it: xbox_boot_warning) */
+	const wchar_t *warning;
 	int message_shown;
 	unsigned long lowest_free;
 	long update_count;
@@ -530,7 +533,10 @@ void xbox_memory_log_point(const char *where)
 	memory.object_pool_used_peak = 0;
 	memory.object_pool_contiguous_least = 0;
 #else
-	(void)where;
+	/* (a stock build: the free memory alone, which a join's map start is
+	the one to watch - the network's pool, console.xnet_pages, and the
+	connection's queues are taken by then) */
+	xbox_boot_log("memory: %lu KB free at %s", xbox_memory_free() >> 10, where);
 #endif
 }
 
@@ -779,10 +785,31 @@ void xbox_memory_update(void)
 			platform_log("memory: %lu KB free (a new low)", available >> 10);
 		}
 	}
-	if (!memory.message || memory.message_shown || !main_menu_is_active())
+	if ((!memory.message && !memory.warning) || memory.message_shown || !main_menu_is_active())
 		return;
 	memory.message_shown = 1;
-	display_error_text_deferred(memory.message, -1);
+	/* (one box: the game shows one deferred error at a time) */
+	if (memory.message && memory.warning)
+	{
+		static wchar_t both[512];
+
+		const size_t room = sizeof(both) / sizeof(both[0]) - 1;
+
+		both[room] = 0;
+		wcsncpy(both, memory.message, room);
+		wcsncat(both, L"\r\n", room - wcslen(both));
+		wcsncat(both, memory.warning, room - wcslen(both));
+		display_error_text_deferred(both, -1);
+		return;
+	}
+	display_error_text_deferred(memory.message ? memory.message : memory.warning, -1);
+}
+
+void xbox_boot_warning(const wchar_t *text)
+{
+	/* (the first: the box has room for one) */
+	if (!memory.warning)
+		memory.warning = text;
 }
 
 int xbox_memory_delta_class(void)
