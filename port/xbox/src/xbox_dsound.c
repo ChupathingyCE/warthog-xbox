@@ -190,8 +190,11 @@ speakers, so with no image every 3D sound (weapons, grenades, footsteps) is
 silent and only 2D sounds are heard (the devkit's capture, 2026-10-21). The
 game's own image is downloaded, at the game's effect indices; whether this
 library takes it is logged. The game only checks the result, so a refusal
-leaves it running as before, without the image. */
+is still answered DS_OK and the game runs on without the image (an error
+would stop its sound altogether); but since 3D sound is then silent, the
+refusal is said plainly in debug.txt and in a box at the main menu. */
 void platform_log(const char *format, ...);
+void xbox_boot_warning(const wchar_t *text);
 
 HRESULT WINAPI halo_xbox_IDirectSound_DownloadEffectsImage(
 	LPDIRECTSOUND direct_sound,
@@ -212,6 +215,13 @@ HRESULT WINAPI halo_xbox_IDirectSound_DownloadEffectsImage(
 		(unsigned long)image_size, location ? location->dwI3DL2ReverbIndex : 0UL,
 		location ? location->dwCrosstalkIndex : 0UL, SUCCEEDED(result) ? "downloaded" : "refused",
 		(unsigned long)result);
+	if (FAILED(result))
+	{
+		platform_log("sound: WARNING: without the effects image, 3D sounds (weapons, grenades, footsteps) are "
+			"silent; only 2D sounds play. Please send this debug.txt.");
+		xbox_boot_warning(L"Sound: this console refused the game's sound effects, so weapons and footsteps "
+			L"may be silent.\r\nPlease send D:\\debug.txt.");
+	}
 
 	return SUCCEEDED(result) ? result : DS_OK;
 }
