@@ -37,6 +37,7 @@ None of the SDK's files belong in this repository. See port/xbox/README.md.
 
 import os
 import shlex
+import subprocess
 from pathlib import Path
 from typing import Any, List, Optional
 
@@ -265,6 +266,40 @@ def add_arguments(parser: Any) -> None:
     )
 
 
+# The XBE's certificate (include/xbox_saves.h has the same numbers): Warthog's
+# own title ID ("CH" and 1; never the retail game's 0x4D530004), the ID of
+# the builds before 0.9.1 (cxbe's default, 0xFFFF0002) as an alternate so
+# their saves can be copied over (src/xbox_saves.c), and the retail game's
+# rating, M (2), so the dashboard's parental control works as it did.
+XBE_TITLE_ID = "43480001"
+XBE_OLD_TITLE_ID = "FFFF0002"
+XBE_RATINGS = "2"
+# (the dashboard's pictures of the game: port/xbox/art, tools/xbox_images.py)
+
+
+def _cxbe_certificate_flags(cxbe: Path, port_dir: Path) -> List[str]:
+    """cxbe's options for the certificate and the pictures, those this cxbe
+    has: an OXDK from before -TITLEID builds the XBE as before (cxbe's
+    default title ID), with a note to update it."""
+    try:
+        usage = subprocess.run([str(cxbe)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=30,
+                               check=False).stdout.decode("utf-8", "replace")
+    except (OSError, subprocess.SubprocessError):
+        usage = ""
+    art = port_dir / "art"
+    flags: List[str] = []
+    if "-TITLEID" in usage:
+        flags += [f"-TITLEID:{XBE_TITLE_ID}", f"-ALTTITLEID:{XBE_OLD_TITLE_ID}", f"-RATINGS:{XBE_RATINGS}"]
+    if "-TITLEIMAGE" in usage:
+        flags.append(f"-TITLEIMAGE:{_quote(art / 'TitleImage.xbx')}")
+    if "-SAVEIMAGE" in usage:
+        flags.append(f"-SAVEIMAGE:{_quote(art / 'SaveImage.xbx')}")
+    if "-TITLEID" not in usage or "-SAVEIMAGE" not in usage:
+        print("port/xbox: this OXDK's cxbe has no -TITLEID/-SAVEIMAGE: the XBE keeps cxbe's title ID "
+              "0xFFFF0002, no rating and no save picture (update OXDK and run make in xbox/tools/cxbe)")
+    return flags
+
+
 def _oxdk_dir(sln: Any) -> Path:
     value = getattr(sln.args, "oxdk", None) or os.environ.get("OXDK_DIR") or Path.home() / "OXDK"
     return Path(value).expanduser().resolve()
@@ -349,7 +384,8 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
     )
     n.rule(
         name="xbox_cxbe",
-        command=f"{_quote(cxbe)} -MODE:RETAIL -TITLE:\"Halo\" -LIMIT64MB:no -OUT:$out $in",
+        command=f"{_quote(cxbe)} -MODE:RETAIL -TITLE:\"Halo\" -LIMIT64MB:no "
+                + " ".join(_cxbe_certificate_flags(cxbe, PORT_DIR)) + " -OUT:$out $in",
         description="XBOX XBE $out",
     )
     n.rule(
@@ -574,6 +610,7 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
             "libs": " ".join([_quote(d3d8), *LIBRARIES]),
         },
     )
-    n.build(outputs=xbe, rule="xbox_cxbe", inputs=exe, implicit=[cxbe])
+    n.build(outputs=xbe, rule="xbox_cxbe", inputs=exe,
+            implicit=[cxbe, PORT_DIR / "art" / "TitleImage.xbx", PORT_DIR / "art" / "SaveImage.xbx"])
     n.build(outputs="xbox", rule="phony", inputs=xbe)
     n.newline()
