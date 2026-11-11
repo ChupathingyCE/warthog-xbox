@@ -148,12 +148,12 @@ COLD_SOURCES = (
 SUPPORT_CXX_FLAGS = ["-fno-exceptions", "-fno-rtti", "-fno-threadsafe-statics"]
 
 LINK_FLAGS = [
-    # (the main thread's stack: 768 KB, all of it committed on the console.
-    # The deepest seen in any debug.txt is 279 KB, a campaign mission; the
-    # retail game's is 512 KB. /fixed: no .reloc section, as the retail game.
+    # (the main thread's stack: 512 KB, the retail game's, all of it
+    # committed on the console. The deepest seen in any debug.txt is 279 KB,
+    # a campaign mission, with the debug asserts in; it was 1 MB, then 768 KB. /fixed: no .reloc section, as the retail game.
     # The Xbox loads an image only at its base, and cxbe's fixups are a no-op
     # when the PE's base is the XBE's 0x10000; the section took 119 KB)
-    "/nologo", "/subsystem:windows", "/fixed", "/base:0x00010000", "/stack:786432",
+    "/nologo", "/subsystem:windows", "/fixed", "/base:0x00010000", "/stack:524288",
     "/machine:x86", "/entry:mainCRTStartup",
     # the functions nothing calls are left out (-ffunction-sections), and no
     # two that compile the same are folded into one: the game compares
