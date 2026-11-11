@@ -131,15 +131,15 @@ SUPPORT_FLAGS = [
 # exchange and signatures (Monocypher, p2p_crypto.c), the game list, the
 # claim and the player key. Monocypher alone goes from 83 KB to 18 KB
 COLD_FLAGS = ["-Os"]
-# The game's directories whose code is not in a frame's or a tick's hot
-# paths, built -Os like the port's cold units: the menus and HUD screens,
-# the scripts, saves, the cache's file code, the shell, tags and text, the
-# tools' leftovers. What runs every tick or every frame (ai, camera, effects,
-# game, input, items, the main loop, math, memory, models, objects, physics,
-# the rasterizer and render, structures, units, sound, the network in
-# networking, bungie_net and port/linux/game) stays -O2. About 56 KB of the image a 64 MB console
-# has back (measured on the 32-player build: .text 2,424 -> 2,368 KB; every
-# unit -Os would be 324 KB, but untested for frame time).
+# With --xbox-os-game-dirs (off by default), the game's directories below
+# are built -Os like the port's cold units, for a smaller image. They are not
+# all cold: the texture and sound caches (cache/), the HUD, first-person
+# weapons and draw_string (interface/), the scripts' runtime (hs/), wind and
+# the shaders, devices, tag_groups and bitmaps all run every frame or tick.
+# What it costs in frame time is not measured yet, so the default build
+# stays -O2. Measured on the 32-player build: .text 2,424 -> 2,368 KB, 56 KB
+# of the image a 64 MB console would have back (every game unit -Os would be
+# 324 KB).
 COLD_GAME_DIRS = (
     "source/bink/", "source/bitmaps/", "source/cache/", "source/cutscene/", "source/devices/",
     "source/dialogs/", "source/editor/", "source/hs/", "source/interface/", "source/saved films/",
@@ -277,6 +277,12 @@ def add_arguments(parser: Any) -> None:
         metavar="DIR",
         type=Path,
         help="OXDK checkout for `ninja xbox` (default: OXDK_DIR, or ~/OXDK)",
+    )
+    parser.add_argument(
+        "--xbox-os-game-dirs",
+        action="store_true",
+        help="build the game's menu, script, cache, tag and text code -Os for a 56 KB smaller XBE; "
+             "frame time not yet measured (port/xbox/build.py, COLD_GAME_DIRS)",
     )
 
 
@@ -437,11 +443,13 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
         # co-op's: port/xbox/game/xbox_coop.c answers them on the console)
         f"-idirafter {_quote(game / PORT_LINUX_GAME)}",
     ])
+    # (the game's -Os directories, only when asked for: COLD_GAME_DIRS)
+    os_game_dirs = getattr(sln.args, "xbox_os_game_dirs", False)
     for source, flags in port.game_units(sln, config):
         # (the script console is not the console's: telnet_console.h)
         if port.game_relative(source) == "source/networking/telnet_console.c":
             continue
-        cold = COLD_FLAGS if port.game_relative(source).startswith(COLD_GAME_DIRS) else []
+        cold = COLD_FLAGS if os_game_dirs and port.game_relative(source).startswith(COLD_GAME_DIRS) else []
         add_object(source, " ".join(["-std=gnu89", game_cflags, *flags, *cold]), [semantics_header, prefix_header],
                    _inline_export_wrapper(port, source, build_dir))
     # the game's C++, which the native builds replace (d3d8_gl.c): the frame
