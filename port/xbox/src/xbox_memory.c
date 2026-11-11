@@ -505,6 +505,9 @@ hosted, or the main menu's) and each map's end: the players, the memory
 free and its largest block, the game state's use and, at a map's end, the
 objects' peaks over it (HALO_PORT_MAXIMUM_OBJECTS_PER_MAP and the object
 pool) */
+/* (every build logs the free memory here; a test build of more than 16
+players adds the largest free block and the objects, which the header's
+older comment describes) */
 void xbox_memory_log_point(const char *where)
 {
 #ifdef XBOX_MEMORY_PLAYERS_TEST
