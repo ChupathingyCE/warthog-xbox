@@ -41,7 +41,7 @@ one; a feature that would is to ask for it through the memory class
 | --- | --- | --- | --- |
 | Chupathingy menus (Xbox menus with extensions) | Yes | Not yet | Built from XML and PNG files at load (`menu_files.c`, `menu_tags.c`, `menu_functions.c`: about 12,000 lines and their art). The console keeps the Xbox's own menus with ONLINE GAMES added. Plan: measure what the built menus take on a 64 MB console before porting |
 | Settings submenus (Display, Online, Interface, Chat, Controls) | Yes | Not yet | Part of the Chupathingy menus; the console's settings are `D:\config.toml` |
-| Gearbox menus, Server Browser in them | Yes | Cut | PC-only look |
+| Gearbox menus | Retired | Cut | No longer a menu set on any platform since 0.9.1 |
 | Button layouts: the Xbox's five | Yes | Yes | The profile's Controller Setup |
 | Bumper Jumper | Yes | Yes | The sixth in Controller Setup's Button Layout (no picture for it) |
 | Custom button layout, Controls screen | Yes | Not yet | Needs the Controls screen; plan: its controller page as a console screen, opened from Controller Setup |

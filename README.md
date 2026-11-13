@@ -5,7 +5,7 @@
 <p align="center"><b>Chupathingy on the original Xbox.</b></p>
 
 <p align="center">
-<a href="https://discord.gg/chupathingy">Get the test build (Discord, #xbox)</a> ·
+<a href="https://github.com/ChupathingyCE/warthog-xbox/releases">Get the test build</a> ·
 <a href="https://stats.chupathingy.org">Games online now</a> ·
 <a href="https://github.com/ChupathingyCE/chupathingyce">The game</a> ·
 <a href="https://chupathingy.org">chupathingy.org</a>
@@ -19,9 +19,9 @@ works too.
 It runs on a stock 64 MB console. A console with 128 MB gets a little more
 room, and the game plays the same either way.
 
-**Status: test builds.** Test builds are shared in #xbox on the
-[Discord](https://discord.gg/chupathingy). You can also build it yourself
-(below).
+**Status: test builds.** Get the newest one from
+[Releases](https://github.com/ChupathingyCE/warthog-xbox/releases). You can
+also build it yourself (below).
 
 You need your own copy of Halo. No game files or SDK files are included.
 
@@ -48,21 +48,22 @@ This repository holds the original Xbox port. The game itself is the
 
 The first time:
 
-1. Get the newest test build from #xbox on the
-   [Discord](https://discord.gg/chupathingy) and unzip it.
-2. Make a folder for it on the console's hard disk, for example
-   `E:\Games\Warthog\`, and copy `default.xbe` into it.
+1. Download the newest test build from
+   [Releases](https://github.com/ChupathingyCE/warthog-xbox/releases) and
+   unzip it.
+2. Copy its `Warthog` folder to the console's hard disk, for example as
+   `E:\Games\Warthog\`. It has `default.xbe` and a `config.toml`.
 3. Copy the `maps` folder from your own Halo disc into the same folder, so
    you have `E:\Games\Warthog\maps\ui.map` and the rest.
-4. Make a text file called `config.toml` in the same folder, with these two
-   lines. Online Games and playing with PCs need them.
+4. Start `default.xbe` from your dashboard.
 
-   ```toml
-   [console]
-   bypass_security = true
-   ```
+The `config.toml` in the download already has the two lines Online Games
+and playing with PCs need:
 
-5. Start `default.xbe` from your dashboard.
+```toml
+[console]
+bypass_security = true
+```
 
 To update, keep a copy of your old `default.xbe`, then replace it with the
 new one. Keep `config.toml` and your maps.
@@ -73,10 +74,10 @@ for you, `config.toml` included (see "Building it yourself").
 ## What works
 
 - **Online Games:** lists the games online and joins them, dedicated
-  servers too. It joins OpenCE's newest servers (network version 41) and
+  servers too. It joins OpenCE's current servers (network version 44) and
   older ones.
 - **System Link** with PCs and consoles on your network.
-- **Up to 32 players** in the test builds.
+- **Up to 32 players** when you join a game, and up to 16 when you host.
 - **Link your Delta profile:** on Online Games, press **Start**, then **A**
   for a code. Enter the code at stats.chupathingy.org/connect, signed in on
   your phone or computer, then press **A** on the console. The games you
@@ -117,9 +118,6 @@ for you, `config.toml` included (see "Building it yourself").
   too large for its memory is refused with a message. Their HUD button
   icons are missing.
 - **HaloMD maps** aren't played on the console.
-- **Split screen players who join late** can't change profile or team on
-  the pregame screen
-  ([#83](https://github.com/ChupathingyCE/warthog-xbox/issues/83)).
 
 ## Troubleshooting
 
@@ -295,9 +293,9 @@ with no warranty. The full text is in [LICENSE](LICENSE).
   released under [CC0 1.0](LICENSES/CC0-1.0.txt) and stays that way.
 - **What Warthog builds on.** The Halo CE decompilation
   ([punpckhdq/halo](https://github.com/punpckhdq/halo) and
-  [bnunu/halo-1](https://github.com/bnunu/halo-1)) and OpenCE are released
-  under CC0 1.0, which lets anyone build on them under any terms. Their
-  repositories stay CC0.
+  [bnunu/halo-1](https://github.com/bnunu/halo-1)) and OpenCE were released
+  under CC0 1.0 when Chupathingy took them, which lets anyone build on them
+  under any terms. Their later work is under their own licenses.
 - **The game** (the `chupathingyce` submodule) is under its own
   repository's license, with its third-party code, fonts and art under
   theirs.

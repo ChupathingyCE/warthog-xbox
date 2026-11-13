@@ -62,7 +62,7 @@ Contributors are credited in the release notes.
 - Nothing logs an IP address whole unless it is a LAN one: go through
   `log_address`.
 - Commit messages, pull requests and issues are public, and they're posted
-  to the ChupathingyCE Discord.
+  to the Chupathingy Discord.
 
 ## License
 
@@ -81,7 +81,7 @@ You can use AI tools when you contribute. You're responsible for what you submit
 - **A letter after it** is a hotfix of that release: crash, security or network fixes only, no features. Letters start at `a`, in order: 0.7.5, then 0.7.5a, 0.7.5b.
 - **1.0.0** comes once the game is feature-complete and stable on every platform.
 
-Test builds are the `nightly` release and `-testing` tags, outside the numbering. The Xbox's test builds are shared in #xbox on the Discord. The network version is separate from the release version: a hotfix changes it only when cross-play needs it.
+Test builds are the `nightly` release and `-testing` tags, outside the numbering. The Xbox's test builds are pre-releases tagged `test-<date>` on this repository's [Releases](https://github.com/ChupathingyCE/warthog-xbox/releases) page. The network version is separate from the release version: a hotfix changes it only when cross-play needs it.
 
 ## Bugs
 
