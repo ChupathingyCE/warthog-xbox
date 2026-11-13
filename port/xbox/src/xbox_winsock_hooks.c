@@ -278,8 +278,11 @@ static int inbox_take(SOCKET socket, char *buffer, int length, unsigned short *f
 		if (tracked[index].socket == socket)
 			port = tracked[index].port;
 	}
-	if (!port || !inbox_count)
+	if (!port)
 		return -1;
+	/* (the count read under the lock: an uncontended lock on the console
+	is a few instructions, and the read outside it was a data race by C's
+	rules, warthog-xbox #7) */
 	pthread_mutex_lock(&inbox_lock);
 	for (index = 0; index < inbox_count; index++)
 	{
@@ -314,8 +317,6 @@ static int inbox_has(SOCKET socket)
 	unsigned short port = 0;
 	int index, result = 0;
 
-	if (!inbox_count)
-		return 0;
 	for (index = 0; index < MAXIMUM_TRACKED_SOCKETS; index++)
 	{
 		if (tracked[index].socket == socket)
@@ -323,6 +324,7 @@ static int inbox_has(SOCKET socket)
 	}
 	if (!port)
 		return 0;
+	/* (the count under the lock too: warthog-xbox #7) */
 	pthread_mutex_lock(&inbox_lock);
 	for (index = 0; index < inbox_count && !result; index++)
 		result = inbox[(inbox_first + index) % INBOX_DATAGRAMS].port == port;

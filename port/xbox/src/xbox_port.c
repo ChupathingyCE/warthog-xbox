@@ -160,10 +160,16 @@ void xbox_log_flush(void)
 	long count, dropped, index;
 
 	log_main_thread = GetCurrentThreadId();
-	if (!log_queue_count)
-		return;
+	/* (the count read under the lock, every pass: an uncontended lock on
+	the console is a few instructions, and the read outside it was a data
+	race by C's rules, warthog-xbox #7) */
 	pthread_mutex_lock(&log_lock);
 	count = log_queue_count;
+	if (!count)
+	{
+		pthread_mutex_unlock(&log_lock);
+		return;
+	}
 	dropped = log_queue_dropped;
 	memcpy(lines, log_queue, (size_t)count * LOG_LINE_SIZE);
 	log_queue_count = 0;
