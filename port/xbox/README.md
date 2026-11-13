@@ -450,8 +450,8 @@ modified retail consoles, gets its address by DHCP, shows the game list
 (ONLINE GAMES) and joins [D] dedicated servers and PC hosts through the PCs'
 tunnel. It targets a stock 64 MB console (first matches played on October 18);
 128 MB only adds extras (see "Memory"). Music and the campaign's effects
-play. The game is on wire `chupa-41a`: it joins hosts of network versions 11
-through 41 (OpenCE's newest), the range the signed legacy table gives.
+play. The game is on wire `chupa-44a`: it joins hosts of network versions 11
+through 44 (OpenCE's current one), the range the signed legacy table gives.
 Custom Edition maps play on a 128 MB console and, experimentally, on a
 64 MB one (`docs/custom-edition.md`).
 Network co-op is not built for the console (`game/xbox_coop.c`): co-op
