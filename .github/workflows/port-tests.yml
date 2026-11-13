@@ -3,8 +3,8 @@ name: Port tests
 # The console ports' checks that need no console SDK, for every push to main
 # and every pull request: the game (the chupathingyce submodule) configures
 # with the ports, and the original Xbox port's host tests pass
-# (port/xbox/tests/run.sh). The console builds themselves need the user's
-# own SDK files, which never come near this repository or its runners.
+# (port/xbox/tests/run.sh). The console build itself needs the SDK, which
+# only the self-hosted xbox-sdk runner has (build.yml, on main only).
 on:
   push:
     branches:
