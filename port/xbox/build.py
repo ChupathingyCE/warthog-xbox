@@ -50,7 +50,12 @@ from tools.windows_build import COMMENT, EXPORTED_INLINE
 # the port
 TOOLS_DIR = relative(Path(__file__).resolve().parents[2] / "tools")
 
+# On GitHub Actions no diagnostic shows its source line: the SDK's headers
+# warn (math.h's cabs) and their text is not for a public log
+CI_DIAGNOSTIC_FLAGS = ["-fno-caret-diagnostics"] if os.environ.get("GITHUB_ACTIONS") else []
+
 GAME_FLAGS = [
+    *CI_DIAGNOSTIC_FLAGS,
     "-target", "i386-pc-windows-msvc",
     "-march=pentium3",
     "-fms-extensions",
@@ -102,6 +107,7 @@ GAME_FLAGS = [
 
 # the platform units, compiled with the SDK's own headers (OXDK's flags)
 SUPPORT_FLAGS = [
+    *CI_DIAGNOSTIC_FLAGS,
     "-target", "i386-pc-windows-msvc",
     "-march=pentium3",
     "-fms-extensions",
