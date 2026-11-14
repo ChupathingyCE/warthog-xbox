@@ -6,7 +6,8 @@
 #                                        settings record and game type state
 #                                        layouts', console.join's and the memory
 #                                        class's, XLink's, the log tags', the
-#                                        co-op names' and the video modes'
+#                                        co-op names', the video modes' and
+#                                        the sound's mix bins'
 #                                        tests, which hosts it joins,
 #                                        tools/xbox_package.py's
 #                                        devkit flag,
@@ -72,6 +73,9 @@ $CC -std=c89 -pedantic -Wall -Wextra -Werror $SAN port/xbox/tests/screen_test.c 
 $CC -std=c89 -pedantic -Wall -Wextra -Werror $SAN port/xbox/tests/coop_name_test.c $SRC/xbox_coop_name.c \
 	-o "$OUT/coop_name_test"
 "$OUT/coop_name_test"
+$CC -std=c89 -pedantic -Wall -Wextra -Werror $SAN port/xbox/tests/mix_bins_test.c $SRC/xbox_mix_bins.c \
+	-o "$OUT/mix_bins_test"
+"$OUT/mix_bins_test"
 python3 port/xbox/tests/package_test.py
 python3 port/xbox/tests/easy_build_test.py
 # D:\config.toml: port_config.c as the console builds it, beside a stand-in
