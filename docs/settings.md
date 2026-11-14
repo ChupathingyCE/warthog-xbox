@@ -87,7 +87,7 @@ them. Put the same settings in `config.toml`.
 | `chat.show` | `"all"` | Whose chat you see: `"all"`, `"team"` or `"off"`. |
 | `chat.filter` | `"mask"` | Blocked words: `"mask"` stars them out, `"hide"` hides the line, `"show"` shows it. |
 | `chat.streamer_mode` | `false` | Shows other players in chat by their team's name. |
-| `chat.quick_messages` | six lines | The controller's quick lines, separated by `\|`. **D-pad up** picks one, **D-pad down** sends it. |
+| `chat.quick_messages` | six lines | The controller's quick lines, separated by `\|`. **D-pad up** picks one, **D-pad down** sends it: to your team in a team game, to everyone in free-for-all. |
 | `game.start_with_one_player` | `true` | A game you host can start with only you. |
 | `game.unlock_all_levels` | `false` | New profiles start with every campaign level unlocked. |
 | `game.console_log` | `"important"` | What the on-screen console shows: `"important"`, `"all"` or `"none"`. `debug.txt` always has every line. |

@@ -188,6 +188,8 @@ console has.
 Chat works in a game whose host runs Chupathingy.
 
 - **Controller:** **D-pad up** picks a quick line, **D-pad down** sends it.
+  In a team game it goes to your team; in free-for-all, to everyone. The
+  lines are `chat.quick_messages` in `config.toml`.
 - **USB keyboard** (on a controller port): **T** talks to everyone, **Y** to
   your team, **H** shows the recent lines.
 
