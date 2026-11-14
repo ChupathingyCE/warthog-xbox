@@ -1,4 +1,10 @@
 /*
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ * Copyright (C) 2026 JizzyRivers and Warthog's contributors
+ * Part of Warthog: under its license, with its console SDK permission (README.md, "License").
+ */
+
+/*
  * the store's screenshots come as dds (dxt1 / bc1), the same as its covers for
  * the xbox homebrew store client: this reads one and scales it into a small
  * picture of 0xRRGGBB pixels, for the details' picture box

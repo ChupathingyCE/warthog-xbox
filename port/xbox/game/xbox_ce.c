@@ -1,4 +1,10 @@
 /*
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ * Copyright (C) 2026 JizzyRivers and Warthog's contributors
+ * Part of Warthog: under its license, with its console SDK permission (README.md, "License").
+ */
+
+/*
 XBOX_CE.C
 
 What Custom Edition maps ask of the desktop builds' units the console leaves out,

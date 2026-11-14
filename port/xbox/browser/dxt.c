@@ -1,4 +1,10 @@
 /*
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ * Copyright (C) 2026 JizzyRivers and Warthog's contributors
+ * Part of Warthog: under its license, with its console SDK permission (README.md, "License").
+ */
+
+/*
  * dxt.h: a dds header (128 bytes: 'DDS ', height at 12, width at 16, its
  * fourcc at 84), then 8 bytes a 4x4 block: two 565 colors and 2 bits a pixel
  */

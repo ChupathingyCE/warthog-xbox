@@ -1,4 +1,10 @@
 /*
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ * Copyright (C) 2026 JizzyRivers and Warthog's contributors
+ * Part of Warthog: under its license, with its console SDK permission (README.md, "License").
+ */
+
+/*
  * BLAKE2b (RFC 7693), for checking a custom edition map against the store's
  * list as it downloads: the list's blake2b column is BLAKE2b-256 of the whole
  * file (b2sum -l 256). the game's own Monocypher (chupathingyce
