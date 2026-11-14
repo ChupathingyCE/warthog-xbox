@@ -329,9 +329,9 @@ Microsoft's SDKs.
 ## Support
 
 Chupathingy is free and always will be. Support through
-[Ko-fi](https://ko-fi.com/milenko) goes to running the site and the servers. If
-there's a specific developer or port you'd like to support, ask them: they may
-not be part of our community.
+[Ko-fi](https://ko-fi.com/milenko) or [Patreon](https://www.patreon.com/c/chupathingy)
+goes to running the site and the servers. If there's a specific developer or
+port you'd like to support, ask them: they may not be part of our community.
 
 ## Credits
 
