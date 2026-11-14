@@ -204,6 +204,10 @@ P2P_SOURCES = [
 # format, a session as a client, and the game's session over the game's
 # sockets, which wires play together (delta_compat.c), and the signed legacy
 # table (delta.c, without its thread: the game list's thread fetches it)
+# the map lists' names fitted to their boxes (ui_widget.c under HALO_MAP_LIST,
+# chupathingyce's menu_text_fit.c since the lists were widened)
+MENU_TEXT_SOURCES = [LINUX_SRC / "menu_text_fit.c"]
+
 DELTA_SOURCES = [LINUX_SRC / "delta_wire.c", LINUX_SRC / "delta_peer.c", LINUX_SRC / "delta_chat.c", LINUX_SRC / "delta_chat_words.c",
                  LINUX_SRC / "delta_chat_bridge.c",
                  LINUX_SRC / "delta_peer_game.c", LINUX_SRC / "delta_compat.c",
@@ -526,6 +530,12 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
             vertex_flags = ["-Dmalloc=platform_ce_scratch_malloc", "-Drealloc=platform_ce_scratch_realloc",
                             "-Dfree=platform_ce_scratch_free"]
         add_object(game / PORT_LINUX_GAME / name, " ".join(["-std=gnu89", game_cflags, *PORT_DATA_FLAGS, *vertex_flags]),
+                   [semantics_header, prefix_header])
+
+    # the map lists' names fitted to their boxes (menu_text_fit.c: C and the
+    # runtime alone), which ui_widget.c calls under HALO_MAP_LIST
+    for source in MENU_TEXT_SOURCES:
+        add_object(game / source, " ".join(["-std=gnu89", game_cflags, *PORT_DATA_FLAGS]),
                    [semantics_header, prefix_header])
 
     # the console's own game code: its Online Games screen, and the Delta
