@@ -220,6 +220,11 @@ static struct
 	int message_shown;
 	unsigned long lowest_free;
 	long update_count;
+	/* what the texture cache's sizing expected free at the main loop (KB;
+	signed), and whether the main loop's measure of it was logged
+	(xbox_memory_log_point: the next test build's check of _used_after_caches) */
+	long expected_main_loop;
+	int estimate_logged;
 #ifdef XBOX_MEMORY_PLAYERS_TEST
 	/* the objects' peaks since the last map started */
 	long object_sample_count;
@@ -407,13 +412,14 @@ static void memory_read(void)
 	{
 		xbox_boot_log("memory: 64 MB console, extras off: the Xbox's sizes");
 	}
+	/* what is expected free at the main loop with this cache (signed: a
+	console short of the smallest cache's room expects less than nothing) */
+	memory.expected_main_loop = (long)(memory.available >> 10) - (long)(_other_caches_size >> 10) -
+		(long)(memory.texture_cache_size >> 10) - (long)(_used_after_caches >> 10);
 	if (memory.texture_cache_reduced)
 	{
-		/* the decision: what is expected free at the main loop with this
-		cache, and with a step more (signed: a console short of the
-		smallest cache's room expects less than nothing) */
-		long expected = (long)(memory.available >> 10) - (long)(_other_caches_size >> 10) -
-			(long)(memory.texture_cache_size >> 10) - (long)(_used_after_caches >> 10);
+		/* the decision, and what a step more would leave */
+		long expected = memory.expected_main_loop;
 
 		xbox_boot_log("memory: texture cache %lu KB (less than the Xbox's 22 MB: what this console has free); "
 			"expected %ld KB free at the main loop, %ld KB with 1 MB more (the reserve: %lu KB)",
@@ -508,6 +514,27 @@ static void objects_sample(void)
 }
 #endif
 
+/* once, at the main loop: what is free there against what
+the texture cache's sizing expected, with the cache it chose. The difference
+is how far _used_after_caches is off on this console and build: what the
+texture cache's size is to be re-measured from */
+static void log_texture_cache_estimate(const char *where, unsigned long available)
+{
+	if (memory.estimate_logged || strcmp(where, "the main loop"))
+		return;
+	memory.estimate_logged = 1;
+	xbox_boot_log("memory: texture cache %lu KB%s, %lu KB free at %s against %ld KB expected (%+ld KB; "
+		"the estimate of what the game takes after the caches: %lu KB)",
+		memory.texture_cache_size >> 10,
+#ifdef XBOX_MEMORY_PLAYERS_TEST
+		memory.texture_cache_reduced ? " (the smallest: a test build of more than 16 players)" : "",
+#else
+		"",
+#endif
+		available >> 10, where, memory.expected_main_loop, (long)(available >> 10) - memory.expected_main_loop,
+		(unsigned long)_used_after_caches >> 10);
+}
+
 /* a test build's line at the main loop, each map's start (a game joined or
 hosted, or the main menu's) and each map's end: the players, the memory
 free and its largest block, the game state's use and, at a map's end, the
@@ -519,6 +546,7 @@ void xbox_memory_log_point(const char *where)
 	unsigned long available = xbox_memory_free();
 	long game_state_used, game_state_size;
 
+	log_texture_cache_estimate(where, available);
 	game_state_cpu_usage(&game_state_used, &game_state_size);
 	xbox_boot_log("players: %d, %s: %lu KB free, largest free block %lu KB, game state %ld of %ld bytes used",
 		HALO_CONSOLE_PLAYERS, where, available >> 10, largest_free_block(available) >> 10,
@@ -538,7 +566,11 @@ void xbox_memory_log_point(const char *where)
 	/* (a stock build: the free memory alone, which a join's map start is
 	the one to watch - the network's pool, console.xnet_pages, and the
 	connection's queues are taken by then) */
-	xbox_boot_log("memory: %lu KB free at %s", xbox_memory_free() >> 10, where);
+	unsigned long available = xbox_memory_free();
+
+	log_texture_cache_estimate(where, available);
+	xbox_boot_log("memory: %lu KB free at %s, texture cache %lu KB", available >> 10, where,
+		memory.texture_cache_size >> 10);
 #endif
 }
 
