@@ -89,7 +89,14 @@ jobs:
           GAME_REF: ${{ inputs.game-ref }}
         run: |
           if [ -n "$GAME_REF" ]; then
-            git -C chupathingyce fetch --depth 1 origin "$GAME_REF"
+            # (typed by hand now: a branch name or a commit, never an option)
+            case "$GAME_REF" in
+              -*|*..*|*[!A-Za-z0-9._/-]*)
+                echo "::error::game-ref is not a branch name or a commit"
+                exit 1
+                ;;
+            esac
+            git -C chupathingyce fetch --depth 1 -- origin "$GAME_REF"
             git -C chupathingyce checkout --detach FETCH_HEAD
             git -C chupathingyce log -1 --oneline
           fi
