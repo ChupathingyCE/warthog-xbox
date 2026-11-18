@@ -464,9 +464,12 @@ float halo_screen_scale(void)
 	return 1.0f;
 }
 
-/* ---------- addresses in the log (port/linux/src/log_address.h): the
-private ranges whole, a public address only as a tag salted per run; and
-other machines' Ethernet addresses only as tags, with the same salt */
+/* ---------- addresses in the log (port/linux/src/log_address.h): every
+address as a tag salted per run, a LAN's (the private ranges) as lan#, any
+other as addr#, so a log still says which machines are on the same
+network without saying where (warthog-xbox #20); this console's own (0.x)
+and loopback whole. Other machines' Ethernet addresses only as tags, with
+the same salt */
 
 __declspec(dllimport) unsigned long __stdcall GetTickCount(void);
 
@@ -497,10 +500,11 @@ const char *log_address(const unsigned char *bytes, int length, int port, char *
 		return text;
 	if (port >= 0)
 		snprintf(port_text, sizeof(port_text), ":%d", port & 0xFFFF);
-	if (length == 4 && log_address_private(bytes, length))
+	if (length == 4 && (bytes[0] == 0 || bytes[0] == 127))
 		snprintf(host, sizeof(host), "%u.%u.%u.%u", bytes[0], bytes[1], bytes[2], bytes[3]);
 	else
-		xbox_log_tag("addr", bytes, length, log_salt(), host, sizeof(host));
+		xbox_log_tag(log_address_private(bytes, length) ? "lan" : "addr", bytes, length, log_salt(), host,
+			sizeof(host));
 	snprintf(text, (size_t)size, "%s%s", host, port_text);
 	return text;
 }
