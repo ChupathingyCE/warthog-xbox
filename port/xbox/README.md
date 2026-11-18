@@ -78,6 +78,11 @@ log to `D:\debug.txt`. Saved games and profiles go to the utility drive
 stops it and shows the error on the screen and in `debug.txt`. A `--release`
 build notes it in `debug.txt` and goes on.
 
+`debug.txt` names no network address, so it can be posted: a LAN address
+(10.x, 172.16-31.x, 192.168.x and the like) shows as a tag such as
+`lan#3fa2c1`, any other as `addr#...`. The tags change every boot, and in
+one log the same address always gets the same tag.
+
 ## Direct3D
 
 The game compiles against the January 2002 SDK's declarations
