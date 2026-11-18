@@ -92,8 +92,11 @@ for you, `config.toml` included (see "Building it yourself").
 - **Chat:** quick lines on the controller, and a USB keyboard
   ([below](#chat-and-keyboard)).
 - **Sound:** the original Xbox reverb.
-- **Widescreen and 480p** follow the dashboard's video settings.
-  Widescreen is new in the November test builds and still being tested.
+- **480p** follows the dashboard's video settings. **Widescreen** is
+  opt-in: since the late-November test builds the game is 4:3 by default,
+  as the retail game was, because the stretched widescreen picture is
+  softer. Set `display.widescreen = "dashboard"` to follow the dashboard's
+  Widescreen setting. If you set it yourself before, you keep it.
 - **60 frames a second** as a setting (`display.frame_rate = 60`). It is
   new and still being tested. The game still runs 30 ticks a second, so it
   plays the same online.
@@ -104,11 +107,13 @@ for you, `config.toml` included (see "Building it yourself").
 - **The loading screen doesn't animate.**
 - **No hosting for PC players over the internet**, and no online co-op.
   Co-op games are left out of the console's lists.
-- **Widescreen on your TV.** The console doesn't tell the TV that the
-  picture is wide. If you see black bars at the sides, set the TV's picture
-  size to Wide, Full, 16:9 or Stretch. With a TV that can't stretch it,
-  keep Normal in the dashboard, or set `display.widescreen = "off"` in
-  `config.toml`.
+- **Widescreen is opt-in.** The game is 4:3 by default, as the retail game
+  was: that is the sharpest picture. For widescreen, set
+  `display.widescreen = "dashboard"` in `config.toml` and Widescreen in the
+  dashboard. The HUD and menus are then stretched to fit, a little softer.
+  The console doesn't tell the TV that the picture is wide: if you see black
+  bars at the sides, set the TV's picture size to Wide, Full, 16:9 or
+  Stretch.
 - **Zoom frame rate.** Sniper and pistol zoom drop to about 20 fps.
 - **First load of a map** after the console starts takes longer than
   later loads.
@@ -172,7 +177,7 @@ The ones players use most:
 | Setting | What it does |
 | --- | --- |
 | `console.bypass_security` | `true` is needed for Online Games and playing with PCs. |
-| `display.widescreen` | `"off"` keeps the 4:3 picture even with Widescreen on in the dashboard. |
+| `display.widescreen` | `"off"`, the default, keeps the 4:3 picture, as the original game did. `"dashboard"` turns widescreen on when the dashboard has Widescreen set. |
 | `display.frame_rate` | `60` turns the view every frame. `30`, the default, draws as the original game did. |
 | `display.flicker_filter` | From 0 to 5. Lower is sharper on a 480i TV, with more flicker. The default is 5. |
 | `display.field_of_view` | From 50 to 120. The default is 70. |
