@@ -249,6 +249,9 @@ XBOX_PORT_GAME_SOURCES = [
     # Xbox's memory at their own addresses (src/xbox_memory.c, src/xbox_ce_files.c)
     "ce_bsp.c", "ce_functions.c", "ce_hud.c", "ce_map_checks.c", "ce_models.c", "ce_repairs.c", "ce_resources.c",
     "ce_vorbis.c",
+    # (what the checks read, hashed as the map opens: ce_map_checks.c; the
+    # Xbox doesn't hash it again as the map loads, CE_MAP_LOAD_HASHED)
+    "mcc_sha256.c",
     # Stubbs the Zombie's mode (stubbs_mode_active, which the scripts' compiler
     # asks): the game's since chupathingyce 95871e3a
     "stubbs_mode.c",
