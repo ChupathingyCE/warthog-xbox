@@ -93,6 +93,7 @@ int xbox_memory_delta_class_of(int memory_class)
 #include <xtl.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
 
@@ -390,6 +391,41 @@ static void memory_read(void)
 		memory.texture_cache_size = _texture_cache_minimum;
 #endif
 		memory.texture_cache_reduced = 1;
+	}
+
+	/* the player's tuning.texture_cache (config.toml's [tuning]): "auto",
+	the default, keeps the size above; a number of MB is held between the
+	smallest the game can use and the most this console's class allows: a
+	128 or 256 MB console's own size, or on a 64 MB console what is free
+	with _main_loop_reserve still left at the main loop, as auto sizes it */
+	{
+		const char *setting = config_string("tuning.texture_cache");
+
+		if (setting && *setting && strcmp(setting, "auto"))
+		{
+			unsigned long wanted = strtoul(setting, NULL, 10) << 20;
+			unsigned long most = memory.texture_cache_size, held;
+
+			if (memory.memory_class == _xbox_memory_class_64mb)
+			{
+				unsigned long room = memory.available > _other_caches_size + _free_after_caches ?
+					(memory.available - _other_caches_size - _free_after_caches) & ~0xFFFFFUL : 0;
+
+				if (room > most)
+					most = room;
+			}
+			/* (halo_port_capacity.h's HALO_PORT_TEXTURE_CACHE_MAXIMUM_SIZE,
+			the 256 MB class's size) */
+			if (most > _texture_cache_256mb)
+				most = _texture_cache_256mb;
+			if (most < _texture_cache_minimum)
+				most = _texture_cache_minimum;
+			held = wanted < _texture_cache_minimum ? _texture_cache_minimum : wanted > most ? most : wanted;
+			xbox_boot_log("tuning: texture_cache %s MB: texture cache %lu KB, auto's %lu KB (this console: %lu to %lu KB)",
+				setting, held >> 10, memory.texture_cache_size >> 10, (unsigned long)_texture_cache_minimum >> 10,
+				most >> 10);
+			memory.texture_cache_size = held;
+		}
 	}
 
 	xbox_boot_log("memory: %lu MB in all, %lu KB free at the start (%s), image %lu KB: the %d MB class",
