@@ -21,13 +21,29 @@ on:
   push:
     branches:
       - main
+  # by hand: a game commit or branch to try, and the debug decomp's asserts
+  # kept in for a console that hunts a crash (a failed one stops the game
+  # with its file and line on the halt screen and in debug.txt)
   workflow_dispatch:
+    inputs:
+      game-ref:
+        description: A commit or branch of the game to build instead of the submodule's (empty, the submodule's)
+        type: string
+        default: ""
+      asserts:
+        description: Keep the debug decomp's asserts in (about 350 KB more image)
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       game-ref:
         description: A commit of the game to build instead of the submodule's (the nightly's; empty, the submodule's)
         type: string
         default: ""
+      asserts:
+        description: Keep the debug decomp's asserts in (about 350 KB more image)
+        type: boolean
+        default: false
       ref:
         description: The commit of this repository to build (the release's tag; empty, the run's)
         type: string
@@ -87,11 +103,19 @@ jobs:
         run: CC=clang sh port/xbox/tests/run.sh
 
       # the build testers get: the debug decomp's asserts compiled out, as the
-      # retail game had them, but for the memory checks, and 32 players
+      # retail game had them, but for the memory checks, and 32 players. With
+      # the asserts input, all of them stay in
       - name: Configure
+        env:
+          ASSERTS: ${{ inputs.asserts }}
         run: |
+          asserts_flag="--console-no-debug-asserts"
+          if [ "$ASSERTS" = "true" ]; then
+            asserts_flag=""
+            echo "the debug decomp's asserts stay in"
+          fi
           python3 chupathingyce/configure.py --console-port port/xbox --oxdk "$OXDK_DIR" --xbox-d3d8 "$XBOX_D3D8" \
-            --console-no-debug-asserts --console-players 32
+            $asserts_flag --console-players 32
           grep -q "default.xbe" build.ninja || { echo "::error::configure did not find the SDK"; exit 1; }
 
       - name: Build
@@ -115,7 +139,7 @@ jobs:
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: warthog-xbox-${{ github.sha }}
+          name: warthog-xbox-${{ github.sha }}${{ inputs.asserts && '-asserts' || '' }}
           path: package
           if-no-files-found: error
           retention-days: 7

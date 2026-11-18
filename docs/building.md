@@ -151,6 +151,15 @@ game's, console-neutral in name so other consoles can take them up:
 | `--console-debug-tools` | keeps the debug decomp's developer tools (profiler, AI, render and collision debug, the collision log's counting and timing, stack walker, libtiff and the bitmap tools), about 0.9 MB, which the build leaves out by default |
 | `--console-no-debug-asserts` | the release-style build testers get: the debug decomp's asserts compiled out, as the retail game had them, but for the checks of the data arrays, pools, caches, codecs and memory functions; about 412 KB of the image |
 
+A build with the asserts in, for a console that hunts a crash: leave out
+`--console-no-debug-asserts` (or run `tools/easy_build.py --asserts`). A
+failed assert then stops the game with its file and line on the halt screen
+and in `debug.txt`. The XBE is about 350 KB larger (3,915,776 bytes against
+3,555,328 at 32 players, game dea3256). On GitHub, run the Build workflow by
+hand with "Keep the debug decomp's asserts in" ticked, and a game branch in
+"game-ref" to try a fix that isn't in the submodule yet; the artifact's name
+ends in `-asserts`.
+
 `xbox_package.py --devkit-64mb` is the packaging side of the 64 MB target:
 see "Package" above.
 
