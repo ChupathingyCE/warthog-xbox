@@ -90,7 +90,8 @@ static int report_start_thread(void (*function)(void *context), void *context)
 		return 0;
 	xbox_memory_heap_allocation("xbox_reports.c (thread stack)", 0, REPORT_STACK, thread);
 	/* (below the game's thread: a report's TLS handshake, hundreds of ms of
-	the processor's, would hitch the frames at a game's end) */
+	the processor's, would hitch the frames at a game's end. From the send
+	on it runs at the game's priority: xbox_https.c's https_sending) */
 	SetThreadPriority(thread, THREAD_PRIORITY_BELOW_NORMAL);
 	CloseHandle(thread);
 	return 1;
