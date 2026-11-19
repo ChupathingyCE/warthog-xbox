@@ -253,6 +253,14 @@ extern "C" HRESULT WINAPI DmCloseModuleSections(void *walk)
 		run_end = (ULONG)(ULONG_PTR)information.BaseAddress + (ULONG)information.RegionSize;
 		if (run_end > end || run_end <= address)
 			run_end = end;
+		/* (pages not committed have no protection to speak of: counted with
+		the ones the kernel would not describe, not as read-only) */
+		if (information.State != MEM_COMMIT)
+		{
+			unknown_bytes += run_end - address;
+			address = run_end;
+			continue;
+		}
 		if (code_page_writable(information.Protect))
 		{
 			writable_bytes += run_end - address;
@@ -291,7 +299,7 @@ extern "C" HRESULT WINAPI DmCloseModuleSections(void *walk)
 	{
 		size_t length = strlen(detail);
 
-		_snprintf(detail + length, sizeof(detail) - length - 1, "; %lu KB the kernel would not describe",
+		_snprintf(detail + length, sizeof(detail) - length - 1, "; %lu KB not committed or not described by the kernel",
 			(unsigned long)unknown_bytes >> 10);
 		detail[sizeof(detail) - 1] = 0;
 	}
