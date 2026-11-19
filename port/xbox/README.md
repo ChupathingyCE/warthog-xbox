@@ -106,15 +106,18 @@ and flags as the retail game, so the console gets the same modes:
 - 480p with the component (HD AV) cable and 480p turned on in the
   dashboard; 480i with anything else. The game never asks for progressive
   itself, so composite and S-Video keep working.
-- Widescreen (new; the retail game is 4:3 only): with Widescreen set in the
-  dashboard's video settings, and `display.widescreen = "dashboard"` (the
-  default), the game asks for the 16:9 mode. The table has it at 480p and
+- Widescreen (new and opt-in; the retail game is 4:3 only, and so is this
+  one by default, `display.widescreen = "off"`): with Widescreen set in the
+  dashboard's video settings and `display.widescreen = "dashboard"`, the
+  game asks for the 16:9 mode. The table has it at 480p and
   480i for every cable. The picture is still 640x480; a 16:9 TV stretches
   it to fit. So the game draws the 3D view wider (the same height, more to
   the sides, as a 16:9 desktop does), and lays the HUD, menus and text out
   852 units across, which the stretch turns back into the right shapes.
-  The buffers stay the same size: it takes no memory. `"off"` keeps the 4:3
-  picture whatever the dashboard says. `src/xbox_screen.c` is the console's
+  The buffers stay the same size: it takes no memory. The stretch costs
+  sharpness, though: the HUD and menus are filtered from 852 units into 640
+  pixels, and the world gets fewer pixels a degree (#114), which is why 4:3
+  is the default. `"off"` keeps the 4:3 picture whatever the dashboard says. `src/xbox_screen.c` is the console's
   side; the game's is `HALO_CONSOLE_ANAMORPHIC_SCREEN`
   (`port/linux/include/halo_console_features.h`).
 
@@ -133,8 +136,8 @@ The console doesn't tell the TV that the picture is wide: 480p and 480i look
 like a 4:3 picture to it. If the picture keeps black bars at the sides, set
 the TV's picture size to stretch it to the whole screen (Wide, Full, 16:9 or
 Stretch, by brand). Some older TVs only offer that for some inputs or
-modes. With a TV that can't stretch it, keep Normal in the dashboard or set
-`display.widescreen = "off"`.
+modes. With a TV that can't stretch it, keep Normal in the dashboard or
+leave `display.widescreen` at `"off"`.
 
 ### 60 frames a second
 

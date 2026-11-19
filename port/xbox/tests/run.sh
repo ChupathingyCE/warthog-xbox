@@ -95,7 +95,8 @@ $CC -std=gnu11 -Wall -Wextra -Werror $SAN -DHALO_XBOX_CONSOLE -DHALO_CONSOLE_PLA
 	-include port/xbox/include/halo_xbox_features.h \
 	-I$G/port/linux/src -I$G/port/third_party/tomlc17 \
 	port/xbox/tests/config_test.c "$OUT/config/port_config.c" "$OUT/config/tomlc17.o" -o "$OUT/config/config_test"
-(cd "$OUT/config/run" && ../config_test new && ../config_test given)
+(cd "$OUT/config/run" && ../config_test new && ../config_test given && ../config_test wide_named &&
+	../config_test wide_commented)
 # the console's player identity (D:\game_list_player.key)
 $CC -std=c89 -pedantic -Wall -Wextra -Werror $SAN -c $SRC/xbox_player_key.c -o "$OUT/player_key.o"
 $CC -std=gnu11 -Wall -Wextra -Werror $SAN port/xbox/tests/player_key_test.c "$OUT/player_key.o" \

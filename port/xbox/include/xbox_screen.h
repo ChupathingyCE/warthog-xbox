@@ -21,7 +21,8 @@ Direct3D's present flag for it (D3DPRESENTFLAG_WIDESCREEN, d3d8types.h) */
 #define XBOX_SCREEN_PRESENT_FLAG_WIDESCREEN 0x00000010UL
 
 /* the interface's width for the dashboard's video flags and
-display.widescreen ("dashboard", or "off"; anything else is "dashboard") */
+display.widescreen ("off", the default, or "dashboard"; anything else is
+"dashboard") */
 long xbox_screen_choose_width(unsigned long video_flags, const char *setting);
 /* whether display.widescreen is "off" (in any case; "4:3", "false", "no",
 "none" and "0" too) */
