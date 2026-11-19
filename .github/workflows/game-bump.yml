@@ -155,5 +155,17 @@ jobs:
               success|neutral|skipped) status success "$name" "$url" "Passed" ;;
               *) status failure "$name" "$url" "Finished: $conclusion" ;;
             esac
+            echo "$id" >> "$RUNNER_TEMP/reported"
             echo "$name: $conclusion"
+          done
+
+      # (a cancelled or timed-out wait must not leave a status pending)
+      - name: Report the unfinished
+        if: failure() || cancelled()
+        run: |
+          for id in $RUNS; do
+            grep -qx "$id" "$RUNNER_TEMP/reported" 2>/dev/null && continue
+            IFS=$'\t' read -r name url < <(gh api "repos/$GH_REPO/actions/runs/$id" --jq '[.name, .html_url] | @tsv')
+            gh api -X POST "repos/$GH_REPO/statuses/$HEAD_SHA" -f state=error \
+              -f context="$name (dispatch)" -f target_url="$url" -f description="Not reported: the wait stopped" > /dev/null || true
           done
