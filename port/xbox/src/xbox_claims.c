@@ -27,6 +27,7 @@ and is taken only while a claim is under way.
 #include "../include/xbox_claim.h"
 #include "../include/xbox_game_list.h"
 #include "../include/xbox_player_key.h"
+#include "../include/xbox_stack.h"
 
 void xbox_memory_heap_allocation(const char *file, long line, unsigned long size, const void *address);
 /* xbox_port.c's: safe from any thread, reaches debug.txt from the main loop */
@@ -71,13 +72,15 @@ struct claims_start
 
 static struct claims_start claims_start;
 
-static unsigned long __stdcall claims_thread(void *parameter)
+static unsigned long __stdcall claims_thread_body(void *parameter)
 {
 	struct claims_start *start = parameter;
 
 	start->function(start->context);
 	return 0;
 }
+
+XBOX_STACK_THREAD(claims_thread, "claims", CLAIM_STACK, claims_thread_body)
 
 static int claims_start_thread(void (*function)(void *context), void *context)
 {
