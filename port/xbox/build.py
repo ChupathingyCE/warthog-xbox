@@ -161,7 +161,7 @@ COLD_GAME_DIRS = (
 PORT_DATA_FLAGS = ["-fdata-sections"]
 COLD_SOURCES = (
     "console_link.c", "qrcodegen.c", "xbox_console_link.c",
-    "xbox_claim.c", "xbox_claim_run.c", "xbox_config.c", "xbox_coop_name.c", "xbox_direct_join.c",
+    "xbox_claim.c", "xbox_claim_run.c", "xbox_config.c", "xbox_coop_name.c", "xbox_cpu.c", "xbox_direct_join.c",
     "xbox_game_list_fetch.c", "xbox_game_list_parse.c", "xbox_game_list_text.c", "xbox_log_tag.c",
     "xbox_https.c", "xbox_memory.c", "xbox_player_key.c", "xbox_reports.c", "xbox_stack.c", "xbox_xlink.c",
     "console_reports.c", "game_report.c",

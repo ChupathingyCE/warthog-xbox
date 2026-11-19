@@ -467,12 +467,16 @@ static void memory_read(void)
 	}
 }
 
+/* the processor's line (xbox_cpu.c) */
+void xbox_cpu_log(void);
+
 void xbox_memory_startup(void)
 {
 	xbox_boot_log("start (build %s)", xbox_build_stamp);
 	/* (the settings first: the memory's are among them) */
 	xbox_config_startup();
 	memory_read();
+	xbox_cpu_log();
 	/* (the saves of the title ID before 0.9.1, once: xbox_saves.c) */
 	xbox_saves_move_old();
 }
