@@ -50,7 +50,7 @@ them. Put the same settings in `config.toml`.
 
 | Setting | Default | What it does |
 | --- | --- | --- |
-| `display.widescreen` | `"dashboard"` | Follows the dashboard's Widescreen setting. With it on, the game shows more to the sides and fits the HUD and menus to a 16:9 TV. `"off"` keeps the 4:3 picture. |
+| `display.widescreen` | `"off"` | The 4:3 picture, as the original game had. `"dashboard"` follows the dashboard's Widescreen setting: with it on, the game shows more to the sides and stretches the HUD and menus to a 16:9 TV, a little softer. A `config.toml` that names `"dashboard"` keeps it. |
 | `display.frame_rate` | `30` | `30` draws as the original game did. `60` turns the view every frame. The game still runs 30 ticks a second, so play and the network are the same. A busy scene drops to a steady 30 until it can hold 60 again. |
 | `display.flicker_filter` | `5` | How much a 480i picture is softened against flicker, from 0 to 5. The original game used 5. Lower is sharper and flickers more. It does nothing at 480p. |
 | `display.field_of_view` | `70.0` | The field of view in degrees, from 50 to 120. Wider draws more of the map. On a stock console, keep 70 if a busy map slows down. |

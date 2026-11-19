@@ -111,6 +111,8 @@ $CC -std=gnu11 -w -DHALO_XBOX_CONSOLE -DHALO_CONSOLE_PLAYERS=16 \
 cmp "$OUT/config/run/d:\config.toml" "$OUT/config/whole/run/d:\config.toml" ||
 	{ echo "config: the console's config.toml differs without the help it leaves out"; exit 1; }
 echo "config: the console's config.toml is the same without the help it leaves out"
+# (after the compare: these write their own config.toml)
+(cd "$OUT/config/run" && ../config_test wide_named && ../config_test wide_commented)
 # the console's player identity (D:\game_list_player.key)
 $CC -std=c89 -pedantic -Wall -Wextra -Werror $SAN -c $SRC/xbox_player_key.c -o "$OUT/player_key.o"
 $CC -std=gnu11 -Wall -Wextra -Werror $SAN port/xbox/tests/player_key_test.c "$OUT/player_key.o" \

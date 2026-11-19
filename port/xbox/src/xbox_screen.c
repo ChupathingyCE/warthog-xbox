@@ -4,7 +4,9 @@ XBOX_SCREEN.C
 What the shared code asks of the console's screen (HALO_CONSOLE_ANAMORPHIC_SCREEN,
 port/linux/include/halo_console_features.h): 640x480 as the Xbox drew it, in
 the mode Direct3D picks from the dashboard's video settings, and widescreen
-when the dashboard has it and display.widescreen allows it.
+when the dashboard has it and display.widescreen asks for it ("dashboard";
+the default, "off", is the retail game's 4:3: only the lockable back buffer
+in the present flags).
 
 480p needs nothing of the game's: Direct3D picks the first mode of its table
 that is 640x480 with the game's widescreen bit, and its 480p rows come first
