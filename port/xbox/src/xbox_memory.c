@@ -27,13 +27,14 @@ a console above 64 MB has the extras). Nothing of the simulation or the
 network changes with it: the game state, the objects and what goes on the
 wire stay the Xbox's, so every console and PC plays the same game.
 - the texture cache: the Xbox's 22 MB on a 64 MB console; 44 MB on a 128
-MB one, 64 MB on a 256 MB one, kept in the low 128 MB, which the GPU
-reaches. A 64 MB console whose free memory cannot hold the Xbox's caches
+MB one, 64 MB on a 256 MB one, or as much of it as the low 64 MB has room
+for (below, "The low 64 MB"). A 64 MB console whose free memory cannot hold the Xbox's caches
 and still leave Direct3D and the heap theirs gets a smaller texture cache
 (down to 19 MB) rather than a failed start, a megabyte larger only while
 _main_loop_reserve is still expected free at the main loop.
 - the sound cache: the Xbox's 4 MB, 8 MB with the extras (and twice the
-sounds in it at once), in the low 128 MB too.
+sounds in it at once). With the extras it is made outside the low 64 MB
+(below, "The low 64 MB"), so the texture cache has that memory instead.
 - the shared code's own (halo_port_capacity.h, network_connection.c): the
 dynamic triangles (32768, 65536 with the extras), the transparent geometry
 groups (384, 1024), the network connection's queues (four times, the
@@ -50,6 +51,39 @@ From the first line of main (xbox_memory_startup), each step of the start
 is written to D:\debug.txt at once ("boot:" lines: the memory, each cache
 as it is made, each large heap allocation), the file closed after each, so
 a console that stops before the game's own log opens still leaves where.
+
+The low 64 MB. The kernel makes every block of physical memory in one piece
+(XPhysicalAlloc, MmAllocateContiguousMemory: the caches, the screen effect's
+target, Direct3D's buffers) below 0x3FE0000, even on a 128 MB console: the
+upper 64 MB serves only memory that may be in pages anywhere (VirtualAlloc,
+the heap, the XBE's image). test-20261119 on a 128 MB console (Shook's,
+2026-11-18) shows it: the screen effect's target, asked for anywhere, was
+made at 0x03DE0000, just below that line; the largest free piece after it
+was 37056 KB, the one between the tag cache's end (0x019A6000) and
+0x03FE0000, though 96 MB was free; and at the main loop 59.9 MB was free
+with the largest piece 1072 KB. So the 18 MB more than expected free at the
+main loop is all in the upper 64 MB, where no cache could go, and the
+texture cache had what the 37 MB piece left: 37056 KB less 12 MB kept for
+the sound cache and Direct3D, 24 MB; the sound cache then had the Xbox's
+4 MB (8 MB did not fit with 8 MB kept), and Direct3D and the rest took
+about 7.3 MB of the piece by the main loop.
+
+The sound cache must be one piece too, but it need not be in the low 64
+MB. A stream packet is mapped by DirectSound (dsound.lib's
+CMcpxStream::MapPacket) as the physically contiguous run from its current
+address, converted to whole blocks of samples: ADPCM's blocks are 36 bytes
+(mono) or 72 (stereo), which 4096 is not a multiple of, so at a page whose
+next page is not physically the next one the run holds less than a block,
+maps as no samples, and the packet is retried forever (the channel stuck
+playing, its sound silent). So on a console above 64 MB the sound cache is
+made with VirtualAlloc, from the upper 64 MB, before the texture cache
+(sound_cache_make_outside), at its full 8 MB, and kept only if every page
+of it is physically the one after the page before; otherwise it is given
+back and made as before. When it is kept, the texture cache is fitted to
+the piece keeping only Direct3D's share (9 MB): about 27 MB on that
+console instead of 24, and twice the sound cache. Either way debug.txt
+says which, so a 128 MB console's log shows whether the kernel gives
+consecutive pages. A 64 MB console's caches are made as before.
 
 Only the parse of a total into a class (xbox_memory_class_of and
 xbox_memory_delta_class_of) is built on the host (port/xbox/tests).
@@ -166,6 +200,22 @@ enum
 	textures and targets: below 0x3FFB000 */
 	_screen_effect_target_size = 0x200000,
 	_screen_effect_target_limit = 0x3FFB000,
+	/* what the piece of memory the texture cache is made in must still
+	hold after it (fit_extras_cache's keep): the sound cache (8 MB) and
+	Direct3D's share, when the sound cache is made there too; Direct3D's
+	share alone when it was made outside the low 64 MB. Direct3D's share is
+	its device (frame buffers, push buffer), the rasterizer's pools and the
+	rest made in one piece after the caches: about 7.3 MB on a 128 MB
+	console (test-20261119: 8384 KB of the piece left after the caches,
+	1072 KB at the main loop), kept with about 2 MB to spare */
+	_texture_cache_keep = 0xC00000,
+	_texture_cache_keep_direct3d = 0x900000,
+	/* the low 64 MB, where the kernel makes every block in one piece, and
+	the Custom Edition maps' tag cache (ce_tag_cache_make), which the sound
+	cache must not be made over */
+	_low_memory_top = 0x4000000,
+	_ce_tag_cache_address = 0x40440000,
+	_ce_tag_cache_size = 0x01700000,
 
 	/* what physical_memory_allocate takes besides the texture cache: the
 	game state, the tag cache and the sound cache (physical_memory_map.c's
@@ -695,6 +745,102 @@ static void fit_extras_cache(const char *name, unsigned long *size, unsigned lon
 static int texture_cache_fitted;
 static int sound_cache_fitted;
 
+ULONG_PTR __stdcall MmGetPhysicalAddress(PVOID address);
+
+/* the sound cache made outside the low 64 MB (above, "The low 64 MB"), on
+a console above 64 MB, before the texture cache is fitted: at its full size,
+from VirtualAlloc, whose pages the kernel takes from the upper 64 MB first.
+It is kept only if its pages are physically consecutive (DirectSound maps
+an ADPCM packet by its physically contiguous run: above); how much of it
+landed below 64 MB anyway is said, and the texture cache is fitted after
+it, so it is measured either way. If it cannot be made, or is in pieces,
+the sound cache is made as before (XPhysicalAlloc, after the texture
+cache) */
+static struct
+{
+	int tried;
+	void *address;
+	unsigned long size;
+} sound_cache_outside;
+
+static void sound_cache_make_outside(void)
+{
+	unsigned long page, low = 0, breaks = 0, break_at = 0;
+	ULONG_PTR first;
+	void *block;
+
+	if (sound_cache_outside.tried)
+		return;
+	sound_cache_outside.tried = 1;
+	if (memory.memory_class == _xbox_memory_class_64mb)
+		return;
+	block = VirtualAlloc(NULL, memory.sound_cache_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+	if (!block)
+	{
+		xbox_boot_log("memory: sound cache %lu KB outside the low 64 MB FAILED (error %lu): made after the texture "
+			"cache, as on a 64 MB console", memory.sound_cache_size >> 10, GetLastError());
+		return;
+	}
+	if ((unsigned long)block < _ce_tag_cache_address + _ce_tag_cache_size &&
+		(unsigned long)block + memory.sound_cache_size > _ce_tag_cache_address)
+	{
+		xbox_boot_log("memory: sound cache outside the low 64 MB at %p is where Custom Edition maps' tag cache goes: "
+			"given back, made after the texture cache", block);
+		VirtualFree(block, 0, MEM_RELEASE);
+		return;
+	}
+	first = MmGetPhysicalAddress(block);
+	for (page = 0; page < memory.sound_cache_size; page += 0x1000)
+	{
+		ULONG_PTR physical = MmGetPhysicalAddress((char *)block + page);
+
+		if (physical != first + page)
+		{
+			/* (the first break, and the pages up to it) */
+			if (!breaks)
+				break_at = page;
+			breaks++;
+		}
+		if (physical < _low_memory_top)
+			low += 0x1000;
+	}
+	if (breaks)
+	{
+		xbox_boot_log("memory: sound cache %lu KB outside the low 64 MB is in pieces (physical 0x%08lX, the first "
+			"break after %lu KB, %lu pages out of line; %lu KB below 64 MB): given back, made after the texture "
+			"cache, as on a 64 MB console", memory.sound_cache_size >> 10, (unsigned long)first, break_at >> 10,
+			breaks, low >> 10);
+		VirtualFree(block, 0, MEM_RELEASE);
+		return;
+	}
+	sound_cache_outside.address = block;
+	sound_cache_outside.size = memory.sound_cache_size;
+	/* (its size is its own: not fitted to the texture cache's piece) */
+	sound_cache_fitted = 1;
+	xbox_boot_log("memory: sound cache %lu KB made at %p (physical 0x%08lX, in one piece), before the texture "
+		"cache and outside the low 64 MB (%lu KB of its pages below 64 MB), %lu KB free",
+		memory.sound_cache_size >> 10, block, (unsigned long)first, low >> 10, xbox_memory_free() >> 10);
+}
+
+void *xbox_memory_sound_cache_allocate(unsigned long size, unsigned long address)
+{
+	memory_read();
+	if (sound_cache_outside.address && size == sound_cache_outside.size)
+		return sound_cache_outside.address;
+	return XPhysicalAlloc(size, address, 0, PAGE_READWRITE);
+}
+
+void xbox_memory_sound_cache_free(void *address)
+{
+	if (address && address == sound_cache_outside.address)
+	{
+		VirtualFree(address, 0, MEM_RELEASE);
+		sound_cache_outside.address = NULL;
+		return;
+	}
+	XPhysicalFree(address);
+}
+
 /* the screen effect's target, made before the texture cache while the
 memory is still in large pieces: on a 64 MB console its 2 MB come out of
 the texture cache (memory_read's size, 22 MB, then 20 MB; a console whose
@@ -749,8 +895,11 @@ unsigned long xbox_memory_texture_cache_size(void)
 {
 	memory_read();
 	screen_effect_target_reserve();
-	fit_extras_cache("texture cache", &memory.texture_cache_size, _texture_cache_stock, 12 * 0x100000,
-		&texture_cache_fitted);
+	/* (a console above 64 MB: the sound cache first, outside the piece the
+	texture cache is fitted to, which then keeps only Direct3D's share) */
+	sound_cache_make_outside();
+	fit_extras_cache("texture cache", &memory.texture_cache_size, _texture_cache_stock,
+		sound_cache_outside.address ? _texture_cache_keep_direct3d : _texture_cache_keep, &texture_cache_fitted);
 	return memory.texture_cache_size;
 }
 
