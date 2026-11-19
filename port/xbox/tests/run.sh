@@ -150,6 +150,11 @@ $CC -std=gnu11 -Wall -Wextra -Werror $SAN -I$G/port/third_party/monocypher port/
 	$SRC/xbox_claim.c $SRC/xbox_player_key.c "$OUT/claim/p2p_crypto.o" $G/port/third_party/monocypher/monocypher.c \
 	$G/port/third_party/monocypher/monocypher-ed25519.c -o "$OUT/claim_test"
 "$OUT/claim_test"
+# (the README's [tuning] table is the game's code's, when the game has the
+# tool that makes it)
+if [ -f "$G/tools/tuning_table.py" ]; then
+	python3 "$G/tools/tuning_table.py" --xbox --check README.md
+fi
 while [ $# -gt 0 ]; do
 	case "$1" in
 	--fuzz)

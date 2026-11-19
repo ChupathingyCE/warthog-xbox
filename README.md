@@ -188,6 +188,40 @@ The ones players use most:
 [port/xbox/FEATURES.md](port/xbox/FEATURES.md) shows which PC features the
 console has.
 
+### Performance presets (`[tuning]`)
+
+The `tuning.preset` setting comes from the PC game, and does little here:
+
+- `potato` changes nothing on the original Xbox. It is the same as
+  `retail`. `debug.txt` says so at start.
+- `lan-party` changes one thing: the present mode, `adaptive`, which shows
+  a late frame at once, with a tear.
+- No preset changes the game tick. In big games (more than about 24
+  players) the tick is what holds the console back, so a preset won't make
+  those games faster.
+
+Every knob, made from the game's code (`tools/tuning_table.py --xbox` in
+the game):
+
+<!-- tuning table: made by tools/tuning_table.py, don't edit by hand -->
+
+| Setting | On the original Xbox | Default and range here | lan-party sets | potato sets | What it costs or saves |
+| --- | --- | --- | --- | --- | --- |
+| `display.dynamic_light_limit` | yes | `8`; 0 to 128 (0: no limit) | nothing | nothing | Drawing. Each dynamic light redraws the level it reaches twice; in a big firefight most of the GPU's time. |
+| `display.specular_light_limit` | yes | `2`; 0 to 128 (0: no limit) | nothing | nothing | Drawing. The shine pass of near lights, the costliest pass in a firefight. |
+| `display.particle_limit` | no: not a console setting | | | | Drawing, and a little CPU a frame for each particle alive. Never under 1024 in a network game. |
+| `display.particle_ticks` | no: not a console setting | | | | CPU a frame: moving loose particles once a tick saves two in three of their collision tests at 60 fps. |
+| `display.shadow_resolution` | no: not a console setting | | | | Drawing and video memory: bigger shadow maps. |
+| `display.anisotropic_filtering` | no: not a console setting | | | | Drawing: texture sampling on the GPU. |
+| `display.anti_aliasing` | no: not a console setting | | | | Drawing and video memory: extra samples or a filter pass. |
+| `display.per_pixel_lighting` | no: not a console setting | | | | Drawing: lighting work for each pixel instead of each vertex. |
+| `display.light_effects` | no: not a console setting | | | | Drawing: the projectile, muzzle and emitter lights, and their wall tests. |
+| `display.resolution_scaling` | no: not a console setting | | | | Drawing: "original" fills 640x480 instead of the window. |
+| `tuning.present_mode` | yes | `vblank`; `vblank` or `adaptive` | `adaptive` | nothing | Waiting, not work: "adaptive" shows a late frame at once, with a tear, instead of a refresh later. |
+| `tuning.texture_cache` | yes | `auto`; "auto", or 19 to 512 MB (and what memory has room for) | nothing | nothing | Memory: a bigger cache loads fewer textures from the disc, and leaves less free. |
+
+<!-- end of tuning table -->
+
 ## Chat and keyboard
 
 Chat works in a game whose host runs Chupathingy.

@@ -39,7 +39,7 @@ them. Put the same settings in `config.toml`.
 | `delta` | `"auto"` | Tells a Chupathingy host that this is an Xbox, and its memory size. Nothing else is sent. The site and the scoreboard then show Xbox. `"off"` turns it off. The game plays the same either way. |
 | `memory_class` | `"auto"` | `"auto"` gives a 128 MB console larger texture and sound caches. A stock 64 MB console keeps the Xbox's sizes. `"64"` gives any console the stock sizes. Use it to test the 64 MB setup, or if an extra misbehaves. |
 | `log_flush` | `"buffered"` | When `debug.txt` is written. `"buffered"` writes once a second, and at once for a crash. `"every_line"` writes each line as it comes. It is slow, but it keeps the very last line before a freeze. |
-| `perf_log` | `false` | `true` writes a `perf:` line to `debug.txt` once a second. It has the frame time and the time each part of the frame took. Use it to find what makes a scene slow. |
+| `perf_log` | `false` | `true` writes a `perf:` line to `debug.txt` once a second. It has the frame time and the time each part of the frame took, with the game tick's parts, the objects' and the bipeds' (this console's players, other machines' players and the rest; movement, physics, animation and collision tests), and how often a slow network game held a frame to a few ticks (`tick guard`). Use it to find what makes a scene slow. |
 | `perf_gpu_sync` | `false` | With `perf_log`: wait for the graphics chip at each timed part. The times are then the chip's own. It slows the game down. |
 | `widget_pool_log` | `false` | For sizing the menus' memory. Writes a line to `debug.txt` each time the menus use more of it. |
 | `debug_geometry` | `false` | For development. Brings back the debug build's lines and triangles. They take 1.4 MB, so use it on a console with room. |
@@ -59,6 +59,16 @@ them. Put the same settings in `config.toml`.
 | `display.direct_camera` | `true` | Turns the view in the same frame the stick moves. |
 | `display.dynamic_light_limit` | `8` | The most dynamic lights, such as muzzle flashes and explosions, that light the level at once. `0` is no limit. |
 | `display.specular_light_limit` | `2` | Of those lights, the most that also add their shine. `0` is no limit. |
+
+## Performance presets (`[tuning]`)
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| `tuning.preset` | `"retail"` | The PC game's presets. On this console `"potato"` changes nothing (it is the same as `"retail"`, and `debug.txt` says so at start), and `"lan-party"` changes only `present_mode` to `"adaptive"`. The console's own light limits are already where the presets would put them, and the PC's other knobs aren't console settings. No preset changes the game tick. |
+| `tuning.present_mode` | `"vblank"` | `"vblank"` waits for the TV before every frame. `"adaptive"` shows a frame that missed it at once, with a tear. Read at start. |
+| `tuning.texture_cache` | `"auto"` | The texture cache's size in MB, like `"20"`, or `"auto"` for the console's own. It's held between 19 MB and what memory has room for. Read at start. |
+
+The README has every knob, with what it costs.
 
 ## HUD and scoreboard
 
