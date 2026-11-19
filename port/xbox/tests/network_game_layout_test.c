@@ -318,7 +318,7 @@ int main(void)
 
 	/* a PC host's slayer state into the console's: team and individual
 	scores (longs), targets (bytes, 0xFF none) and speeds (words), each one a
-	slot; the sizes are docs/cross-play.md's 1,408 and 176 */
+	slot; the sizes are 1,408 and 176 */
 	{
 		static const struct network_game_layout_field slayer[] =
 		{

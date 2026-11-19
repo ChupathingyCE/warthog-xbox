@@ -37,6 +37,7 @@ None of the SDK's files belong in this repository. See port/xbox/README.md.
 
 import os
 import shlex
+import subprocess
 from pathlib import Path
 from typing import Any, List, Optional
 
@@ -49,7 +50,12 @@ from tools.windows_build import COMMENT, EXPORTED_INLINE
 # the port
 TOOLS_DIR = relative(Path(__file__).resolve().parents[2] / "tools")
 
+# On GitHub Actions no diagnostic shows its source line: the SDK's headers
+# warn (math.h's cabs) and their text is not for a public log
+CI_DIAGNOSTIC_FLAGS = ["-fno-caret-diagnostics"] if os.environ.get("GITHUB_ACTIONS") else []
+
 GAME_FLAGS = [
+    *CI_DIAGNOSTIC_FLAGS,
     "-target", "i386-pc-windows-msvc",
     "-march=pentium3",
     "-fms-extensions",
@@ -105,6 +111,7 @@ GAME_FLAGS = [
 
 # the platform units, compiled with the SDK's own headers (OXDK's flags)
 SUPPORT_FLAGS = [
+    *CI_DIAGNOSTIC_FLAGS,
     "-target", "i386-pc-windows-msvc",
     "-march=pentium3",
     "-fms-extensions",
@@ -135,6 +142,21 @@ SUPPORT_FLAGS = [
 # exchange and signatures (Monocypher, p2p_crypto.c), the game list, the
 # claim and the player key. Monocypher alone goes from 83 KB to 18 KB
 COLD_FLAGS = ["-Os"]
+# With --xbox-os-game-dirs (off by default), the game's directories below
+# are built -Os like the port's cold units, for a smaller image. They are not
+# all cold: the texture and sound caches (cache/), the HUD, first-person
+# weapons and draw_string (interface/), the scripts' runtime (hs/), wind and
+# the shaders, devices, tag_groups and bitmaps all run every frame or tick.
+# What it costs in frame time is not measured yet, so the default build
+# stays -O2. Measured on the 32-player build: .text 2,424 -> 2,368 KB, 56 KB
+# of the image a 64 MB console would have back (every game unit -Os would be
+# 324 KB).
+COLD_GAME_DIRS = (
+    "source/bink/", "source/bitmaps/", "source/cache/", "source/cutscene/", "source/devices/",
+    "source/dialogs/", "source/editor/", "source/hs/", "source/interface/", "source/saved films/",
+    "source/saved games/", "source/scenario/", "source/shaders/", "source/shell/", "source/strings/",
+    "source/tag_files/", "source/text/", "source/tool/",
+)
 # the port's own units (not the decomp's, whose globals keep their
 # neighbors: GAME_FLAGS) with each global in a section of its own, so that
 # the linker leaves out the data nothing reads too: tables of the desktop's
@@ -143,26 +165,36 @@ COLD_FLAGS = ["-Os"]
 PORT_DATA_FLAGS = ["-fdata-sections"]
 COLD_SOURCES = (
     "console_link.c", "qrcodegen.c", "xbox_console_link.c",
-    "xbox_claim.c", "xbox_claim_run.c", "xbox_config.c", "xbox_coop_name.c", "xbox_direct_join.c",
+    "xbox_claim.c", "xbox_claim_run.c", "xbox_config.c", "xbox_coop_name.c", "xbox_cpu.c", "xbox_direct_join.c",
     "xbox_game_list_fetch.c", "xbox_game_list_parse.c", "xbox_game_list_text.c", "xbox_log_tag.c",
     "xbox_https.c", "xbox_memory.c", "xbox_player_key.c", "xbox_reports.c", "xbox_stack.c", "xbox_xlink.c",
     "console_reports.c", "game_report.c", "console_claims.c", "xbox_claims.c",
     "monocypher.c", "monocypher-ed25519.c", "p2p_crypto.c", "port_config.c", "tomlc17.c",
 )
+# the port's game code that runs at a map's load or in the menus, built for
+# size like COLD_SOURCES: Custom Edition maps' loader (not ce_vorbis.c,
+# which decodes as a sound plays), the map families and packs, the PAL tags,
+# the menus' map list and the statistics recorder. About 35 KB
+COLD_PORT_GAME_SOURCES = (
+    "ce_bsp.c", "ce_functions.c", "ce_hud.c", "ce_map_checks.c", "ce_models.c", "ce_repairs.c", "ce_resources.c",
+    "game_stats.c", "map_families.c", "map_packs.c", "opensauce_map.c", "pal_tags.c", "spv3_mode.c", "ui_map_list.c",
+)
 SUPPORT_CXX_FLAGS = ["-fno-exceptions", "-fno-rtti", "-fno-threadsafe-statics"]
 
 LINK_FLAGS = [
-    # (the main thread's stack: 768 KB, all of it committed on the console.
-    # The deepest seen in any debug.txt is 279 KB, a campaign mission; the
-    # retail game's is 512 KB. /fixed: no .reloc section, as the retail game.
+    # (the main thread's stack: 512 KB, the retail game's, all of it
+    # committed on the console. The deepest seen in any debug.txt is 279 KB,
+    # a campaign mission, with the debug asserts in; it was 1 MB, then 768 KB. /fixed: no .reloc section, as the retail game.
     # The Xbox loads an image only at its base, and cxbe's fixups are a no-op
     # when the PE's base is the XBE's 0x10000; the section took 119 KB)
-    "/nologo", "/subsystem:windows", "/fixed", "/base:0x00010000", "/stack:786432",
+    "/nologo", "/subsystem:windows", "/fixed", "/base:0x00010000", "/stack:524288",
     "/machine:x86", "/entry:mainCRTStartup",
-    # the functions nothing calls are left out (-ffunction-sections), and no
-    # two that compile the same are folded into one: the game compares
-    # function pointers (hs.c tells a script macro by its parser's)
-    "/opt:ref,noicf", "/nodefaultlib", "/safeseh:no",
+    # the functions nothing calls are left out (-ffunction-sections), and two
+    # that compile the same are folded into one only if nothing takes either's
+    # address (safeicf: clang's .llvm_addrsig marks those), since the game
+    # compares function pointers (hs.c tells a script macro by its parser's).
+    # About 12 KB of code and constants
+    "/opt:ref,safeicf", "/nodefaultlib", "/safeseh:no",
     "/merge:.edata=.edataxb", "/errorlimit:0", "--rsp-quoting=posix",
 ]
 # (the SDK's D3DX is built on its own Direct3D; port/xbox/src/xbox_d3dx.c has
@@ -186,6 +218,10 @@ P2P_SOURCES = [
 # format, a session as a client, and the game's session over the game's
 # sockets, which wires play together (delta_compat.c), and the signed legacy
 # table (delta.c, without its thread: the game list's thread fetches it)
+# the map lists' names fitted to their boxes (ui_widget.c under HALO_MAP_LIST,
+# chupathingyce's menu_text_fit.c since the lists were widened)
+MENU_TEXT_SOURCES = [LINUX_SRC / "menu_text_fit.c"]
+
 DELTA_SOURCES = [LINUX_SRC / "delta_wire.c", LINUX_SRC / "delta_peer.c", LINUX_SRC / "delta_chat.c", LINUX_SRC / "delta_chat_words.c",
                  LINUX_SRC / "delta_chat_bridge.c",
                  LINUX_SRC / "delta_peer_game.c", LINUX_SRC / "delta_compat.c",
@@ -229,9 +265,19 @@ XBOX_PORT_GAME_SOURCES = [
     # Xbox's memory at their own addresses (src/xbox_memory.c, src/xbox_ce_files.c)
     "ce_bsp.c", "ce_functions.c", "ce_hud.c", "ce_map_checks.c", "ce_models.c", "ce_repairs.c", "ce_resources.c",
     "ce_vorbis.c",
+    # (the SHA-256 that ce_map_checks.c, ce_models.c and ce_resources.c name:
+    # the Xbox hashes no map, CE_MAP_HASHED is 0 there, and the linker drops it)
+    "mcc_sha256.c",
     # Stubbs the Zombie's mode (stubbs_mode_active, which the scripts' compiler
     # asks): the game's since chupathingyce 95871e3a
     "stubbs_mode.c",
+    # SPV3 mode and OpenSauce's maps (spv3_mode_*, opensauce_map_*, which the
+    # Custom Edition loader, the scripts and the HUD ask): the game's since
+    # chupathingyce #1385 and #1490. Both stay off here: SPV3 mode only runs
+    # on the 64-bit desktop builds that map OpenSauce's larger tag window,
+    # and OpenSauce's module only where the tag validator checks its layout,
+    # so the console reads a map as it did before
+    "spv3_mode.c", "opensauce_map.c",
     # the host's checks of its players (line of sight, evidence, conduct
     # rules), which the network code asks: the game's since #689 and #694
     "conduct_rules.c", "host_evidence.c", "line_of_sight.c",
@@ -269,6 +315,52 @@ def add_arguments(parser: Any) -> None:
         type=Path,
         help="OXDK checkout for `ninja xbox` (default: OXDK_DIR, or ~/OXDK)",
     )
+    parser.add_argument(
+        "--xbox-os-game-dirs",
+        action="store_true",
+        help="build the game's menu, script, cache, tag and text code -Os for a 56 KB smaller XBE; "
+             "frame time not yet measured (port/xbox/build.py, COLD_GAME_DIRS)",
+    )
+    parser.add_argument(
+        "--xbox-old-flag-files",
+        action="store_true",
+        help="also read the switch files config.toml replaced (D:\\memory_64.txt, join.txt and the rest), "
+             "as builds before 0.9.1 did (port/xbox/README.md)",
+    )
+
+
+# The XBE's certificate (include/xbox_saves.h has the same numbers): Warthog's
+# own title ID ("CH" and 1; never the retail game's 0x4D530004), the ID of
+# the builds before 0.9.1 (cxbe's default, 0xFFFF0002) as an alternate so
+# their saves can be copied over (src/xbox_saves.c), and the retail game's
+# rating, M (2), so the dashboard's parental control works as it did.
+XBE_TITLE_ID = "43480001"
+XBE_OLD_TITLE_ID = "FFFF0002"
+XBE_RATINGS = "2"
+# (the dashboard's pictures of the game: port/xbox/art, tools/xbox_images.py)
+
+
+def _cxbe_certificate_flags(cxbe: Path, port_dir: Path) -> List[str]:
+    """cxbe's options for the certificate and the pictures, those this cxbe
+    has: an OXDK from before -TITLEID builds the XBE as before (cxbe's
+    default title ID), with a note to update it."""
+    try:
+        usage = subprocess.run([str(cxbe)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=30,
+                               check=False).stdout.decode("utf-8", "replace")
+    except (OSError, subprocess.SubprocessError):
+        usage = ""
+    art = port_dir / "art"
+    flags: List[str] = []
+    if "-TITLEID" in usage:
+        flags += [f"-TITLEID:{XBE_TITLE_ID}", f"-ALTTITLEID:{XBE_OLD_TITLE_ID}", f"-RATINGS:{XBE_RATINGS}"]
+    if "-TITLEIMAGE" in usage:
+        flags.append(f"-TITLEIMAGE:{_quote(art / 'TitleImage.xbx')}")
+    if "-SAVEIMAGE" in usage:
+        flags.append(f"-SAVEIMAGE:{_quote(art / 'SaveImage.xbx')}")
+    if "-TITLEID" not in usage or "-SAVEIMAGE" not in usage:
+        print("port/xbox: this OXDK's cxbe has no -TITLEID/-SAVEIMAGE: the XBE keeps cxbe's title ID "
+              "0xFFFF0002, no rating and no save picture (update OXDK and run make in xbox/tools/cxbe)")
+    return flags
 
 
 def _oxdk_dir(sln: Any) -> Path:
@@ -355,7 +447,8 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
     )
     n.rule(
         name="xbox_cxbe",
-        command=f"{_quote(cxbe)} -MODE:RETAIL -TITLE:\"Halo\" -LIMIT64MB:no -OUT:$out $in",
+        command=f"{_quote(cxbe)} -MODE:RETAIL -TITLE:\"Warthog\" -LIMIT64MB:no "
+                + " ".join(_cxbe_certificate_flags(cxbe, PORT_DIR)) + " -OUT:$out $in",
         description="XBOX XBE $out",
     )
     n.rule(
@@ -428,11 +521,14 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
         # co-op's: port/xbox/game/xbox_coop.c answers them on the console)
         f"-idirafter {_quote(game / PORT_LINUX_GAME)}",
     ])
+    # (the game's -Os directories, only when asked for: COLD_GAME_DIRS)
+    os_game_dirs = getattr(sln.args, "xbox_os_game_dirs", False)
     for source, flags in port.game_units(sln, config):
         # (the script console is not the console's: telnet_console.h)
         if port.game_relative(source) == "source/networking/telnet_console.c":
             continue
-        add_object(source, " ".join(["-std=gnu89", game_cflags, *flags]), [semantics_header, prefix_header],
+        cold = COLD_FLAGS if os_game_dirs and port.game_relative(source).startswith(COLD_GAME_DIRS) else []
+        add_object(source, " ".join(["-std=gnu89", game_cflags, *flags, *cold]), [semantics_header, prefix_header],
                    _inline_export_wrapper(port, source, build_dir))
     # the game's C++, which the native builds replace (d3d8_gl.c): the frame
     # counter read out of the console's Direct3D device
@@ -459,7 +555,14 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
         if name == "ce_vorbis.c":
             vertex_flags = ["-Dmalloc=platform_ce_scratch_malloc", "-Drealloc=platform_ce_scratch_realloc",
                             "-Dfree=platform_ce_scratch_free"]
-        add_object(game / PORT_LINUX_GAME / name, " ".join(["-std=gnu89", game_cflags, *PORT_DATA_FLAGS, *vertex_flags]),
+        cold = COLD_FLAGS if name in COLD_PORT_GAME_SOURCES else []
+        add_object(game / PORT_LINUX_GAME / name, " ".join(["-std=gnu89", game_cflags, *PORT_DATA_FLAGS, *vertex_flags, *cold]),
+                   [semantics_header, prefix_header])
+
+    # the map lists' names fitted to their boxes (menu_text_fit.c: C and the
+    # runtime alone), which ui_widget.c calls under HALO_MAP_LIST
+    for source in MENU_TEXT_SOURCES:
+        add_object(game / source, " ".join(["-std=gnu89", game_cflags, *PORT_DATA_FLAGS]),
                    [semantics_header, prefix_header])
 
     # the console's own game code: its Online Games screen, and the Delta
@@ -471,9 +574,17 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
     add_object(game / CONSOLE_LINK_DIR / "console_link_panel.c",
                " ".join(["-std=gnu89", game_cflags, link_include, *PORT_DATA_FLAGS]), [semantics_header, prefix_header])
 
-    support_cflags = " ".join([*SUPPORT_FLAGS, players_flag, f"-iquote {_quote(game)}", link_include,
-                               f"-I{_quote(xdk / 'include')}"])
+    # (the old switch files beside default.xbe, read only when asked for:
+    # src/xbox_config.c)
+    old_flag_files = ["-DXBOX_OLD_FLAG_FILES"] if getattr(sln.args, "xbox_old_flag_files", False) else []
+    support_cflags = " ".join([*SUPPORT_FLAGS, players_flag, *old_flag_files, f"-iquote {_quote(game)}",
+                               link_include, f"-I{_quote(xdk / 'include')}"])
     for source in sorted((PORT_DIR / "src").glob("*.c")):
+        # (the audio probe's recording of the console's own output is a
+        # developer's tool: only in a build with --console-debug-tools, as the
+        # probe itself, include/halo_xbox_features.h)
+        if source.name == "xbox_audio_capture.c" and "-DHALO_CONSOLE_DEBUG_TOOLS" not in defines:
+            continue
         # (the reports name the build: "Warthog 0.8.1d")
         version_flags = [f'-DHALO_VERSION=\\"{version()}\\"'] if source.name == "xbox_reports.c" else []
         add_object(source, " ".join([support_cflags, *PORT_DATA_FLAGS, *version_flags,
@@ -549,9 +660,11 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
     config_cflags = " ".join([p2p_cflags, *COLD_FLAGS, "-DHALO_XBOX_CONSOLE", *debug_tools_flags,
                               f"-include {_quote(PORT_DIR / 'include' / 'halo_xbox_features.h')}",
                               f"-I{_quote(game / TOMLC17_DIR)}"])
+    # (without the help text of the settings the Xbox doesn't write, about
+    # 40 KB: tools/xbox_sources.py's config)
     generated = gen_dir / "p2p" / CONFIG_SOURCE.name
     n.build(outputs=generated, rule="xbox_source", inputs=game / CONFIG_SOURCE, implicit=[TOOLS_DIR / "xbox_sources.py"],
-            variables={"kind": "copy"})
+            variables={"kind": "config"})
     add_object(generated, config_cflags, [*sorted((PORT_DIR / "p2p").glob("*.h")),
                                           PORT_DIR / "include" / "halo_xbox_features.h"])
     add_object(game / TOMLC17_DIR / "tomlc17.c", " ".join([*SUPPORT_FLAGS, *PORT_DATA_FLAGS, *COLD_FLAGS, "-std=gnu11", "-w", "-include",
@@ -580,6 +693,7 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
             "libs": " ".join([_quote(d3d8), *LIBRARIES]),
         },
     )
-    n.build(outputs=xbe, rule="xbox_cxbe", inputs=exe, implicit=[cxbe])
+    n.build(outputs=xbe, rule="xbox_cxbe", inputs=exe,
+            implicit=[cxbe, PORT_DIR / "art" / "TitleImage.xbx", PORT_DIR / "art" / "SaveImage.xbx"])
     n.build(outputs="xbox", rule="phony", inputs=xbe)
     n.newline()

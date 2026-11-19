@@ -117,6 +117,8 @@ def main() -> int:
                         help="set the XBE's flag that limits a devkit's memory to 64 MB, to test as a stock console")
     parser.add_argument("--map-pack", action="append", default=[], metavar="ID=DIR",
                         help="a pack of Xbox maps (its maps folder) for maps_ID: cex=/path/to/Halo CE+ X/maps")
+    parser.add_argument("--no-maps", action="store_true",
+                        help="no maps folder: the game and config.toml only (the builds CI publishes)")
     args = parser.parse_args()
     packs = []
     for value in args.map_pack:
@@ -136,11 +138,14 @@ def main() -> int:
     if not args.xbe.is_file():
         print(f"no {args.xbe}: run ninja xbox first", file=sys.stderr)
         return 1
-    files = sorted(maps.glob("*.map")) + [p for p in [maps / "loading.tga"] if p.is_file()]
-    if not any(p.name == "ui.map" for p in files):
-        print(f"no ui.map in {maps}", file=sys.stderr)
-        return 1
-    (out / "maps").mkdir(parents=True, exist_ok=True)
+    files = []
+    if not args.no_maps:
+        files = sorted(maps.glob("*.map")) + [p for p in [maps / "loading.tga"] if p.is_file()]
+        if not any(p.name == "ui.map" for p in files):
+            print(f"no ui.map in {maps}", file=sys.stderr)
+            return 1
+        (out / "maps").mkdir(parents=True, exist_ok=True)
+    out.mkdir(parents=True, exist_ok=True)
     image = args.xbe.read_bytes()
     try:
         image = set_devkit_memory_limit(image, args.devkit_64mb)
@@ -172,7 +177,8 @@ def main() -> int:
         if (out / old).exists():
             (out / old).unlink()
     print(f"{out}: default.xbe{' (devkit limited to 64 MB)' if args.devkit_64mb else ''}, "
-          f"{len(files)} map files{f', {pack_files} map pack files' if packs else ''}, config.toml")
+          f"{'no maps' if args.no_maps else f'{len(files)} map files'}"
+          f"{f', {pack_files} map pack files' if packs else ''}, config.toml")
     return 0
 
 

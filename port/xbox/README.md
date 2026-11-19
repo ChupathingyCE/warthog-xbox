@@ -18,10 +18,12 @@ tools, asks for the files you supply, builds and packages
 ## Requirements
 
 - Python, [ninja](https://ninja-build.org/) and LLVM (clang and lld-link).
-  On macOS: `brew install llvm ninja`. The build looks for LLVM in `LLVM_DIR`
+  On macOS: `brew install llvm lld ninja`. The build looks for LLVM in `LLVM_DIR`
   and then in Homebrew's folder.
 - [OXDK](https://github.com/MrMilenko/OXDK) in `~/OXDK` (or give
-  `--oxdk DIR`, or set `OXDK_DIR`), with its `cxbe` built.
+  `--oxdk DIR`, or set `OXDK_DIR`), with its `cxbe` built. An OXDK whose
+  `cxbe` has no `-TITLEID` still builds, but the XBE then keeps `cxbe`'s
+  title ID and has no rating or save picture (see "Title ID and saves").
 - The Xbox SDK's libraries and headers in OXDK's `xbox/xdk/lib` and
   `xbox/xdk/include`, as the OXDK instructions tell. This repository does not
   supply them. The SDK comes as a Windows installer that installs into
@@ -76,6 +78,11 @@ log to `D:\debug.txt`. Saved games and profiles go to the utility drive
 stops it and shows the error on the screen and in `debug.txt`. A `--release`
 build notes it in `debug.txt` and goes on.
 
+`debug.txt` names no network address, so it can be posted: a LAN address
+(10.x, 172.16-31.x, 192.168.x and the like) shows as a tag such as
+`lan#3fa2c1`, any other as `addr#...`. The tags change every boot, and in
+one log the same address always gets the same tag.
+
 ## Direct3D
 
 The game compiles against the January 2002 SDK's declarations
@@ -99,24 +106,30 @@ and flags as the retail game, so the console gets the same modes:
 - 480p with the component (HD AV) cable and 480p turned on in the
   dashboard; 480i with anything else. The game never asks for progressive
   itself, so composite and S-Video keep working.
-- Widescreen (new; the retail game is 4:3 only): with Widescreen set in the
-  dashboard's video settings, and `display.widescreen = "dashboard"` (the
-  default), the game asks for the 16:9 mode. The table has it at 480p and
+- Widescreen (new and opt-in; the retail game is 4:3 only, and so is this
+  one by default, `display.widescreen = "off"`): with Widescreen set in the
+  dashboard's video settings and `display.widescreen = "dashboard"`, the
+  game asks for the 16:9 mode. The table has it at 480p and
   480i for every cable. The picture is still 640x480; a 16:9 TV stretches
   it to fit. So the game draws the 3D view wider (the same height, more to
   the sides, as a 16:9 desktop does), and lays the HUD, menus and text out
   852 units across, which the stretch turns back into the right shapes.
-  The buffers stay the same size: it takes no memory. `"off"` keeps the 4:3
-  picture whatever the dashboard says. `src/xbox_screen.c` is the console's
+  The buffers stay the same size: it takes no memory. The stretch costs
+  sharpness, though: the HUD and menus are filtered from 852 units into 640
+  pixels, and the world gets fewer pixels a degree (#114), which is why 4:3
+  is the default. `"off"` keeps the 4:3 picture whatever the dashboard says. `src/xbox_screen.c` is the console's
   side; the game's is `HALO_CONSOLE_ANAMORPHIC_SCREEN`
   (`port/linux/include/halo_console_features.h`).
 
 `debug.txt` says which mode the console got, once the device is made:
 
 ```
-screen: 480p 60 Hz widescreen (component), 852 units across
-screen: 480i 60 Hz 4:3 (composite), 640 units across
+screen: 480p 60 Hz widescreen (component, NTSC-M), 852 units across
+screen: 480i 50 Hz 4:3 (SCART, PAL-I, PAL60 off), 640 units across
 ```
+
+After the cable comes the console's TV standard (NTSC-M, NTSC-J or PAL-I)
+and, on a PAL console, whether PAL60 is on in the dashboard.
 
 To check on a console: set the dashboard's video settings (480p on or off,
 Widescreen or Normal), start the game, and read that line. 480p needs the
@@ -126,8 +139,96 @@ The console doesn't tell the TV that the picture is wide: 480p and 480i look
 like a 4:3 picture to it. If the picture keeps black bars at the sides, set
 the TV's picture size to stretch it to the whole screen (Wide, Full, 16:9 or
 Stretch, by brand). Some older TVs only offer that for some inputs or
-modes. With a TV that can't stretch it, keep Normal in the dashboard or set
-`display.widescreen = "off"`.
+modes. With a TV that can't stretch it, keep Normal in the dashboard or
+leave `display.widescreen` at `"off"`.
+
+### 60 frames a second
+
+`display.frame_rate = 60` draws 60 frames a second over the game's 30 ticks,
+as the H1 Performance Build does (its 60 fps patch is theboy181's). The
+default, 30, draws one frame a tick, as the retail game did. At 60:
+
+- the game still ticks at 30, so play and the network are the same;
+- on foot in first person the view turns with the stick every frame and
+  eases into each tick's place; everything else stays where the tick put
+  it. Nothing is blended between ticks the way the PC builds blend every
+  object, so it takes no memory;
+- a scene that can't hold 60 drops to a steady 30 until it can again
+  (the game's own frame rate stabilization), rather than judder.
+
+`debug.txt` says which it got, at what refresh rate, with the flicker filter:
+
+```
+screen: 60 frames a second at 60 Hz (display.frame_rate 60), flicker filter 5
+```
+
+### PAL consoles (50 Hz)
+
+The retail game, NTSC and PAL, draws 640x480 and asks Direct3D for no
+particular refresh rate. A PAL console without PAL60 then runs at 50 Hz
+(the TV encoder fits the 480 lines to the PAL picture); with PAL60 on in
+the dashboard it runs at 60 Hz. This build does the same.
+
+The retail PAL game also ran a sixth slower than the NTSC one. This build
+doesn't: the game ticks 30 times a second on every display, so a PAL
+console plays at the same speed as everyone else online. Only the drawing
+follows the display:
+
+- `display.frame_rate = 60` draws a frame every refresh: 50 frames a second
+  at 50 Hz, with the view eased between ticks as at 60. A busy scene drops
+  to 25.
+- `display.frame_rate = 30` (the default) draws one frame each tick. 30
+  ticks don't divide evenly into 50 refreshes, so each frame waits for the
+  first refresh after its tick: 2, 2 and 1 refreshes in turn. Every tick is
+  shown, a little unevenly; 60 is smoother at 50 Hz.
+- With PAL60 on, everything is as on an NTSC console.
+
+```
+screen: 50 frames a second at 50 Hz (display.frame_rate 60), flicker filter 5
+```
+
+PAL testers: please send `debug.txt` with these two lines, and say whether
+turning looks smooth at both settings.
+
+`display.flicker_filter` (0 to 5) is how much an interlaced (480i) picture
+is softened against flicker. The retail game used 5. The H1 Performance
+Build uses 1: sharper, with more flicker. It does nothing at 480p.
+
+## Title ID and saves
+
+The XBE's certificate gives Warthog its own title ID, `0x43480001`, so its
+saves are in `E:\UDATA\43480001` and its cache has a Z: partition of its
+own. Builds before 0.9.1 had `cxbe`'s default, `0xFFFF0002`, which every
+homebrew that keeps the default shares. That old ID is listed as an
+alternate title ID, and at the first start the game copies its own saves
+(folders with `blam.sav` or `blam.lst`) from `E:\UDATA\ffff0002` to the new
+folder. It never copies over a save that's already there and never changes
+the old folder. `debug.txt` lists each one ("saves: copied ..."). A save is
+copied whole or not at all: `T:\saves_copying.dat` names the one being
+copied, so if the power goes in the middle the half copy is removed and
+copied again at the next start, and `SaveMeta.xbx` goes last, so a half
+copy is never listed as a save. `T:\saves_moved.dat` marks the copy as
+done, so a save deleted later stays deleted, as long as the game's own data
+(`E:\TDATA\43480001`) is kept; clearing it copies the old saves once more.
+The retail game's ID, `0x4D530004`, is never used: its saves and cache stay
+its own. No retail game uses the publisher code "CH" (checked against
+xboxdevwiki's publisher list and xemu's title database).
+
+What players see after the update:
+- The dashboard's Memory screen lists Warthog's new entry, "Warthog" (with
+  the helmet picture), beside the old one, "Halo" (cxbe's ID, shared with
+  other homebrew). The old one can be deleted once the profiles show up in
+  the game.
+- The first start rebuilds the Z: cache (Warthog has a partition of its
+  own now), so the first map loads take longer, once.
+
+The certificate names the game "Warthog" for the dashboard, and carries
+the retail game's rating, M, so the dashboard's parental control can block
+the game as it did retail Halo.
+The dashboard shows Warthog's own pictures (the ChupathingyCE helmet):
+`port/xbox/art/TitleImage.xbx` and `SaveImage.xbx`, made from the PNGs
+beside them by `tools/xbox_images.py`. They aren't loaded with the game,
+so they cost no memory.
 
 ## Differences from the SDK
 
@@ -198,28 +299,29 @@ its default, each with its help; a setting is chosen by taking out its
 `tools/xbox_package.py` writes the file with `console.bypass_security`
 (and `console.game_list_server` with `--game-list-server`).
 
-The console's own, in `[console]`:
+Every setting the console reads, with its default, is in
+[docs/settings.md](../../docs/settings.md). This section covers how the
+console's side works.
 
-| Setting | Default | What it does |
-|---|---|---|
-| `bypass_security` | `false` | XNet starts insecure: the internet, the game list and play with PCs need it (`tools/xbox_package.py` writes `true` unless `--secure`); internet play (`network.online`) is off without it |
-| `game_list_server` | `""` | the list's server (host or address, `:port` optional) when `warthog.milenko.org` does not resolve |
-| `join` | `""` | a host's LAN address (System Link joins it directly) or an invite (ONLINE GAMES' Y joins it) |
-| `trace` | `false` | the bring-up traces: the main loop each second, every hop of an internet join, the advertisements seen, other hosts only as `enet#` tags (salted per run), never their Ethernet addresses; and XLink Kai's address for the console |
-| `memory_class` | `"auto"` | the memory class (see "Memory"): `"auto"` is the console's own, so a console of 128 MB or more has the extras; `"64"` holds any console to the 64 MB baseline's sizes |
-| `large_caches` | `false` | deprecated and ignored (`debug.txt` says so): a console of 128 MB or more has the larger caches on its own (`memory_class`) |
-| `debug_geometry` | `false` | the debug build's debug geometry (lines and triangles drawn by debug commands): its three 480 KB buffers are made at the start only with it on. For development, on a console with room (a devkit) |
-| `simulate_64mb` | `false` | deprecated and ignored (`debug.txt` says so): a devkit gets 64 MB from the XBE's flag now, `tools/xbox_package.py --devkit-64mb` (see "Memory") |
-| `delta` | `"auto"` | Delta Peer as a client: joining a game whose host offers it (the desktop builds and the dedicated servers), the console says it is an Xbox, with its memory class, and nothing else, so that the stats site, the scoreboard and the server show Xbox. `"auto"` and `"on"` send it; `"off"` keeps the legacy protocol alone. A host without Delta, or any failure, leaves the game as it was. About 50 KB of the console's memory (all static: its code and 11 KB of data) |
-| `perf_log` | `false` | the frame timing log: once a second a `perf:` line in `debug.txt` with the frame time (average and worst), each part of the frame (game ticks, the render's parts, sound, network, present, the wait for the screen), the draws and objects, and a line when the player zooms. For finding what makes a scene slow |
-| `log_flush` | `"buffered"` | when `debug.txt` is written: `"buffered"` keeps the game's lines in memory and writes them once a second, when 8 KB wait, and at once for an assert, an exit or a crash; `"every_line"` writes each line as it comes (slow), for a crash hunt |
+The desktop builds' settings marked for the console apply too. A wider
+field of view draws more of the map each frame: on a stock console, keep
+the Xbox's 70 if a busy map slows down. `FEATURES.md` lists the desktop's
+features and where each stands on the console. Another setting the shared
+code reads is empty, 0 or false on the console, as before it had the file.
 
+### Link Profile
 
-**Link Profile (optional).** Online Games' Start opens DELTA PROFILE. A asks for a code: the screen shows it (XXXX-XXXX) and its QR code; enter it at stats.chupathingy.org/connect, signed in on a phone or computer, then press A on the console to confirm. The console makes its own key for this the first time (`D:\delta_device.key`, next to `config.toml`; it never leaves the console, and nothing secret is sent over the plain HTTP the console uses: the game's `port/console/link`, docs/delta.md "Link Profile on a console"). Once linked it keeps the handle in `D:\delta_link.txt`, shows the profile's name and clan tag, and Delta Peer's PROFILE carries its ID, so its games count toward the profile. Unlink it on the site's profile page. Keep `delta_device.key` to yourself: a copy of it plays as your console. An identity file (below) still works and wins when present.
+Optional. Online Games' Start opens DELTA PROFILE. A asks for a code: the screen shows it (XXXX-XXXX) and its QR code; enter it at stats.chupathingy.org/connect, signed in on a phone or computer, then press A on the console to confirm. The console makes its own key for this the first time (`D:\delta_device.key`, next to `config.toml`; it never leaves the console, and nothing secret is sent over the plain HTTP the console uses: the game's `port/console/link`, docs/delta.md "Link Profile on a console"). Once linked it keeps the handle in `D:\delta_link.txt`, shows the profile's name and clan tag, and Delta Peer's PROFILE carries its ID, so its games count toward the profile. Unlink it on the site's profile page. Keep `delta_device.key` to yourself: a copy of it plays as your console. An identity file (below) still works and wins when present.
 
-**Player identity (optional).** A copy is anonymous unless its player links it (above) or puts their identity file at `D:\game_list_player.key` (by FTP, next to `config.toml`): the file the site's profile page exports, the same 32-byte player key a desktop copy keeps in `game_list_player.key`, either as the raw bytes or as 64 hex digits (use the hex form if you transfer in ASCII mode). The console never makes a key, and sends it only with a game's report, over HTTPS to the site (below), as a desktop copy does. It works out the public player ID (the first 16 bytes of the SHA-256 of `halo-ce-universal player id\n` and the key) and wipes the key. On a console the file being there is the consent (`network.share_profile` is a desktop setting): Delta Peer's HELLO adds the `profile` capability and PROFILE carries the ID. Once per boot, after the first online game has ended, the console also makes a signed platform claim over plain HTTP to the site (`GET /v1/claim_challenge`, then `POST /v1/claim_signed`, `xbox_claim.c`): it signs the site's one-time challenge with the Ed25519 key derived from the player key (the desktop builds' moderator key), so the key itself is never sent; a failure is one line in `debug.txt`, with no retry. Neither the key, the signature nor the ID is written to `debug.txt`. Without the file or a link nothing is shown and nothing is sent. The file is the player's identity: it must not be shared.
+### Player identity
 
-**Reports of joined games.** When an online game the console joined from Online Games ends, it sends the game's report to the site (`POST /v1/client_report` over HTTPS to stats.chupathingy.org, the site's key pinned; `src/xbox_reports.c` over the game's `port/console/reports`), so the game shows on the player's service record. It is the desktop's report: the player's own line in full, everyone else's as the scoreboard's numbers, no addresses. The site keeps games with 2 or more players at the end that lasted 60 seconds or more. With the identity file the report carries its key, as a desktop copy's does; a linked console signs it with its own device key over a one-time challenge instead. A console with neither sends nothing. `network.report_joined_games = false` in `D:\config.toml` turns reports off. The report needs about 128 KB for a few seconds after the game (the HTTPS thread's stack and the report), and is skipped, with a line in `debug.txt`, when less than that and 256 KB more are free.
+Optional. A copy is anonymous unless its player links it (above) or puts their identity file at `D:\game_list_player.key` (by FTP, next to `config.toml`): the file the site's profile page exports, the same 32-byte player key a desktop copy keeps in `game_list_player.key`, either as the raw bytes or as 64 hex digits (use the hex form if you transfer in ASCII mode). The console never makes a key, and sends it only with a game's report, over HTTPS to the site (below), as a desktop copy does. It works out the public player ID (the first 16 bytes of the SHA-256 of `halo-ce-universal player id\n` and the key) and wipes the key. On a console the file being there is the consent (`network.share_profile` is a desktop setting): Delta Peer's HELLO adds the `profile` capability and PROFILE carries the ID. Once per boot, after the first online game has ended, the console also makes a signed platform claim over plain HTTP to the site (`GET /v1/claim_challenge`, then `POST /v1/claim_signed`, `xbox_claim.c`): it signs the site's one-time challenge with the Ed25519 key derived from the player key (the desktop builds' moderator key), so the key itself is never sent; a failure is one line in `debug.txt`, with no retry. Neither the key, the signature nor the ID is written to `debug.txt`. Without the file or a link nothing is shown and nothing is sent. The file is the player's identity: it must not be shared.
+
+### Reports of joined games
+
+When an online game the console joined from Online Games ends, it sends the game's report to the site (`POST /v1/client_report` over HTTPS to stats.chupathingy.org, the site's key pinned; `src/xbox_reports.c` over the game's `port/console/reports`), so the game shows on the player's service record. It is the desktop's report: the player's own line in full, everyone else's as the scoreboard's numbers, no addresses. The site keeps games with 2 or more players at the end that lasted 60 seconds or more. With the identity file the report carries its key, as a desktop copy's does; a linked console signs it with its own device key over a one-time challenge instead. A console with neither sends nothing. `network.report_joined_games = false` in `D:\config.toml` turns reports off. The report needs about 128 KB for a few seconds after the game (the HTTPS thread's stack and the report), and is skipped, with a line in `debug.txt`, when less than that and 256 KB more are free.
+
+### The audio probe
 
 In a build with the developer tools (`--console-debug-tools`),
 `debug.audio_probe` (in `[debug]`) runs the audio probe
@@ -238,30 +340,15 @@ player's position each second, and every sound a channel starts, with its
 type, gain, obstruction and occlusion). The folder must be there. 0 (the
 default): none.
 
-And the desktop builds' that apply on the console: `display.direct_camera`,
-`display.widescreen` (see "Video modes"), `display.field_of_view`, `display.viewmodel_field_of_view`,
-`display.match_timer`, `display.version_watermark`, `display.follow_camera`,
-`display.follow_camera_after`, `display.powerup_timers`,
-`display.scoreboard_team_layout`, `display.scoreboard_background`,
-`display.scoreboard_background_color`, `display.show_quit_players`,
-`display.server_messages`, `chat.enabled`, `chat.show`, `chat.filter`,
-`chat.streamer_mode`, `chat.quick_messages`, `audio.music_volume`,
-`audio.effects_volume`, `game.console_log`, `game.unlock_all_levels`,
-`game.start_with_one_player`, `network.online`, `network.tunnel_port`,
-`network.brokers_file`, `network.stun_servers` and
-`network.report_joined_games`. A wider field of view
-draws more of the map each frame: on a stock console, keep the Xbox's 70 if
-a busy map slows down. `FEATURES.md` lists the desktop's features and where
-each stands on the console.
-Another setting the shared code reads is empty, 0 or false on the console,
-as before it had the file.
+### The old switch files
 
 Use `config.toml` for every setting. The switch files that came before it
-are still read, each logged as deprecated in `debug.txt` ("D:\memory_64.txt is deprecated, use
-console.simulate_64mb in config.toml", which now ignores it): `bypass_security.txt`,
-`memory_64.txt`, `large_caches.txt` and `trace.txt` (an empty file turns
+are no longer read, as the retail game read none: `bypass_security.txt`,
+`memory_64.txt`, `large_caches.txt` and `trace.txt` (an empty file turned
 the setting on), and `join.txt` and `game_list.txt` (one line, used when
-the setting is empty).
+the setting was empty). A build configured with `--xbox-old-flag-files`
+still reads them, each logged as deprecated in `debug.txt` ("D:\memory_64.txt
+is deprecated, use console.simulate_64mb in config.toml").
 
 ## Memory
 
@@ -290,8 +377,8 @@ The 64 MB class's sizes are the ones it had before the classes (the image
 grows by 40 bytes). Only what is drawn, heard and buffered on the console
 changes: the game's limits (players, machines, objects, particles, the game
 state) and what goes on the wire stay the Xbox's on every console, so all
-of them, and the PCs, play the same game; docs/cross-play.md has why the
-bigger game state needs more than a bigger console. The high-res text is
+of them, and the PCs, play the same game (a bigger game state needs more
+than a bigger console). The high-res text is
 not among the extras: the Xbox build leaves it out (it draws the maps' own
 fonts, as retail did).
 
@@ -322,9 +409,9 @@ Peer's platform key's `memory_class` (log2 of the megabytes: 6, 7 or 8).
 The network tables hold 16 players (`HALO_CONSOLE_PLAYERS`, as the Xbox's;
 `configure.py --console-players`, console-neutral like `--console-debug-tools`): the
 players, the machines (one more, for a dedicated host) and the internet tunnel's peers. A host's game with
-more machines or players is left as a full game, never overflowed. A test
-build with 32 or 64 (`configure.py --console-players 32`) is more than a stock
-console's memory holds, and says so on screen when the main menu comes up.
+more machines or players is left as a full game, never overflowed. A build
+of more than 16 (`configure.py --console-players 32`, the test builds) says
+so on screen when the main menu comes up ("Test build: up to 32 players").
 
 A stock 64 MB console has about what the Xbox game had: its caches (game
 state, tags, textures, sound: 51 MB) are the Xbox's, so the image and the
@@ -370,7 +457,7 @@ the game list, the claim) is built for size (`-Os`), another 120 KB. The
 game's own code keeps `-O2` and its EBP frames, which the crash reports
 follow, but for the functions that call no other.
 
-The main thread's stack is the XBE's 768 KB (the retail game's is 512 KB),
+The main thread's stack is the XBE's 512 KB (the retail game's size),
 and the console commits all of it. `debug.txt` says how much of it the game
 has used: a `stack:` line at the start and one each time the deepest grows
 by 16 KB (`src/xbox_stack.c`). Some of the debug decomp's AI functions keep
@@ -392,8 +479,8 @@ nothing without them.
 At the start `debug.txt` says whether the console's address is XLink
 Kai's for its MAC: yes or no. Kai's address itself (`10.252.EE.FF`, mask
 `255.255.0.0`, from the MAC's last two bytes) is logged only with
-`console.trace`. The "XLink mode" that would set it is a design
-(docs/xlink.md).
+`console.trace`. [docs/xlink.md](../../docs/xlink.md) says how to set it
+in the dashboard.
 
 ## Status
 
@@ -402,8 +489,8 @@ modified retail consoles, gets its address by DHCP, shows the game list
 (ONLINE GAMES) and joins [D] dedicated servers and PC hosts through the PCs'
 tunnel. It targets a stock 64 MB console (first matches played on October 18);
 128 MB only adds extras (see "Memory"). Music and the campaign's effects
-play. The game is on wire `chupa-41a`: it joins hosts of network versions 11
-through 41 (OpenCE's newest), the range the signed legacy table gives.
+play. The game is on wire `chupa-44a`: it joins hosts of network versions 11
+through 44 (OpenCE's current one), the range the signed legacy table gives.
 Custom Edition maps play on a 128 MB console and, experimentally, on a
 64 MB one (`docs/custom-edition.md`).
 Network co-op is not built for the console (`game/xbox_coop.c`): co-op
@@ -416,7 +503,7 @@ a message. Known:
 - The netcode is the PC builds' (distributed). The console joins a PC
   host's game as a client: it folds the PCs' 128-slot game settings record
   and Slayer's state into its slots (16, or 32 in the test builds), and leaves a game that grows past
-  them as a full one (docs/cross-play.md, "What is built"). It joins an
+  them as a full one. It joins an
   internet game by its invite from ONLINE GAMES (A on a listed game, Y for
   the invite in `console.join`), through the desktop builds' tunnel
   (`port/linux/src/p2p*.c`, built as they are; `src/xbox_p2p.c` and

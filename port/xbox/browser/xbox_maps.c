@@ -1,4 +1,10 @@
 /*
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ * Copyright (C) 2026 JizzyRivers and Warthog's contributors
+ * Part of Warthog: under its license, with its console SDK permission (README.md, "License").
+ */
+
+/*
 XBOX_MAPS.C
 
 xbox_maps.h. The store's API over HTTPS (the console's client, which checks its
@@ -14,6 +20,7 @@ Maps go beside default.xbe: D:\maps_ce, D:\maps_<pack>.
 #include <string.h>
 
 #include "xbox_maps.h"
+#include "../include/xbox_stack.h"
 #include "port/console/https/console_https.h"
 
 void platform_log(const char *format, ...);
@@ -90,7 +97,7 @@ static void maps_pack_progress(unsigned long done, unsigned long total, void *co
 	maps.total_bytes = total;
 }
 
-static DWORD WINAPI maps_thread(LPVOID parameter)
+static DWORD WINAPI maps_thread_body(LPVOID parameter)
 {
 	char error[128];
 	int result = 1;
@@ -202,6 +209,8 @@ static DWORD WINAPI maps_thread(LPVOID parameter)
 	__atomic_store_n(&maps_busy, 0, __ATOMIC_SEQ_CST);
 	return 0;
 }
+
+XBOX_STACK_THREAD(maps_thread, "Map Browser", MAPS_STACK_SIZE, maps_thread_body)
 
 static int maps_start(int job)
 {

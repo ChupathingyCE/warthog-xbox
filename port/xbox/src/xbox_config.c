@@ -2,8 +2,10 @@
 XBOX_CONFIG.C
 
 The console's settings (xbox_config.h): D:\config.toml, through the desktop
-builds' port_config.c, and the old files beside default.xbe it replaces,
-still read for one release.
+builds' port_config.c. The old files beside default.xbe it replaced are
+read only by a build configured with --xbox-old-flag-files
+(XBOX_OLD_FLAG_FILES): their release of grace is over, and the retail game
+read no such files.
 */
 
 #include <stdio.h>
@@ -16,6 +18,7 @@ still read for one release.
 int snprintf(char *buffer, size_t size, const char *format, ...);
 void platform_log(const char *format, ...);
 
+#ifdef XBOX_OLD_FLAG_FILES
 /* the switches that were empty files */
 static const struct
 {
@@ -38,11 +41,14 @@ static int file_exists(const char *path)
 	fclose(file);
 	return 1;
 }
+#endif
 
 void xbox_config_startup(void)
 {
 	static int started;
+#ifdef XBOX_OLD_FLAG_FILES
 	unsigned int index;
+#endif
 
 	if (started)
 		return;
@@ -51,6 +57,7 @@ void xbox_config_startup(void)
 	few allocations are the C runtime heap's, which the start already has,
 	and freed before the memory is laid out) */
 	config_boolean("console.bypass_security");
+#ifdef XBOX_OLD_FLAG_FILES
 	for (index = 0; index < sizeof(old_switches) / sizeof(old_switches[0]); index++)
 	{
 		if (!file_exists(old_switches[index].file))
@@ -58,6 +65,7 @@ void xbox_config_startup(void)
 		xbox_boot_log("%s is deprecated, use %s in config.toml", old_switches[index].file, old_switches[index].setting);
 		config_set(old_switches[index].setting, "true");
 	}
+#endif
 	/* internet play reaches the internet only when XNet starts open */
 	if (!config_boolean("console.bypass_security"))
 		config_set("network.online", "false");
@@ -65,11 +73,13 @@ void xbox_config_startup(void)
 
 unsigned long xbox_config_line(const char *name, const char *old_file, char *text, unsigned long size)
 {
+#ifdef XBOX_OLD_FLAG_FILES
 	static char told[2][32];
-	const char *value = config_string(name);
 	unsigned long length;
 	unsigned int index;
 	FILE *file;
+#endif
+	const char *value = config_string(name);
 
 	if (!size)
 		return 0;
@@ -79,6 +89,10 @@ unsigned long xbox_config_line(const char *name, const char *old_file, char *tex
 		return (unsigned long)strlen(text);
 	}
 	text[0] = 0;
+#ifndef XBOX_OLD_FLAG_FILES
+	(void)old_file;
+	return 0;
+#else
 	file = fopen(old_file, "rb");
 	if (!file)
 		return 0;
@@ -98,4 +112,5 @@ unsigned long xbox_config_line(const char *name, const char *old_file, char *tex
 		}
 	}
 	return length;
+#endif
 }

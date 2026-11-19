@@ -17,8 +17,7 @@ Each port is a `--console-port` of the game's `configure.py`
 docs/building.md). A target exists only when its toolchain is found.
 
 Every console keeps the network protocol of the PC builds (network version
-and layout). A console adapts to it, never the other way (the game's
-docs/cross-play.md). Code that more than one console needs goes in the
+and layout). A console adapts to it, never the other way. Code that more than one console needs goes in the
 game behind a console-neutral switch (`HALO_CONSOLE_*`), not an Xbox one.
 
 ## Shared console code (the game's `port/console`)

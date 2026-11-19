@@ -13,6 +13,11 @@
         of the build's, so that its quoted includes find port/xbox/p2p's
         headers (named on the command line) before the Linux layer's beside
         it. Its lines keep their file and numbers (#line).
+    xbox_sources.py config chupathingyce/port/linux/src/port_config.c OUT
+        The settings, copied as above, with the help text of every setting
+        the Xbox doesn't write in its config.toml left out (its platforms
+        without _platform_xbox): only the file's writer reads a setting's
+        help, and only for the settings it writes. About 40 KB of the image.
 """
 
 import argparse
@@ -59,13 +64,125 @@ def copy(source: Path) -> str:
     return HEADER.format(source=source.as_posix()) + f'#line 1 "{source.as_posix()}"\n' + source.read_text(encoding="utf-8")
 
 
+TABLE = "static const struct config_setting config_settings[] =\n{"
+
+
+def _active(text: str, start: int, end: int):
+    """The positions of text[start:end] the parse reads: the preprocessor's
+    lines left out, and of each #if only its first branch (the others are
+    kept as they are, help and all)."""
+    keep, skipping, depth = [], [], 0
+    i = start
+    while i < end:
+        line_end = text.find("\n", i, end)
+        line_end = end if line_end < 0 else line_end + 1
+        directive = text[i:line_end].lstrip()
+        if directive.startswith("#"):
+            word = re.match(r"#\s*(\w+)", directive)
+            word = word[1] if word else ""
+            if word in ("if", "ifdef", "ifndef"):
+                depth += 1
+                skipping.append(False)
+            elif word in ("else", "elif") and skipping:
+                skipping[-1] = True
+            elif word == "endif" and skipping:
+                skipping.pop()
+                depth -= 1
+        elif not any(skipping):
+            keep.extend(range(i, line_end))
+        i = line_end
+    return keep
+
+
+def _scan(view: str, i: int, stop: str):
+    """From view[i], the index of the first character of stop at nesting depth
+    0 ("{" "(" against "}" ")"), past strings, character constants and
+    comments."""
+    depth = 0
+    while i < len(view):
+        c = view[i]
+        if c in "\"'":
+            j = i + 1
+            while view[j] != c:
+                j += 2 if view[j] == "\\" else 1
+            i = j + 1
+            continue
+        if view.startswith("/*", i):
+            i = view.index("*/", i) + 2
+            continue
+        if c in stop and depth == 0:
+            return i
+        if c in "({":
+            depth += 1
+        elif c in ")}":
+            depth -= 1
+        i += 1
+    raise SystemExit("config_settings: an unbalanced setting")
+
+
+def config(source: Path) -> str:
+    text = source.read_text(encoding="utf-8")
+    table = text.find(TABLE)
+    if table < 0:
+        raise SystemExit(f"{source}: no config_settings table")
+    table_end = text.index("\n};", table)
+    positions = _active(text, table + len(TABLE), table_end + 1)
+    view = "".join(text[k] for k in positions)
+    out = list(text)
+    settings = dropped = 0
+    i = 0
+    while True:
+        while i < len(view) and view[i] in " \t\n":
+            i += 1
+        if i >= len(view):
+            break
+        if view.startswith("/*", i):
+            i = view.index("*/", i) + 2
+            continue
+        if view[i] != "{":
+            line = text.count("\n", 0, positions[i]) + 1
+            raise SystemExit(f"{source}: unexpected text in config_settings at line {line}")
+        close = _scan(view, i + 1, "}")
+        fields, start = [], i + 1
+        while True:
+            comma = _scan(view[:close] + "}", start, ",}")
+            fields.append((start, comma))
+            if comma >= close:
+                break
+            start = comma + 1
+        if len(fields) != 7:
+            line = text.count("\n", 0, positions[i]) + 1
+            raise SystemExit(f"{source}: a setting of {len(fields)} fields at line {line}")
+        settings += 1
+        if "_platform_xbox" not in re.findall(r"_platform_\w+", view[fields[5][0]:fields[5][1]]):
+            # (blanked in place, keeping the lines, so that #line still holds)
+            # (as "": a reader of the help that isn't the writer's still
+            # finds a string)
+            chars = [k for k in range(fields[6][0], fields[6][1]) if view[k] not in " \t\n"]
+            if len(chars) < 2:
+                raise SystemExit(f"{source}: a setting without help at line {text.count(chr(10), 0, positions[i]) + 1}")
+            for k in chars:
+                out[positions[k]] = " "
+            out[positions[chars[0]]] = '"'
+            out[positions[chars[1]]] = "\""
+            dropped += 1
+        i = close + 1
+        while i < len(view) and view[i] in " \t\n":
+            i += 1
+        if i < len(view) and view[i] == ",":
+            i += 1
+    if not settings or not dropped:
+        raise SystemExit(f"{source}: {settings} settings read, {dropped} help texts left out")
+    return HEADER.format(source=source.as_posix()) + f'#line 1 "{source.as_posix()}"\n' + "".join(out)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("kind", choices=("common", "bink", "copy"))
+    parser.add_argument("kind", choices=("common", "bink", "copy", "config"))
     parser.add_argument("source", type=Path)
     parser.add_argument("output", type=Path)
     args = parser.parse_args()
-    text = {"common": common, "bink": bink, "copy": copy}[args.kind](args.source)
+    text = {"common": common, "bink": bink, "copy": copy, "config": config}[args.kind](args.source)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     if not args.output.is_file() or args.output.read_text(encoding="utf-8") != text:
         args.output.write_text(text, encoding="utf-8")

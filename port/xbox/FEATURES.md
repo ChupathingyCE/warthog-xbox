@@ -18,7 +18,7 @@ one; a feature that would is to ask for it through the memory class
 | Hosting a listed internet game | Yes | Not yet | The console hosts System Link; its games are not listed and PCs do not join it over the internet yet |
 | Invite links | Yes | Yes, from `console.join` | No clipboard on a console |
 | Cross-play with PCs and OpenCE | Yes | Yes | Up to 32 players in test builds (16 in a build without `--console-players 32`), network versions as `README.md` says |
-| Delta Peer (platform, player ID) | Yes | Yes, as a client | `console.delta`; the player ID from `D:\game_list_player.key` |
+| Delta Peer (platform, player ID) | Yes | Yes, as a client | `console.delta`; the player ID from a linked profile or `D:\game_list_player.key` |
 | Text chat | Yes | Yes | Shown lines, quick lines on the D-pad, a USB keyboard's T, Y and H; the client's part only (a console never hosts on Delta) |
 | Server messages | Yes, in a banner | Yes, in the chat lines | The banner is the desktop's overlay; the console shows them as lines |
 | Team changes in a game | Yes | Not yet | Needs CHANGE TEAMS in the console's pause menu (`team_change.c` is 505 lines, little memory) |
@@ -41,7 +41,7 @@ one; a feature that would is to ask for it through the memory class
 | --- | --- | --- | --- |
 | Chupathingy menus (Xbox menus with extensions) | Yes | Not yet | Built from XML and PNG files at load (`menu_files.c`, `menu_tags.c`, `menu_functions.c`: about 12,000 lines and their art). The console keeps the Xbox's own menus with ONLINE GAMES added. Plan: measure what the built menus take on a 64 MB console before porting |
 | Settings submenus (Display, Online, Interface, Chat, Controls) | Yes | Not yet | Part of the Chupathingy menus; the console's settings are `D:\config.toml` |
-| Gearbox menus, Server Browser in them | Yes | Cut | PC-only look |
+| Gearbox menus | Retired | Cut | No longer a menu set on any platform since 0.9.1 |
 | Button layouts: the Xbox's five | Yes | Yes | The profile's Controller Setup |
 | Bumper Jumper | Yes | Yes | The sixth in Controller Setup's Button Layout (no picture for it) |
 | Custom button layout, Controls screen | Yes | Not yet | Needs the Controls screen; plan: its controller page as a console screen, opened from Controller Setup |
@@ -62,11 +62,13 @@ one; a feature that would is to ask for it through the memory class
 | Follow camera while waiting to respawn | Yes | Yes | `display.follow_camera` |
 | Power-up timers | Yes | Yes | `display.powerup_timers`, off by default |
 | Match timer | Yes | Yes | `display.match_timer`, off by default |
+| Medals as you earn them | Yes | Yes, as HUD messages | `display.medals`, off by default |
 | Scoreboard: team columns, panel, quit players | Yes | Yes | `display.scoreboard_*`, `display.show_quit_players` |
 | Version watermark | Yes | Yes | `display.version_watermark` |
 | High-res HUD and text | Yes | Cut | 2026-10-19: the atlas's texture memory |
 | Names above players' heads | Yes | Cut | Retail names the player under the reticle only |
-| High frame rates, interpolation, smooth object functions | Yes | Cut | The console draws at the Xbox's 30; 384 KB for the functions |
+| High frame rates, interpolation, smooth object functions | Yes | 60, the view only | `display.frame_rate = 60` (off by default): the view turns every frame and eases into each tick, objects stay as the tick left them; no memory (README "60 frames a second"). Object blending and smooth functions are cut (about 0.5 MB and 384 KB) |
+| Flicker filter | No (no TV) | Yes | `display.flicker_filter`, 0 to 5, the retail 5 by default |
 | Anti-aliasing, anisotropic filtering, shadows, per-pixel lighting, full model detail, far clip | Yes | Cut | The desktop renderer's; a cost on the console's GPU |
 | The desktop's loading screen | Yes | Cut | The Xbox's own |
 

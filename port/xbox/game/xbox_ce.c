@@ -1,4 +1,10 @@
 /*
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ * Copyright (C) 2026 JizzyRivers and Warthog's contributors
+ * Part of Warthog: under its license, with its console SDK permission (README.md, "License").
+ */
+
+/*
 XBOX_CE.C
 
 What Custom Edition maps ask of the desktop builds' units the console leaves out,
@@ -427,6 +433,18 @@ static void ce_bitmap_channels(
 	}
 }
 
+/* a HUD meter's bitmap that ce_bitmap_channels left in Halo PC's channels (a
+compressed one, as Custom Edition's own shield and health meters are, or one
+not of 32 bits or linear, which aren't laid out): the meter shader reads them
+where they are (rasterizer_xbox_dynavobgeom.c) */
+boolean platform_ce_meter_in_pc_channels(
+	struct bitmap_data const *bitmap)
+{
+	return bitmap && ce_hud_bitmap_is_meter(bitmap) &&
+		(TEST_FLAG(bitmap->flags, _bitmap_compressed_bit) || TEST_FLAG(bitmap->flags, _bitmap_linear_bit) ||
+		bitmap_format_get_bits_per_pixel(bitmap->format) != 32);
+}
+
 /* (the large ones said, as each is laid out: what's drawn wrong on a console short
 of memory is then in the log) */
 char const *tag_get_name(long tag_index);
@@ -443,6 +461,61 @@ static void ce_bitmap_said(
 	error(_error_silent, "Custom Edition bitmap %s: %dx%dx%d, format %d, type %d, %ld bytes: %s",
 		bitmap->tag_index != NONE ? tag_get_name(bitmap->tag_index) : "(none)", bitmap->width, bitmap->height,
 		bitmap->depth, bitmap->format, bitmap->type, bytes, how);
+}
+
+/* (the texture cache's memory is write-combined, which the processor reads
+uncached, a read at a time from memory: laying a big bitmap out in place
+took about 12 s at a map's start (warthog-xbox #91). Its pages are made the
+processor's cached memory while that runs, as the game does with the cache
+memory it lends (texture_cache_steal_memory), and written back after) */
+void __stdcall XPhysicalProtect(void *address, unsigned long size, unsigned long protect);
+void *physical_memory_get_texture_cache_base_address(void);
+unsigned long xbox_memory_texture_cache_size(void);
+
+#define CE_CACHED_PAGE 0x1000UL
+/* (xbox_texture_cache.c's XBOX_TEXTURE_CACHE_PROTECTION: PAGE_READWRITE |
+PAGE_WRITECOMBINE; PAGE_READWRITE alone is cached) */
+#define CE_TEXTURE_CACHE_PROTECTION 0x404UL
+#define CE_CACHED_PROTECTION 0x04UL
+
+struct ce_cached_view
+{
+	unsigned long first;
+	unsigned long size;
+};
+
+/* the pages of [pixels, pixels + bytes) made cached, if they are the texture
+cache's (else left as they are, and view->size is 0) */
+static void ce_cached_begin(
+	struct ce_cached_view *view,
+	byte *pixels,
+	long bytes)
+{
+	unsigned long cache = (unsigned long)physical_memory_get_texture_cache_base_address();
+	unsigned long cache_end = cache + xbox_memory_texture_cache_size();
+	unsigned long start = (unsigned long)pixels;
+	unsigned long end = start + (unsigned long)bytes;
+
+	view->first = 0;
+	view->size = 0;
+	if (!cache || bytes <= 0 || start < cache || end > cache_end || end < start)
+		return;
+	view->first = start & ~(CE_CACHED_PAGE - 1);
+	view->size = ((end + CE_CACHED_PAGE - 1) & ~(CE_CACHED_PAGE - 1)) - view->first;
+	/* (what's still in the write-combining buffers written out, and nothing
+	of these pages left in the caches from when they were last cached) */
+	__asm__ volatile("sfence\n\twbinvd" : : : "memory");
+	XPhysicalProtect((void *)view->first, view->size, CE_CACHED_PROTECTION);
+}
+
+/* ... and written back to memory and made the texture cache's again */
+static void ce_cached_end(
+	struct ce_cached_view const *view)
+{
+	if (!view->size)
+		return;
+	__asm__ volatile("wbinvd" : : : "memory");
+	XPhysicalProtect((void *)view->first, view->size, CE_TEXTURE_CACHE_PROTECTION);
 }
 
 void platform_ce_bitmap_loaded(
@@ -466,13 +539,15 @@ void platform_ce_bitmap_loaded(
 		return;
 	source = (byte *)malloc(source_size);
 	/* (no memory for the copy: a bitmap that isn't a cube map each level in place,
-	slower, reading the texture cache's uncached memory a pass a bit) */
+	a pass a bit, through the cached view of its pages) */
 	if (!source && bitmap->type != _bitmap_type_cube_map)
 	{
 		long pixel_bytes = bitmap_format_get_bits_per_pixel(bitmap->format) / 8;
 		long offset = 0;
 		boolean done = pixel_bytes == 1 || pixel_bytes == 2 || pixel_bytes == 4;
+		struct ce_cached_view view;
 
+		ce_cached_begin(&view, pixels, source_size);
 		for (level = 0; done && level <= levels; level++)
 		{
 			long level_bytes = bitmap_mipmap_get_pixel_data_size(bitmap, level);
@@ -488,15 +563,17 @@ void platform_ce_bitmap_loaded(
 		{
 			static long in_place;
 
+			ce_bitmap_channels(bitmap, size);
+			ce_cached_end(&view);
 			/* (said for the first few: the log says it happened) */
 			if (++in_place <= 3)
 				error(_error_silent, "Custom Edition maps: a bitmap of %ld bytes laid out in place (no memory for a copy)",
 					source_size);
 			ce_bitmap_said(bitmap, source_size, done ? "in place" : "in place, a level of it not");
-			ce_bitmap_channels(bitmap, size);
 			__asm__ volatile("sfence");
 			return;
 		}
+		ce_cached_end(&view);
 	}
 	/* (no memory for the copy of a cube map: its blocks moved in place) */
 	if (!source && bitmap->type == _bitmap_type_cube_map && levels + 1 <= CE_MAXIMUM_CUBE_LEVELS)
@@ -510,11 +587,18 @@ void platform_ce_bitmap_loaded(
 			widths[level] = bitmap_mipmap_get_width(bitmap, level);
 			heights[level] = bitmap_mipmap_get_height(bitmap, level);
 		}
-		if (ce_cube_in_place(pixels, (short)(levels + 1), level_bytes, widths, heights, size / CE_FACES,
-			compressed ? 0 : bitmap_format_get_bits_per_pixel(bitmap->format) / 8))
+		struct ce_cached_view view;
+		boolean moved;
+
+		ce_cached_begin(&view, pixels, size);
+		moved = ce_cube_in_place(pixels, (short)(levels + 1), level_bytes, widths, heights, size / CE_FACES,
+			compressed ? 0 : bitmap_format_get_bits_per_pixel(bitmap->format) / 8);
+		if (moved)
+			ce_bitmap_channels(bitmap, size);
+		ce_cached_end(&view);
+		if (moved)
 		{
 			ce_bitmap_said(bitmap, source_size, "cube map, in place");
-			ce_bitmap_channels(bitmap, size);
 			__asm__ volatile("sfence");
 			return;
 		}

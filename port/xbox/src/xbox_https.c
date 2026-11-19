@@ -137,6 +137,33 @@ static void https_log(const char *text)
 	platform_log("%s", text);
 }
 
+/* a request on a thread below the game's (the reports', xbox_reports.c, so a
+handshake doesn't hitch the frames at a game's end): at the game's priority
+from the send on, then back. Below it the thread waited about 10 s between
+the handshake and the send, and the site gave up reading the request (HTTP
+408, warthog-xbox #140). (One request at a time, under https_lock: one
+saved priority is enough) */
+static int sending_priority = THREAD_PRIORITY_NORMAL;
+
+static void https_sending(int started)
+{
+	HANDLE thread = GetCurrentThread();
+
+	if (started)
+	{
+		sending_priority = GetThreadPriority(thread);
+		if (sending_priority != THREAD_PRIORITY_ERROR_RETURN && sending_priority < THREAD_PRIORITY_NORMAL)
+			SetThreadPriority(thread, THREAD_PRIORITY_NORMAL);
+		else
+			sending_priority = THREAD_PRIORITY_NORMAL;
+	}
+	else if (sending_priority < THREAD_PRIORITY_NORMAL)
+	{
+		SetThreadPriority(thread, sending_priority);
+		sending_priority = THREAD_PRIORITY_NORMAL;
+	}
+}
+
 /* the pin document's plain HTTP GET (it is signed), as the plain list asks:
 game_list_request on port 80 */
 static int https_plain_get(const char *host, const char *path, char *response, unsigned long size,
@@ -157,6 +184,9 @@ static const struct console_https_port xbox_https_port =
 	https_lock_enter, https_lock_leave, https_log, "Warthog/1",
 	/* (the pin document: plain HTTP from the list's host, kept on D:\) */
 	https_plain_get, "D:\\console_pins.signed",
+	/* (no clock it trusts: certificates' dates aren't checked) */
+	NULL,
+	https_sending,
 };
 
 void xbox_https_start(void)

@@ -126,6 +126,18 @@ void team_change_player_died(
 	(void)dead_player_index;
 }
 
+/* a late joiner's team pick in its pregame screen (chupathingyce #956): the
+console has no team rule, so the pick is refused and the host sends the
+machine its players as they are */
+long team_change_late_joiner(
+	long list_index,
+	short team)
+{
+	(void)list_index;
+	(void)team;
+	return 0;
+}
+
 /* ---------- collision's packed bounding spheres (object_bounds_cache.c:
 2048 objects of 28 bytes, which the console does without) */
 

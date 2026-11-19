@@ -1,0 +1,165 @@
+name: Nightly
+
+# A rolling pre-release of the original Xbox port, tagged `nightly`, built
+# every night from this repository's main with the game (the chupathingyce
+# submodule) moved to the game's current main. The move happens in this run's
+# checkout only; nothing is committed. A night on which neither this
+# repository's main nor the game's main changed since the last nightly builds
+# nothing. The release's notes list the commits of both since the last one,
+# and carry the two commits (the lines starting "Console:" and "Game:"), which
+# is how the next night knows what changed. The build is build.yml's, on the
+# xbox-sdk runner, so its checks run, and no game files or maps are in the
+# package. The tagged builds (release.yml) are not touched. A manual run can
+# force a build when nothing changed.
+#
+# Publishing is switched on by the repository variable NIGHTLY_PUBLISH set
+# to true (Settings, Secrets and variables, Actions, Variables). Until then
+# the nightly builds and keeps its package as the run's artifact, and
+# publishes no release.
+on:
+  schedule:
+    - cron: '17 7 * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Build even if nothing changed since the last nightly
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      build: ${{ steps.compare.outputs.build }}
+      console: ${{ steps.compare.outputs.console }}
+      game: ${{ steps.compare.outputs.game }}
+      last_console: ${{ steps.compare.outputs.last_console }}
+      last_game: ${{ steps.compare.outputs.last_game }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      GAME_REPO: ChupathingyCE/chupathingyce
+    steps:
+      - name: Compare with the last nightly
+        id: compare
+        env:
+          FORCE: ${{ inputs.force }}
+        run: |
+          console="$(gh api "repos/$GH_REPO/commits/main" --jq .sha)"
+          game="$(gh api "repos/$GAME_REPO/commits/main" --jq .sha)"
+          last_console=
+          last_game=
+          if body="$(gh release view nightly --json body --jq .body 2>/dev/null)"; then
+            last_console="$(printf '%s\n' "$body" | sed -n 's/^Console: \([0-9a-f]\{40\}\).*/\1/p' | head -1)"
+            last_game="$(printf '%s\n' "$body" | sed -n 's/^Game: \([0-9a-f]\{40\}\).*/\1/p' | head -1)"
+          fi
+          build=true
+          if [ "$console" = "$last_console" ] && [ "$game" = "$last_game" ] && [ "$FORCE" != true ]; then
+            build=false
+            echo "Nothing changed since the last nightly (console $console, game $game): no build."
+          fi
+          {
+            echo "build=$build"
+            echo "console=$console"
+            echo "game=$game"
+            echo "last_console=$last_console"
+            echo "last_game=$last_game"
+          } >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: check
+    if: ${{ needs.check.outputs.build == 'true' }}
+    # the console is main's newest (the check's), the game the check's too
+    uses: ./.github/workflows/build.yml
+    with:
+      game-ref: ${{ needs.check.outputs.game }}
+
+  release:
+    needs: [check, build]
+    if: ${{ vars.NIGHTLY_PUBLISH == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      GAME_REPO: ChupathingyCE/chupathingyce
+      CONSOLE: ${{ needs.check.outputs.console }}
+      GAME: ${{ needs.check.outputs.game }}
+      LAST_CONSOLE: ${{ needs.check.outputs.last_console }}
+      LAST_GAME: ${{ needs.check.outputs.last_game }}
+      ZIP: chupathingy-xbox-nightly.zip
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: warthog-xbox-*
+          path: package
+
+      - name: Package
+        run: |
+          mkdir release
+          folder="$(ls -d package/*/ | head -1)"
+          if [ ! -f "$folder/Warthog/default.xbe" ] || [ ! -f "$folder/Warthog/config.toml" ]; then
+            echo "::error::the package is missing default.xbe or config.toml"
+            exit 1
+          fi
+          if find "$folder" -path '*/maps/*' | grep -q .; then
+            echo "::error::a maps folder is in the package; game files are never released"
+            exit 1
+          fi
+          (cd "$folder" && zip -qr "$GITHUB_WORKSPACE/release/$ZIP" Warthog)
+          (cd release && sha256sum "$ZIP" > "$ZIP.sha256")
+          cat "release/$ZIP.sha256"
+
+      - name: Notes
+        run: |
+          # the commits of a repository since the last nightly (the last 20
+          # when there is none, or its commit is gone)
+          list() {
+            repo="$1"; old="$2"; new="$3"
+            lines=
+            if [ -n "$old" ] && [ "$old" != "$new" ]; then
+              lines="$(gh api "repos/$repo/compare/$old...$new" \
+                --jq '.commits | reverse | .[] | "- " + .sha[0:7] + " " + (.commit.message | split("\n")[0])' 2>/dev/null | head -50 || true)"
+            fi
+            if [ -z "$lines" ] && [ "$old" != "$new" ]; then
+              lines="$(gh api "repos/$repo/commits?sha=$new&per_page=20" \
+                --jq '.[] | "- " + .sha[0:7] + " " + (.commit.message | split("\n")[0])' 2>/dev/null || true)"
+            fi
+            if [ -z "$lines" ]; then lines="- no changes"; fi
+            printf '%s\n' "$lines"
+          }
+          {
+            echo "A nightly build of the original Xbox port: this repository's main with the game's main (named in the title). It is not tested like a release, and it is replaced every night that something changed. No game files are in it; the maps come from your own disc."
+            echo
+            echo "Console: $CONSOLE ($GITHUB_SERVER_URL/$GH_REPO/commit/$CONSOLE)"
+            echo "Game: $GAME ($GITHUB_SERVER_URL/$GAME_REPO/commit/$GAME)"
+            echo
+            echo "Xbox port, since the last nightly:"
+            list "$GH_REPO" "$LAST_CONSOLE" "$CONSOLE"
+            echo
+            echo "Game, since the last nightly:"
+            list "$GAME_REPO" "$LAST_GAME" "$GAME"
+            echo
+            echo "SHA-256: $(cut -d' ' -f1 "release/$ZIP.sha256")"
+          } > notes.md
+
+      # one rolling release: the old one (and its tag) goes, the new one
+      # is made at this build's commit
+      - name: Publish
+        run: |
+          short="${GAME:0:7}"
+          if gh release view nightly > /dev/null 2>&1; then
+            gh release delete nightly --cleanup-tag --yes
+          fi
+          gh release create nightly "release/$ZIP" "release/$ZIP.sha256" \
+            --target "$CONSOLE" --prerelease --title "Xbox nightly (game $short)" --notes-file notes.md

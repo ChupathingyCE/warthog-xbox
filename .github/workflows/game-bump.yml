@@ -7,8 +7,10 @@ name: Game bump
 # is updated, and when the game is not ahead any more it is closed. A person
 # merges it. The pull request's checks are started here by hand, because
 # pushes and pull requests made with the workflow's own token do not start
-# workflows. There is no nightly build here: the console build needs the
-# console SDK, which never comes near this repository or its runners.
+# workflows. The checks are the ones that need no console SDK (port-tests.yml);
+# the console build itself runs on the xbox-sdk runner once the bump is on
+# main (build.yml), and the nightly (nightly.yml) builds the game's main
+# every night without waiting for a bump.
 on:
   schedule:
     - cron: '41 6 * * *'

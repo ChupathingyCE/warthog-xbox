@@ -5,7 +5,7 @@
 <p align="center"><b>Chupathingy on the original Xbox.</b></p>
 
 <p align="center">
-<a href="https://discord.gg/chupathingy">Get the test build (Discord, #xbox)</a> ·
+<a href="https://github.com/ChupathingyCE/warthog-xbox/releases">Get the test build</a> ·
 <a href="https://stats.chupathingy.org">Games online now</a> ·
 <a href="https://github.com/ChupathingyCE/chupathingyce">The game</a> ·
 <a href="https://chupathingy.org">chupathingy.org</a>
@@ -19,9 +19,9 @@ works too.
 It runs on a stock 64 MB console. A console with 128 MB gets a little more
 room, and the game plays the same either way.
 
-**Status: test builds.** Test builds are shared in #xbox on the
-[Discord](https://discord.gg/chupathingy). You can also build it yourself
-(below).
+**Status: test builds.** Get the newest one from
+[Releases](https://github.com/ChupathingyCE/warthog-xbox/releases). You can
+also build it yourself (below).
 
 You need your own copy of Halo. No game files or SDK files are included.
 
@@ -48,21 +48,22 @@ This repository holds the original Xbox port. The game itself is the
 
 The first time:
 
-1. Get the newest test build from #xbox on the
-   [Discord](https://discord.gg/chupathingy) and unzip it.
-2. Make a folder for it on the console's hard disk, for example
-   `E:\Games\Warthog\`, and copy `default.xbe` into it.
+1. Download the newest test build from
+   [Releases](https://github.com/ChupathingyCE/warthog-xbox/releases) and
+   unzip it.
+2. Copy its `Warthog` folder to the console's hard disk, for example as
+   `E:\Games\Warthog\`. It has `default.xbe` and a `config.toml`.
 3. Copy the `maps` folder from your own Halo disc into the same folder, so
    you have `E:\Games\Warthog\maps\ui.map` and the rest.
-4. Make a text file called `config.toml` in the same folder, with these two
-   lines. Online Games and playing with PCs need them.
+4. Start `default.xbe` from your dashboard.
 
-   ```toml
-   [console]
-   bypass_security = true
-   ```
+The `config.toml` in the download already has the two lines Online Games
+and playing with PCs need:
 
-5. Start `default.xbe` from your dashboard.
+```toml
+[console]
+bypass_security = true
+```
 
 To update, keep a copy of your old `default.xbe`, then replace it with the
 new one. Keep `config.toml` and your maps.
@@ -73,14 +74,16 @@ for you, `config.toml` included (see "Building it yourself").
 ## What works
 
 - **Online Games:** lists the games online and joins them, dedicated
-  servers too. It joins OpenCE's newest servers (network version 41) and
+  servers too. It joins OpenCE's current servers (network version 44) and
   older ones.
 - **System Link** with PCs and consoles on your network.
-- **Up to 32 players** in the test builds.
+- **Up to 32 players** when you join a game, and up to 16 when you host.
 - **Link your Delta profile:** on Online Games, press **Start**, then **A**
   for a code. Enter the code at stats.chupathingy.org/connect, signed in on
   your phone or computer, then press **A** on the console. The games you
-  join then count on your service record.
+  join then count on your service record. After each online game, hosted
+  or joined, the console also claims its own line for the linked profile
+  (or the identity file's), so the game shows on your profile.
 - **Maps:** the retail maps, the Halo CE+ map pack, and Halo PC's Custom
   Edition maps ([below](#custom-edition-maps)).
 - **Map Browser:** **Multiplayer > MAP BROWSER** downloads Custom Edition
@@ -91,8 +94,14 @@ for you, `config.toml` included (see "Building it yourself").
 - **Chat:** quick lines on the controller, and a USB keyboard
   ([below](#chat-and-keyboard)).
 - **Sound:** the original Xbox reverb.
-- **Widescreen and 480p** follow the dashboard's video settings.
-  Widescreen is new in the November test builds and still being tested.
+- **480p** follows the dashboard's video settings. **Widescreen** is
+  opt-in: since the late-November test builds the game is 4:3 by default,
+  as the retail game was, because the stretched widescreen picture is
+  softer. Set `display.widescreen = "dashboard"` to follow the dashboard's
+  Widescreen setting. If you set it yourself before, you keep it.
+- **60 frames a second** as a setting (`display.frame_rate = 60`). It is
+  new and still being tested. The game still runs 30 ticks a second, so it
+  plays the same online.
 
 ## Known issues
 
@@ -100,11 +109,13 @@ for you, `config.toml` included (see "Building it yourself").
 - **The loading screen doesn't animate.**
 - **No hosting for PC players over the internet**, and no online co-op.
   Co-op games are left out of the console's lists.
-- **Widescreen on your TV.** The console doesn't tell the TV that the
-  picture is wide. If you see black bars at the sides, set the TV's picture
-  size to Wide, Full, 16:9 or Stretch. With a TV that can't stretch it,
-  keep Normal in the dashboard, or set `display.widescreen = "off"` in
-  `config.toml`.
+- **Widescreen is opt-in.** The game is 4:3 by default, as the retail game
+  was: that is the sharpest picture. For widescreen, set
+  `display.widescreen = "dashboard"` in `config.toml` and Widescreen in the
+  dashboard. The HUD and menus are then stretched to fit, a little softer.
+  The console doesn't tell the TV that the picture is wide: if you see black
+  bars at the sides, set the TV's picture size to Wide, Full, 16:9 or
+  Stretch.
 - **Zoom frame rate.** Sniper and pistol zoom drop to about 20 fps.
 - **First load of a map** after the console starts takes longer than
   later loads.
@@ -114,9 +125,24 @@ for you, `config.toml` included (see "Building it yourself").
   too large for its memory is refused with a message. Their HUD button
   icons are missing.
 - **HaloMD maps** aren't played on the console.
-- **Split screen players who join late** can't change profile or team on
-  the pregame screen
-  ([#83](https://github.com/ChupathingyCE/warthog-xbox/issues/83)).
+
+## Troubleshooting
+
+- **The game doesn't reach the menus.** Check that the `maps` folder, with
+  `ui.map` in it, is next to `default.xbe`. Then send `debug.txt` (below).
+- **Online Games says "Online play needs console.bypass_security."** Add
+  `bypass_security = true` under `[console]` in `config.toml`.
+- **"Could not reach the game list."** Check the dashboard's network
+  settings. If your DNS can't find the list, set `console.game_list_server`
+  ([docs/settings.md](docs/settings.md)).
+- **A game says its map is missing.** A Custom Edition map is offered for
+  download. A Halo CE+ map needs the pack in `maps_cex`
+  ([below](#xbox-map-packs-halo-ce)).
+- **A Custom Edition map is refused.** On a stock 64 MB console, large maps
+  don't fit. Check that `bitmaps.map`, `sounds.map` and `loc.map` are in
+  `maps_ce` too.
+- **Black bars at the sides in widescreen.** See "Known issues" above.
+- **Choppy at 60 frames a second.** Set `display.frame_rate = 30`.
 
 ## Reporting problems
 
@@ -134,51 +160,77 @@ anyone's address.
 
 ## Settings on the console
 
-The settings are in `D:\config.toml` (`D:\` is the game's folder, beside
-`default.xbe`), the same kind of file as the PC builds'. If there's no
-`config.toml`, the first start writes one with every setting, commented out
-at its default. Remove the `# ` in front of one, change its value and
-restart the game. Edit it over FTP, or
-on the computer before copying the folder.
+The settings are in `config.toml`, next to `default.xbe`. The game calls
+that folder `D:\`. If there's no `config.toml`, the first start writes one
+with every setting, commented out at its default. Remove the `# ` in front
+of one, change its value and restart the game. Edit it over FTP, or on your
+computer before you copy the folder.
 
 ```toml
 [console]
 bypass_security = true
-join = "192.168.1.20"
+
+[display]
+frame_rate = 60
 ```
 
-| Setting (`[console]`) | What it does |
-| --- | --- |
-| `bypass_security` | `true` starts the network in its open mode, which the internet and the PC builds need. The packaging script writes `true`; `--secure` writes `false` for console-only System Link. |
-| `game_list_server` | A host or address (`:port` optional): where to get the game list if `warthog.milenko.org` doesn't resolve. |
-| `join` | A host's LAN address, or an invite (`halo://join/...`). System Link joins the address, ONLINE GAMES' **Y** the invite. |
-| `trace` | `true` writes detailed network traces to `debug.txt`, for reporting a join that fails. Other hosts appear only as tags, never by their addresses. |
-| `memory_class` | `"auto"` (the default): a console with 128 MB or more gets the extras, such as larger texture and sound caches; a stock 64 MB console keeps the Xbox's sizes. `"64"` gives any console the stock sizes, to test the 64 MB baseline or if an extra misbehaves. |
-| `perf_log` | `true` writes a `perf:` line to `debug.txt` once a second: the frame time and each part of the frame. For finding what makes a scene slow. |
-| `debug_geometry` | For development: `true` brings back the debug build's debug lines and triangles, whose buffers take 1.4 MB. Off by default. |
-| `log_flush` | When `debug.txt` is written: `"buffered"` (the default) once a second and at once for a crash; `"every_line"` each line as it comes (slow), for a crash hunt. |
-| `large_caches` | Deprecated and ignored: `memory_class` decides now. |
-| `simulate_64mb` | Deprecated and ignored. A devkit gets 64 MB from the executable's flag: `tools/xbox_package.py --devkit-64mb`. |
+The ones players use most:
 
-Many of the PC builds' settings work on the console too: field of view, the
-follow camera, chat, the scoreboard, music and effects volume, the network
-ones. A console linked to a Delta profile (or with an identity file)
-claims its own line after each online game, hosted or joined, so the game
-shows on your profile. `network.report_joined_games = false` keeps your
-games off your service record. [port/xbox/README.md](port/xbox/README.md) lists them, and
+| Setting | What it does |
+| --- | --- |
+| `console.bypass_security` | `true` is needed for Online Games and playing with PCs. |
+| `display.widescreen` | `"off"`, the default, keeps the 4:3 picture, as the original game did. `"dashboard"` turns widescreen on when the dashboard has Widescreen set. |
+| `display.frame_rate` | `60` turns the view every frame. `30`, the default, draws as the original game did. |
+| `display.flicker_filter` | From 0 to 5. Lower is sharper on a 480i TV, with more flicker. The default is 5. |
+| `display.field_of_view` | From 50 to 120. The default is 70. |
+| `network.report_joined_games` | `false` keeps your games off your service record, and sends no claims. |
+| `console.trace` | `true` adds a join's network steps to `debug.txt`, for a bug report. |
+
+[docs/settings.md](docs/settings.md) lists every setting the console reads.
 [port/xbox/FEATURES.md](port/xbox/FEATURES.md) shows which PC features the
 console has.
 
-`brokers.txt` beside `default.xbe` lists the signalling servers internet
-play uses, one `host:port` a line, if the built-in ones can't be reached.
+### Performance presets (`[tuning]`)
 
-The game writes its log to `D:\debug.txt` (see "Reporting problems").
+The `tuning.preset` setting comes from the PC game, and does little here:
+
+- `potato` changes nothing on the original Xbox. It is the same as
+  `retail`. `debug.txt` says so at start.
+- `lan-party` changes one thing: the present mode, `adaptive`, which shows
+  a late frame at once, with a tear.
+- No preset changes the game tick. In big games (more than about 24
+  players) the tick is what holds the console back, so a preset won't make
+  those games faster.
+
+Every knob, made from the game's code (`tools/tuning_table.py --xbox` in
+the game):
+
+<!-- tuning table: made by tools/tuning_table.py, don't edit by hand -->
+
+| Setting | On the original Xbox | Default and range here | lan-party sets | potato sets | What it costs or saves |
+| --- | --- | --- | --- | --- | --- |
+| `display.dynamic_light_limit` | yes | `8`; 0 to 128 (0: no limit) | nothing | nothing | Drawing. Each dynamic light redraws the level it reaches twice; in a big firefight most of the GPU's time. |
+| `display.specular_light_limit` | yes | `2`; 0 to 128 (0: no limit) | nothing | nothing | Drawing. The shine pass of near lights, the costliest pass in a firefight. |
+| `display.particle_limit` | no: not a console setting | | | | Drawing, and a little CPU a frame for each particle alive. Never under 1024 in a network game. |
+| `display.particle_ticks` | no: not a console setting | | | | CPU a frame: moving loose particles once a tick saves two in three of their collision tests at 60 fps. |
+| `display.shadow_resolution` | no: not a console setting | | | | Drawing and video memory: bigger shadow maps. |
+| `display.anisotropic_filtering` | no: not a console setting | | | | Drawing: texture sampling on the GPU. |
+| `display.anti_aliasing` | no: not a console setting | | | | Drawing and video memory: extra samples or a filter pass. |
+| `display.per_pixel_lighting` | no: not a console setting | | | | Drawing: lighting work for each pixel instead of each vertex. |
+| `display.light_effects` | no: not a console setting | | | | Drawing: the projectile, muzzle and emitter lights, and their wall tests. |
+| `display.resolution_scaling` | no: not a console setting | | | | Drawing: "original" fills 640x480 instead of the window. |
+| `tuning.present_mode` | yes | `vblank`; `vblank` or `adaptive` | `adaptive` | nothing | Waiting, not work: "adaptive" shows a late frame at once, with a tear, instead of a refresh later. |
+| `tuning.texture_cache` | yes | `auto`; "auto", or 19 to 512 MB (and what memory has room for) | nothing | nothing | Memory: a bigger cache loads fewer textures from the disc, and leaves less free. |
+
+<!-- end of tuning table -->
 
 ## Chat and keyboard
 
 Chat works in a game whose host runs Chupathingy.
 
 - **Controller:** **D-pad up** picks a quick line, **D-pad down** sends it.
+  In a team game it goes to your team; in free-for-all, to everyone. The
+  lines are `chat.quick_messages` in `config.toml`.
 - **USB keyboard** (on a controller port): **T** talks to everyone, **Y** to
   your team, **H** shows the recent lines.
 
@@ -284,9 +336,9 @@ with no warranty. The full text is in [LICENSE](LICENSE).
   released under [CC0 1.0](LICENSES/CC0-1.0.txt) and stays that way.
 - **What Warthog builds on.** The Halo CE decompilation
   ([punpckhdq/halo](https://github.com/punpckhdq/halo) and
-  [bnunu/halo-1](https://github.com/bnunu/halo-1)) and OpenCE are released
-  under CC0 1.0, which lets anyone build on them under any terms. Their
-  repositories stay CC0.
+  [bnunu/halo-1](https://github.com/bnunu/halo-1)) and OpenCE were released
+  under CC0 1.0 when Chupathingy took them, which lets anyone build on them
+  under any terms. Their later work is under their own licenses.
 - **The game** (the `chupathingyce` submodule) is under its own
   repository's license, with its third-party code, fonts and art under
   theirs.
@@ -320,9 +372,9 @@ Microsoft's SDKs.
 ## Support
 
 Chupathingy is free and always will be. Support through
-[Ko-fi](https://ko-fi.com/milenko) goes to running the site and the servers. If
-there's a specific developer or port you'd like to support, ask them: they may
-not be part of our community.
+[Ko-fi](https://ko-fi.com/milenko) or [Patreon](https://www.patreon.com/c/chupathingy)
+goes to running the site and the servers. If there's a specific developer or
+port you'd like to support, ask them: they may not be part of our community.
 
 ## Credits
 
@@ -339,7 +391,7 @@ not be part of our community.
 
 ### Contributors
 
-- [Jizzy](https://github.com/JizzyRivers): Custom Edition maps on the
+- [JizzyRivers](https://github.com/JizzyRivers): Custom Edition maps on the
   console, the Map Browser, maps offered on join, and the Linux build fixes.
 - [thelinkin3000](https://github.com/thelinkin3000): the Nintendo Switch
   port, now in [ChupathingyCE/warthog-switch](https://github.com/ChupathingyCE/warthog-switch).

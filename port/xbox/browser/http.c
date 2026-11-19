@@ -1,4 +1,10 @@
 /*
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ * Copyright (C) 2026 JizzyRivers and Warthog's contributors
+ * Part of Warthog: under its license, with its console SDK permission (README.md, "License").
+ */
+
+/*
  * http.h: GET over plat's sockets. the headers are read whole (8 KB at most),
  * then the body goes to the callback as it comes, decoded when chunked
  */

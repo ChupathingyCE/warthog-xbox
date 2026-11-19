@@ -1,0 +1,114 @@
+name: Release
+
+# An original Xbox build for a tag: test-<date> (git tag test-20261113 &&
+# git push origin test-20261113) or v<number>. The port is built by build.yml
+# on the xbox-sdk runner and published as a GitHub release marked
+# pre-release, titled "Xbox test build", with the zip of the game's folder
+# (Warthog/default.xbe and config.toml), its SHA-256, and notes from
+# .github/release-notes.md. No game files are ever in it.
+#
+# The build runs from main, by hand or started by the tag: the runner's
+# group only takes this file at refs/heads/main, so a pushed tag's own run
+# (which is this file at the tag) cannot use the runner, and instead starts
+# the run on main with the tag's name (gh workflow run release.yml -f
+# tag=test-20261113 does the same). A manual run without a tag builds main
+# and releases nothing.
+on:
+  push:
+    tags:
+      - 'test-*'
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The tag to build and release (empty, build main and release nothing)
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}-${{ inputs.tag }}
+
+jobs:
+  # a pushed tag: start the release on main for it
+  start:
+    if: ${{ startsWith(github.ref, 'refs/tags/') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - run: gh workflow run release.yml --ref main -f "tag=$GITHUB_REF_NAME"
+
+  build:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    uses: ./.github/workflows/build.yml
+    with:
+      ref: ${{ inputs.tag }}
+
+  release:
+    needs: build
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.tag != '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.tag }}
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: warthog-xbox-*
+          path: package
+
+      - name: Package
+        run: |
+          mkdir release
+          zip_name="chupathingy-xbox-$TAG.zip"
+          folder="$(ls -d package/*/ | head -1)"
+          if [ ! -f "$folder/Warthog/default.xbe" ] || [ ! -f "$folder/Warthog/config.toml" ]; then
+            echo "::error::the package is missing default.xbe or config.toml"
+            exit 1
+          fi
+          if find "$folder" -path '*/maps/*' | grep -q .; then
+            echo "::error::a maps folder is in the package; game files are never released"
+            exit 1
+          fi
+          (cd "$folder" && zip -qr "$GITHUB_WORKSPACE/release/$zip_name" Warthog)
+          (cd release && sha256sum "$zip_name" > "$zip_name.sha256")
+          cat "release/$zip_name.sha256"
+
+      - name: Publish
+        run: |
+          zip_name="chupathingy-xbox-$TAG.zip"
+          sum="$(cut -d' ' -f1 "release/$zip_name.sha256")"
+          commit="$(git rev-parse HEAD)"
+          commit_url="$GITHUB_SERVER_URL/$GH_REPO/commit/$commit"
+          if [ -f .github/release-notes.md ]; then
+            sed -e "s|@ZIP@|$zip_name|g" -e "s|@SHA256@|$sum|g" -e "s|@COMMIT_URL@|$commit_url|g" \
+              .github/release-notes.md > notes.md
+          else
+            {
+              echo "An original Xbox test build, $TAG. Unzip and copy the Warthog folder to the console (port/xbox/README.md); the maps come from your own disc and are not in it."
+              echo
+              echo "Commit: $commit_url"
+              echo "SHA-256: $sum"
+            } > notes.md
+          fi
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "::error::$TAG is released already"
+            exit 1
+          fi
+          gh release create "$TAG" "release/$zip_name" "release/$zip_name.sha256" \
+            --target "$commit" --prerelease --title "Xbox test build ($TAG)" --notes-file notes.md

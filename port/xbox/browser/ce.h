@@ -1,4 +1,10 @@
 /*
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ * Copyright (C) 2026 JizzyRivers and Warthog's contributors
+ * Part of Warthog: under its license, with its console SDK permission (README.md, "License").
+ */
+
+/*
  * custom edition maps from the store's archive: halomaps.org's pages (title,
  * author, description) with each one's maps from the store's mirror, every
  * map named in the store's json with its blake2b, and checked against it as

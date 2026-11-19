@@ -126,6 +126,10 @@ static void console_local(struct delta_peer_local *local)
 	delta_platform_policy_default(_delta_platform_xbox, &local->key);
 	local->key.platform = _delta_platform_xbox;
 	local->key.memory_class = 6;
+	/* (as delta_peer_local_key does: a build joins no more than its tables
+	hold, whatever its platform's row allows) */
+	if (local->key.join_players > HALO_CONSOLE_PLAYERS)
+		local->key.join_players = (unsigned char)HALO_CONSOLE_PLAYERS;
 	local->key.version = DELTA_PLATFORM_KEY_VERSION;
 	snprintf(local->build, sizeof(local->build), "Warthog test");
 }

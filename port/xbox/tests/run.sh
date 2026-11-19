@@ -6,7 +6,8 @@
 #                                        settings record and game type state
 #                                        layouts', console.join's and the memory
 #                                        class's, XLink's, the log tags', the
-#                                        co-op names' and the video modes'
+#                                        co-op names', the video modes' and
+#                                        the sound's mix bins'
 #                                        tests, which hosts it joins,
 #                                        tools/xbox_package.py's
 #                                        devkit flag,
@@ -41,6 +42,13 @@ $CC -std=c89 -pedantic -Wall -Wextra -Werror $SAN -c $SRC/xbox_game_list_parse.c
 $CC -std=c89 -pedantic -Wall -Wextra -Werror $SAN -c $SRC/xbox_game_list_text.c -o "$OUT/text.o"
 $CC -Wall -Wextra $SAN port/xbox/tests/game_list_test.c "$OUT/parse.o" "$OUT/text.o" -o "$OUT/game_list_test"
 "$OUT/game_list_test" 200000
+# (every build asks the list for the games of up to its own players: a
+# stock build of 16 too, or it gets games of 32 it would leave)
+for players in 16 32; do
+	printf '#include "port/xbox/include/xbox_game_list.h"\nGAME_LIST_PATH\n' |
+		$CC -E -P -DHALO_CONSOLE_PLAYERS=$players -x c - | grep -qF "players=\" \"$players\"" ||
+		{ echo "game list path: no players=$players"; exit 1; }
+done
 $CC -std=c89 -pedantic -Wall -Wextra -Werror $SAN -iquote "$G" port/xbox/tests/network_game_layout_test.c \
 	$G/port/linux/game/network_game_layout.c -o "$OUT/network_game_layout_test"
 $CC -std=c99 -pedantic -Wall -Wextra -Werror $SAN -iquote "$G" port/xbox/tests/network_rules_console_test.c \
@@ -65,14 +73,22 @@ $CC -std=c89 -pedantic -Wall -Wextra -Werror $SAN port/xbox/tests/screen_test.c 
 $CC -std=c89 -pedantic -Wall -Wextra -Werror $SAN port/xbox/tests/coop_name_test.c $SRC/xbox_coop_name.c \
 	-o "$OUT/coop_name_test"
 "$OUT/coop_name_test"
+$CC -std=c89 -pedantic -Wall -Wextra -Werror $SAN port/xbox/tests/mix_bins_test.c $SRC/xbox_mix_bins.c \
+	-o "$OUT/mix_bins_test"
+"$OUT/mix_bins_test"
 python3 port/xbox/tests/package_test.py
 python3 port/xbox/tests/easy_build_test.py
 # D:\config.toml: port_config.c as the console builds it, beside a stand-in
 # for its platform.h, run in a folder where "d:\config.toml" is a name
+# (and the help of the settings the Xbox doesn't write left out, as
+# tools/xbox_sources.py's config makes it for the build: the file it writes
+# is the same as the whole source's, checked below)
 rm -rf "$OUT/config"
-mkdir -p "$OUT/config/run"
-cp $G/port/linux/src/port_config.c "$OUT/config/port_config.c"
+mkdir -p "$OUT/config/run" "$OUT/config/whole/run"
+python3 tools/xbox_sources.py config $G/port/linux/src/port_config.c "$OUT/config/port_config.c"
+cp $G/port/linux/src/port_config.c "$OUT/config/whole/port_config.c"
 cp port/xbox/tests/config_platform.h "$OUT/config/platform.h"
+cp port/xbox/tests/config_platform.h "$OUT/config/whole/platform.h"
 cp $G/port/linux/include/halo_port_limits.h $G/port/linux/include/halo_port_capacity.h \
 	$G/port/linux/include/halo_port_features.h $G/port/linux/include/halo_console_memory.h \
 	$G/port/linux/include/halo_console_features.h "$OUT/config/"
@@ -85,6 +101,18 @@ $CC -std=gnu11 -Wall -Wextra -Werror $SAN -DHALO_XBOX_CONSOLE -DHALO_CONSOLE_PLA
 	-I$G/port/linux/src -I$G/port/third_party/tomlc17 \
 	port/xbox/tests/config_test.c "$OUT/config/port_config.c" "$OUT/config/tomlc17.o" -o "$OUT/config/config_test"
 (cd "$OUT/config/run" && ../config_test new && ../config_test given)
+cp "$OUT"/config/halo_*.h "$OUT/config/whole/"
+$CC -std=gnu11 -w -DHALO_XBOX_CONSOLE -DHALO_CONSOLE_PLAYERS=16 \
+	-include port/xbox/include/halo_xbox_features.h \
+	-I$G/port/linux/src -I$G/port/third_party/tomlc17 \
+	port/xbox/tests/config_test.c "$OUT/config/whole/port_config.c" "$OUT/config/tomlc17.o" \
+	-o "$OUT/config/whole/config_test"
+(cd "$OUT/config/whole/run" && ../config_test new > /dev/null && ../config_test given > /dev/null)
+cmp "$OUT/config/run/d:\config.toml" "$OUT/config/whole/run/d:\config.toml" ||
+	{ echo "config: the console's config.toml differs without the help it leaves out"; exit 1; }
+echo "config: the console's config.toml is the same without the help it leaves out"
+# (after the compare: these write their own config.toml)
+(cd "$OUT/config/run" && ../config_test wide_named && ../config_test wide_commented)
 # the console's player identity (D:\game_list_player.key)
 $CC -std=c89 -pedantic -Wall -Wextra -Werror $SAN -c $SRC/xbox_player_key.c -o "$OUT/player_key.o"
 $CC -std=gnu11 -Wall -Wextra -Werror $SAN port/xbox/tests/player_key_test.c "$OUT/player_key.o" \
@@ -122,6 +150,11 @@ $CC -std=gnu11 -Wall -Wextra -Werror $SAN -I$G/port/third_party/monocypher port/
 	$SRC/xbox_claim.c $SRC/xbox_player_key.c "$OUT/claim/p2p_crypto.o" $G/port/third_party/monocypher/monocypher.c \
 	$G/port/third_party/monocypher/monocypher-ed25519.c -o "$OUT/claim_test"
 "$OUT/claim_test"
+# (the README's [tuning] table is the game's code's, when the game has the
+# tool that makes it)
+if [ -f "$G/tools/tuning_table.py" ]; then
+	python3 "$G/tools/tuning_table.py" --xbox --check README.md
+fi
 while [ $# -gt 0 ]; do
 	case "$1" in
 	--fuzz)

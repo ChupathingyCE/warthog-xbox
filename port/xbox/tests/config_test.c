@@ -9,6 +9,10 @@ where "d:\config.toml" is a file's name: port/xbox/tests/run.sh.
                         settings only, and read
     config_test given   a file with a few values (as tools/xbox_package.py
                         writes it): they are read, and the rest added
+    config_test wide_named      a file from before the 4:3 default that
+                        names display.widescreen = "dashboard": it keeps it
+    config_test wide_commented  one that left it commented out at
+                        "dashboard": it follows the new default, "off"
 */
 
 #include <stdarg.h>
@@ -74,7 +78,9 @@ int main(int argc, char **argv)
 		expect(!strcmp(config_string("console.join"), ""), "console.join is not empty");
 		expect(!strcmp(config_string("console.delta"), "auto"), "console.delta is not auto");
 		expect(!strcmp(config_string("console.memory_class"), "auto"), "console.memory_class is not auto");
-		expect(!strcmp(config_string("display.widescreen"), "dashboard"), "display.widescreen is not dashboard");
+		expect(!strcmp(config_string("display.widescreen"), "off"), "display.widescreen is not off");
+		expect(config_integer("display.frame_rate") == 30, "display.frame_rate is not 30");
+		expect(config_integer("display.flicker_filter") == 5, "display.flicker_filter is not 5");
 		expect_shared();
 		text = file_text();
 		expect(text != NULL, "no config.toml written");
@@ -86,7 +92,9 @@ int main(int argc, char **argv)
 			expect(strstr(text, "# debug_geometry = false\n") != NULL, "no debug_geometry");
 			expect(strstr(text, "# log_flush = \"buffered\"\n") != NULL, "no log_flush");
 			expect(strstr(text, "# memory_class = \"auto\"\n") != NULL, "no memory_class");
-			expect(strstr(text, "# widescreen = \"dashboard\"\n") != NULL, "no display.widescreen");
+			expect(strstr(text, "# widescreen = \"off\"\n") != NULL, "no display.widescreen");
+			expect(strstr(text, "# frame_rate = 30\n") != NULL, "no display.frame_rate");
+			expect(strstr(text, "# flicker_filter = 5\n") != NULL, "no display.flicker_filter");
 			expect(strstr(text, "# game_list_server = \"\"\n") != NULL, "no game_list_server");
 			expect(strstr(text, "# online = true\n") != NULL, "no network.online");
 			expect(strstr(text, "fullscreen") == NULL, "a desktop setting written");
@@ -131,9 +139,24 @@ int main(int argc, char **argv)
 		expect(text && strstr(text, "# large_caches = false\n") != NULL, "the missing settings were not added");
 		free(text);
 	}
+	else if (!strcmp(mode, "wide_named") || !strcmp(mode, "wide_commented"))
+	{
+		/* (warthog-xbox #114: the picture is 4:3 by default now; a player
+		who chose widescreen keeps it) */
+		int named = !strcmp(mode, "wide_named");
+		FILE *file = fopen(CONFIG_FILE, "wb");
+
+		if (!file)
+			return 1;
+		fputs("# The layout of this file, for the game: leave it.\nconfig_version = 2\n\n[display]\n", file);
+		fputs(named ? "widescreen = \"dashboard\"\n" : "# widescreen = \"dashboard\"\n", file);
+		fclose(file);
+		expect(!strcmp(config_string("display.widescreen"), named ? "dashboard" : "off"),
+			named ? "a named \"dashboard\" was not kept" : "a commented-out \"dashboard\" did not follow \"off\"");
+	}
 	else
 	{
-		fprintf(stderr, "usage: config_test new|given\n");
+		fprintf(stderr, "usage: config_test new|given|wide_named|wide_commented\n");
 		return 2;
 	}
 	if (failures)

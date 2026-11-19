@@ -8,7 +8,7 @@ logged, and used for what may grow with it: 64 MB is the baseline, and a
 console above it has the extras (console_memory_extras,
 port/linux/include/halo_console_memory.h, which this port answers). The
 game's own limits never change with it: the network, the game state and
-the objects stay the Xbox's (docs/cross-play.md), so every console plays
+the objects stay the Xbox's, so every console plays
 the same game.
 */
 
@@ -48,6 +48,10 @@ unsigned long xbox_memory_texture_cache_maximum_address(void);
 4 MB, 8 MB on a console above 64 MB */
 unsigned long xbox_memory_sound_cache_size(void);
 unsigned long xbox_memory_sound_cache_maximum_address(void);
+/* the sound cache itself (physical_memory_map.c): XPhysicalAlloc's and
+XPhysicalFree's, as the Xbox made and freed it */
+void *xbox_memory_sound_cache_allocate(unsigned long size, unsigned long address);
+void xbox_memory_sound_cache_free(void *address);
 /* the screen effect's swizzled target (rasterizer_xbox_screen_effect.c):
 2 MB of contiguous memory made at the start, before the texture cache (out
 of it on a 64 MB console), with its size; NULL and 0 if it could not be */
@@ -78,8 +82,12 @@ void xbox_memory_heap_allocation(const char *file, long line, unsigned long size
 /* the main loop's (main.c): a message from xbox_memory_require shown once
 the main menu is up, and the free memory's new lows logged */
 void xbox_memory_update(void);
+/* a warning from the start (text that lives as long as the game), shown once
+in a box when the main menu is up, with the memory class's message if
+there is one; the first one given is kept */
+void xbox_boot_warning(const wchar_t *text);
 /* a test build of more than 16 players' memory line (the main loop, each
-map's start and end); nothing in a stock build */
+map's start and end); a stock build logs the free memory alone */
 void xbox_memory_log_point(const char *where);
 
 /* Delta Peer's memory class (struct delta_platform_key's memory_class,

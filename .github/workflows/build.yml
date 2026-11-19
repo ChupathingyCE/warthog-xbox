@@ -1,0 +1,189 @@
+name: Build
+
+# Builds the original Xbox port on the self-hosted `xbox-sdk` runner, the one
+# machine that holds the Xbox SDK, for every push to main and by hand, and
+# keeps the game's folder (tools/xbox_package.py --no-maps: default.xbe and
+# config.toml) as the run's artifact. The nightly (nightly.yml) and the
+# release (release.yml) call this one.
+#
+# Never on pull_request: a pull request's workflow file is the pull
+# request's own, and the runner must not run code from a fork. The runner's
+# group (xbox-sdk, in the organization's settings) only takes this file, the
+# nightly's and the release's at refs/heads/main, so a branch cannot use it
+# either. The SDK never leaves the runner: it is not checked out, cached,
+# uploaded, listed or printed here, and the artifact is the package only.
+#
+# The runner's own .env names where its SDK is (see docs/building.md):
+#   OXDK_DIR    OXDK with the SDK in xbox/xdk (lib, include) and cxbe built
+#   XBOX_D3D8   the Aug 2001 d3d8ntpr.lib
+#   LLVM_DIR    a clang and lld-link to use (empty: the ones on PATH)
+on:
+  push:
+    branches:
+      - main
+  # by hand: a game commit or branch to try, and the debug decomp's asserts
+  # kept in for a console that hunts a crash (a failed one stops the game
+  # with its file and line on the halt screen and in debug.txt)
+  workflow_dispatch:
+    inputs:
+      game-ref:
+        description: A commit or branch of the game to build instead of the submodule's (empty, the submodule's)
+        type: string
+        default: ""
+      asserts:
+        description: Keep the debug decomp's asserts in (about 350 KB more image)
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      game-ref:
+        description: A commit of the game to build instead of the submodule's (the nightly's; empty, the submodule's)
+        type: string
+        default: ""
+      asserts:
+        description: Keep the debug decomp's asserts in (about 350 KB more image)
+        type: boolean
+        default: false
+      ref:
+        description: The commit of this repository to build (the release's tag; empty, the run's)
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  xbox:
+    runs-on: [self-hosted, xbox-sdk]
+    timeout-minutes: 60
+    steps:
+      - name: Check the runner
+        run: |
+          for name in OXDK_DIR XBOX_D3D8; do
+            eval "value=\$$name"
+            if [ -z "$value" ] || [ ! -e "$value" ]; then
+              echo "::error::$name is not set in the runner's .env, or does not exist"
+              exit 1
+            fi
+          done
+          test -x "$OXDK_DIR/xbox/tools/cxbe/cxbe" || { echo "::error::OXDK's cxbe is not built"; exit 1; }
+          test -f "$OXDK_DIR/xbox/xdk/lib/xboxkrnl.lib" || { echo "::error::no SDK in OXDK's xbox/xdk"; exit 1; }
+          if [ -n "$LLVM_DIR" ] && [ ! -x "$LLVM_DIR/bin/clang" ]; then
+            echo "LLVM_DIR ($LLVM_DIR) has no clang: using the ones on PATH"
+            echo "LLVM_DIR=" >> "$GITHUB_ENV"
+          fi
+          python3 --version; ninja --version; clang --version | head -1; lld-link --version
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.ref }}
+          submodules: true
+
+      # the nightly builds the game's current main without committing it.
+      # Typed by hand, it may only name the game repository's own branches,
+      # tags, or a commit on one of its branches: never a pull request's ref
+      # or a fork's commit (GitHub serves those from the same repository)
+      - name: Use the requested game commit
+        env:
+          GAME_REF: ${{ inputs.game-ref }}
+        run: |
+          if [ -n "$GAME_REF" ]; then
+            # (a branch, a tag or a commit, never an option)
+            case "$GAME_REF" in
+              -*|*..*|*[!A-Za-z0-9._/-]*)
+                echo "::error::game-ref is not a branch name, a tag or a commit"
+                exit 1
+                ;;
+            esac
+            name="${GAME_REF#refs/heads/}"
+            if [ "$name" = "$GAME_REF" ]; then
+              name="${GAME_REF#refs/tags/}"
+            fi
+            case "$name" in
+              refs/*|pull/*|remotes/*)
+                echo "::error::game-ref names a branch or a tag, not $GAME_REF"
+                exit 1
+                ;;
+            esac
+            game_url="$(git -C chupathingyce remote get-url origin)"
+            if printf '%s\n' "$GAME_REF" | grep -Eq '^[0-9a-f]{7,40}$'; then
+              # a commit: every branch's commits (no trees, a few MB), so one
+              # that isn't on a branch here isn't found at all
+              commits="$RUNNER_TEMP/game-commits.git"
+              rm -rf "$commits"
+              git clone --quiet --bare --filter=tree:0 --no-tags -- "$game_url" "$commits"
+              commit="$(git -C "$commits" rev-parse --verify --quiet "$GAME_REF^{commit}")" || {
+                echo "::error::game-ref $GAME_REF is not a commit on one of the game's branches"
+                exit 1
+              }
+              if [ -z "$(git -C "$commits" branch --contains "$commit")" ]; then
+                echo "::error::game-ref $GAME_REF is not a commit on one of the game's branches"
+                exit 1
+              fi
+              rm -rf "$commits"
+              git -C chupathingyce fetch --depth 1 -- origin "$commit"
+            elif git -C chupathingyce fetch --depth 1 -- origin "refs/heads/$name"; then
+              :
+            elif git -C chupathingyce fetch --depth 1 -- origin "refs/tags/$name"; then
+              :
+            else
+              echo "::error::game-ref $GAME_REF is not one of the game's branches or tags"
+              exit 1
+            fi
+            git -C chupathingyce checkout --detach FETCH_HEAD
+            git -C chupathingyce log -1 --oneline
+          fi
+
+      # Linux is case sensitive and the SDK's file names are not consistent:
+      # lower-case links beside the originals, in the runner's own SDK folder
+      - name: The SDK's file names
+        run: python3 tools/xdk_case_links.py port chupathingyce/source chupathingyce/port/console chupathingyce/port/linux/game
+
+      - name: Host tests
+        run: CC=clang sh port/xbox/tests/run.sh
+
+      # the build testers get: the debug decomp's asserts compiled out, as the
+      # retail game had them, but for the memory checks, and 32 players. With
+      # the asserts input, all of them stay in
+      - name: Configure
+        env:
+          ASSERTS: ${{ inputs.asserts }}
+        run: |
+          asserts_flag="--console-no-debug-asserts"
+          if [ "$ASSERTS" = "true" ]; then
+            asserts_flag=""
+            echo "the debug decomp's asserts stay in"
+          fi
+          python3 chupathingyce/configure.py --console-port port/xbox --oxdk "$OXDK_DIR" --xbox-d3d8 "$XBOX_D3D8" \
+            $asserts_flag --console-players 32
+          grep -q "default.xbe" build.ninja || { echo "::error::configure did not find the SDK"; exit 1; }
+
+      - name: Build
+        run: ninja xbox
+
+      # the game's folder, as a player installs it (without maps); nothing
+      # from the SDK is in it: only the XBE and the config
+      - name: Package
+        run: |
+          rm -rf package
+          python3 tools/xbox_package.py --no-maps --out package/Warthog
+          cp LICENSE package/Warthog/LICENSE
+          cp port/xbox/README.md package/Warthog/README.md
+          find package -type f -exec ls -l {} +
+          for file in $(find package -type f); do
+            case "$(basename "$file")" in
+              default.xbe|config.toml|LICENSE|README.md) ;;
+              *) echo "::error::$file is not a file the package may hold"; exit 1 ;;
+            esac
+          done
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: warthog-xbox-${{ github.sha }}${{ inputs.asserts && '-asserts' || '' }}
+          path: package
+          if-no-files-found: error
+          retention-days: 7
