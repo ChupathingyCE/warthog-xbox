@@ -61,6 +61,45 @@ static void expect_frames_and_filter(void)
 	expect(xbox_screen_choose_flicker_filter(9) == 5, "9 is not 5");
 }
 
+/* the console's standard, the dashboard's PAL60 and the mode's refresh rate:
+what the display is, and what display.frame_rate draws on it */
+static void expect_refresh(void)
+{
+	/* the mode's own rate wins when Direct3D gives one */
+	expect(xbox_screen_choose_refresh_rate(XBOX_SCREEN_STANDARD_NTSC_M, 0, 60) == 60, "NTSC mode is not 60");
+	expect(xbox_screen_choose_refresh_rate(XBOX_SCREEN_STANDARD_PAL_I, 0, 50) == 50, "PAL mode is not 50");
+	expect(xbox_screen_choose_refresh_rate(XBOX_SCREEN_STANDARD_PAL_I, XBOX_SCREEN_VIDEO_FLAGS_PAL_60HZ, 60) == 60,
+		"PAL60 mode is not 60");
+	/* (PAL60 on, and Direct3D still made it 50: the mode says) */
+	expect(xbox_screen_choose_refresh_rate(XBOX_SCREEN_STANDARD_PAL_I, XBOX_SCREEN_VIDEO_FLAGS_PAL_60HZ, 50) == 50,
+		"a 50 Hz mode with PAL60 on is not 50");
+	/* before the device, or a rate that isn't one: the standard and PAL60 */
+	expect(xbox_screen_choose_refresh_rate(XBOX_SCREEN_STANDARD_NTSC_M, 0, 0) == 60, "NTSC-M is not 60");
+	expect(xbox_screen_choose_refresh_rate(XBOX_SCREEN_STANDARD_NTSC_J, 0, 0) == 60, "NTSC-J is not 60");
+	expect(xbox_screen_choose_refresh_rate(XBOX_SCREEN_STANDARD_PAL_I, 0, 0) == 50, "PAL-I is not 50");
+	expect(xbox_screen_choose_refresh_rate(XBOX_SCREEN_STANDARD_PAL_I, XBOX_SCREEN_VIDEO_FLAGS_PAL_60HZ, 0) == 60,
+		"PAL-I with PAL60 is not 60");
+	expect(xbox_screen_choose_refresh_rate(XBOX_SCREEN_STANDARD_PAL_I,
+		XBOX_SCREEN_VIDEO_FLAGS_WIDESCREEN | 0x08, 0) == 50, "PAL-I's other bits made it 60");
+	/* (PAL60 means nothing on NTSC) */
+	expect(xbox_screen_choose_refresh_rate(XBOX_SCREEN_STANDARD_NTSC_M, XBOX_SCREEN_VIDEO_FLAGS_PAL_60HZ, 0) == 60,
+		"NTSC with the PAL60 bit is not 60");
+	expect(xbox_screen_choose_refresh_rate(XBOX_SCREEN_STANDARD_PAL_I, 0, 72) == 50, "a 72 Hz mode is taken");
+	expect(xbox_screen_choose_refresh_rate(0, 0, 0) == 60, "an unknown standard is not 60");
+
+	/* 60 is a frame every refresh; 30 a frame each tick on either */
+	expect(xbox_screen_effective_frame_rate(60, 60) == 60, "60 at 60 Hz is not 60");
+	expect(xbox_screen_effective_frame_rate(60, 50) == 50, "60 at 50 Hz is not 50");
+	expect(xbox_screen_effective_frame_rate(30, 60) == 30, "30 at 60 Hz is not 30");
+	expect(xbox_screen_effective_frame_rate(30, 50) == 30, "30 at 50 Hz is not 30");
+	expect(xbox_screen_effective_frame_rate(60, 0) == 60, "60 with no rate is not 60");
+
+	expect(!strcmp(xbox_screen_standard_name(XBOX_SCREEN_STANDARD_NTSC_M), "NTSC-M"), "NTSC-M's name");
+	expect(!strcmp(xbox_screen_standard_name(XBOX_SCREEN_STANDARD_NTSC_J), "NTSC-J"), "NTSC-J's name");
+	expect(!strcmp(xbox_screen_standard_name(XBOX_SCREEN_STANDARD_PAL_I), "PAL-I"), "PAL-I's name");
+	expect(!strcmp(xbox_screen_standard_name(7), "unknown standard"), "an unknown standard's name");
+}
+
 static void expect_units(void)
 {
 	long x;
@@ -106,14 +145,30 @@ static void expect_text(void)
 {
 	char text[128];
 
-	xbox_screen_mode_text(text, sizeof(text), 852, 0x40 | XBOX_SCREEN_PRESENT_FLAG_WIDESCREEN, 60, 1);
-	expect(!strcmp(text, "screen: 480p 60 Hz widescreen (component), 852 units across"), text);
-	xbox_screen_mode_text(text, sizeof(text), 640, 0x20, 60, 6);
-	expect(!strcmp(text, "screen: 480i 60 Hz 4:3 (composite), 640 units across"), text);
-	xbox_screen_mode_text(text, sizeof(text), 852, 0x20 | XBOX_SCREEN_PRESENT_FLAG_WIDESCREEN, 50, 0);
-	expect(!strcmp(text, "screen: 480i 50 Hz widescreen (SCART), 852 units across"), text);
-	xbox_screen_mode_text(text, 8, 640, 0, 60, 4);
+	xbox_screen_mode_text(text, sizeof(text), 852, 0x40 | XBOX_SCREEN_PRESENT_FLAG_WIDESCREEN, 60, 1,
+		XBOX_SCREEN_STANDARD_NTSC_M, XBOX_SCREEN_VIDEO_FLAGS_WIDESCREEN);
+	expect(!strcmp(text, "screen: 480p 60 Hz widescreen (component, NTSC-M), 852 units across"), text);
+	xbox_screen_mode_text(text, sizeof(text), 640, 0x20, 60, 6, XBOX_SCREEN_STANDARD_NTSC_J, 0);
+	expect(!strcmp(text, "screen: 480i 60 Hz 4:3 (composite, NTSC-J), 640 units across"), text);
+	xbox_screen_mode_text(text, sizeof(text), 852, 0x20 | XBOX_SCREEN_PRESENT_FLAG_WIDESCREEN, 50, 0,
+		XBOX_SCREEN_STANDARD_PAL_I, XBOX_SCREEN_VIDEO_FLAGS_WIDESCREEN);
+	expect(!strcmp(text, "screen: 480i 50 Hz widescreen (SCART, PAL-I, PAL60 off), 852 units across"), text);
+	xbox_screen_mode_text(text, sizeof(text), 640, 0x20, 60, 6, XBOX_SCREEN_STANDARD_PAL_I,
+		XBOX_SCREEN_VIDEO_FLAGS_PAL_60HZ);
+	expect(!strcmp(text, "screen: 480i 60 Hz 4:3 (composite, PAL-I, PAL60 on), 640 units across"), text);
+	/* (the longest it can be fits debug.txt's buffer, 128) */
+	xbox_screen_mode_text(text, sizeof(text), 852, 0x40 | XBOX_SCREEN_PRESENT_FLAG_WIDESCREEN, 4294967295UL, 5,
+		9, 0);
+	expect(strlen(text) < sizeof(text) - 1, "the longest mode line is cut");
+	xbox_screen_mode_text(text, 8, 640, 0, 60, 4, XBOX_SCREEN_STANDARD_NTSC_M, 0);
 	expect(strlen(text) == 7, "a short buffer is not cut");
+
+	xbox_screen_rate_text(text, sizeof(text), 60, 60, 5);
+	expect(!strcmp(text, "screen: 60 frames a second at 60 Hz (display.frame_rate 60), flicker filter 5"), text);
+	xbox_screen_rate_text(text, sizeof(text), 60, 50, 1);
+	expect(!strcmp(text, "screen: 50 frames a second at 50 Hz (display.frame_rate 60), flicker filter 1"), text);
+	xbox_screen_rate_text(text, sizeof(text), 30, 50, 5);
+	expect(!strcmp(text, "screen: 30 frames a second at 50 Hz (display.frame_rate 30), flicker filter 5"), text);
 }
 
 int main(void)
@@ -121,6 +176,7 @@ int main(void)
 	expect_width();
 	expect_units();
 	expect_frames_and_filter();
+	expect_refresh();
 	expect_text();
 	if (failures)
 		return 1;

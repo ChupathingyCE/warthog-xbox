@@ -780,6 +780,19 @@ unsigned long xbox_memory_sound_cache_maximum_address(void)
 	return 0xFFFFFFFFUL;
 }
 
+/* the sound cache itself (physical_memory_map.c asks the console for it):
+made and freed as the Xbox did, XPhysicalAlloc with the size and address
+the game gives, readable and writable */
+void *xbox_memory_sound_cache_allocate(unsigned long size, unsigned long address)
+{
+	return XPhysicalAlloc(size, address, 0, PAGE_READWRITE);
+}
+
+void xbox_memory_sound_cache_free(void *address)
+{
+	XPhysicalFree(address);
+}
+
 int console_memory_class(void)
 {
 	return xbox_memory_class();
