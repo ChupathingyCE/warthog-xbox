@@ -406,6 +406,9 @@ static void memory_read(void)
 			unsigned long wanted = strtoul(setting, NULL, 10) << 20;
 			unsigned long most = memory.texture_cache_size, held;
 
+#ifndef XBOX_MEMORY_PLAYERS_TEST
+			/* (a test build of more than 16 players keeps auto's smallest:
+			the room leaves out the extra players' netcode, as above) */
 			if (memory.memory_class == _xbox_memory_class_64mb)
 			{
 				unsigned long room = memory.available > _other_caches_size + _free_after_caches ?
@@ -414,6 +417,7 @@ static void memory_read(void)
 				if (room > most)
 					most = room;
 			}
+#endif
 			/* (halo_port_capacity.h's HALO_PORT_TEXTURE_CACHE_MAXIMUM_SIZE,
 			the 256 MB class's size) */
 			if (most > _texture_cache_256mb)
