@@ -9,10 +9,11 @@ name: Game bump
 # pushes and pull requests made with the workflow's own token do not start
 # workflows (the pull request's own runs wait for an approval that never comes),
 # and each one's result is posted on the pull request as a commit status named
-# after the workflow, e.g. "Build (dispatch)", so a green bump shows green. The checks are the ones that need no console SDK (port-tests.yml);
-# the console build itself runs on the xbox-sdk runner once the bump is on
-# main (build.yml), and the nightly (nightly.yml) builds the game's main
-# every night without waiting for a bump.
+# after the workflow, e.g. "Build (dispatch)", so a green bump shows green.
+# The checks are the ones that need no console SDK (port-tests.yml); the
+# console build itself runs on the xbox-sdk runner once the bump is on main
+# (build.yml), and the nightly (nightly.yml) builds the game's main every
+# night without waiting for a bump.
 on:
   schedule:
     - cron: '41 6 * * *'
@@ -34,6 +35,7 @@ jobs:
     outputs:
       head: ${{ steps.bump.outputs.head }}
       runs: ${{ steps.bump.outputs.runs }}
+      missing: ${{ steps.bump.outputs.missing }}
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
@@ -106,6 +108,7 @@ jobs:
 
           head="$(git rev-parse HEAD)"
           runs=""
+          missing=""
           for workflow in $CHECKS; do
             started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
             id="$(gh api -X POST "repos/$GH_REPO/actions/workflows/$workflow/dispatches" \
@@ -117,16 +120,19 @@ jobs:
               id="$(gh api "repos/$GH_REPO/actions/workflows/$workflow/runs?event=workflow_dispatch&head_sha=$head&per_page=5" \
                       --jq "[.workflow_runs[] | select(.created_at >= \"$started\")][0].id // empty")"
             done
-            if [ -n "$id" ]; then runs="$runs $id"; else echo "::warning::No run found for $workflow"; fi
+            if [ -n "$id" ]; then runs="$runs $id"; else missing="$missing $workflow"; echo "::warning::No run found for $workflow"; fi
           done
-          echo "head=$head" >> "$GITHUB_OUTPUT"
-          echo "runs=${runs# }" >> "$GITHUB_OUTPUT"
+          {
+            echo "head=$head"
+            echo "runs=${runs# }"
+            echo "missing=${missing# }"
+          } >> "$GITHUB_OUTPUT"
 
   # Waits for the checks started above and posts each one's result on the
   # bump's head commit, so it shows on the pull request.
   report:
     needs: bump
-    if: needs.bump.outputs.runs != ''
+    if: needs.bump.outputs.runs != '' || needs.bump.outputs.missing != ''
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     permissions:
@@ -137,6 +143,7 @@ jobs:
       GH_REPO: ${{ github.repository }}
       HEAD_SHA: ${{ needs.bump.outputs.head }}
       RUNS: ${{ needs.bump.outputs.runs }}
+      MISSING: ${{ needs.bump.outputs.missing }}
     steps:
       - name: Report
         run: |
@@ -144,6 +151,11 @@ jobs:
             gh api -X POST "repos/$GH_REPO/statuses/$HEAD_SHA" -f state="$1" \
               -f context="$2 (dispatch)" -f target_url="$3" -f description="$4" > /dev/null
           }
+          for workflow in $MISSING; do
+            IFS=$'\t' read -r name url < <(gh api "repos/$GH_REPO/actions/workflows/$workflow" --jq '[.name, .html_url] | @tsv') ||
+              { name="$workflow"; url="$GITHUB_SERVER_URL/$GH_REPO/actions/workflows/$workflow"; }
+            status error "$name" "$url" "No run found"
+          done
           for id in $RUNS; do
             IFS=$'\t' read -r name url < <(gh api "repos/$GH_REPO/actions/runs/$id" --jq '[.name, .html_url] | @tsv')
             status pending "$name" "$url" "Running"
@@ -152,7 +164,8 @@ jobs:
             while [ "$(gh api "repos/$GH_REPO/actions/runs/$id" --jq .status)" != completed ]; do sleep 30; done
             IFS=$'\t' read -r name url conclusion < <(gh api "repos/$GH_REPO/actions/runs/$id" --jq '[.name, .html_url, .conclusion] | @tsv')
             case "$conclusion" in
-              success|neutral|skipped) status success "$name" "$url" "Passed" ;;
+              success) status success "$name" "$url" "Passed" ;;
+              neutral|skipped) status error "$name" "$url" "Finished: $conclusion" ;;
               *) status failure "$name" "$url" "Finished: $conclusion" ;;
             esac
             echo "$id" >> "$RUNNER_TEMP/reported"
