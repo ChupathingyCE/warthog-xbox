@@ -68,15 +68,22 @@ the sound cache and Direct3D, 24 MB; the sound cache then had the Xbox's
 4 MB (8 MB did not fit with 8 MB kept), and Direct3D and the rest took
 about 7.3 MB of the piece by the main loop.
 
-The sound cache needs no piece: DirectSound maps a buffer's or packet's
-memory page by page (dsound.lib's CMcpxBufferSgeHeap::MapBuffer and the
-stream packets' mapping: MmGetPhysicalAddress for each 4 KB page into the
-sound processor's scatter-gather entries). So on a console above 64 MB it
-is made with VirtualAlloc, from the upper 64 MB, before the texture cache
-(sound_cache_make_outside), at its full 8 MB; the texture cache is then
-fitted to the piece keeping only Direct3D's share (9 MB): about 27 MB on
-that console instead of 24, and twice the sound cache. A 64 MB console's
-caches are made as before.
+The sound cache must be one piece too, but it need not be in the low 64
+MB. A stream packet is mapped by DirectSound (dsound.lib's
+CMcpxStream::MapPacket) as the physically contiguous run from its current
+address, converted to whole blocks of samples: ADPCM's blocks are 36 bytes
+(mono) or 72 (stereo), which 4096 is not a multiple of, so at a page whose
+next page is not physically the next one the run holds less than a block,
+maps as no samples, and the packet is retried forever (the channel stuck
+playing, its sound silent). So on a console above 64 MB the sound cache is
+made with VirtualAlloc, from the upper 64 MB, before the texture cache
+(sound_cache_make_outside), at its full 8 MB, and kept only if every page
+of it is physically the one after the page before; otherwise it is given
+back and made as before. When it is kept, the texture cache is fitted to
+the piece keeping only Direct3D's share (9 MB): about 27 MB on that
+console instead of 24, and twice the sound cache. Either way debug.txt
+says which, so a 128 MB console's log shows whether the kernel gives
+consecutive pages. A 64 MB console's caches are made as before.
 
 Only the parse of a total into a class (xbox_memory_class_of and
 xbox_memory_delta_class_of) is built on the host (port/xbox/tests).
@@ -739,9 +746,12 @@ ULONG_PTR __stdcall MmGetPhysicalAddress(PVOID address);
 /* the sound cache made outside the low 64 MB (above, "The low 64 MB"), on
 a console above 64 MB, before the texture cache is fitted: at its full size,
 from VirtualAlloc, whose pages the kernel takes from the upper 64 MB first.
-How much of it landed below 64 MB anyway is said; the texture cache is
-fitted after it, so it is measured either way. If it cannot be made, the
-sound cache is made as before (XPhysicalAlloc, after the texture cache) */
+It is kept only if its pages are physically consecutive (DirectSound maps
+an ADPCM packet by its physically contiguous run: above); how much of it
+landed below 64 MB anyway is said, and the texture cache is fitted after
+it, so it is measured either way. If it cannot be made, or is in pieces,
+the sound cache is made as before (XPhysicalAlloc, after the texture
+cache) */
 static struct
 {
 	int tried;
@@ -751,7 +761,8 @@ static struct
 
 static void sound_cache_make_outside(void)
 {
-	unsigned long page, low = 0;
+	unsigned long page, low = 0, breaks = 0, break_at = 0;
+	ULONG_PTR first;
 	void *block;
 
 	if (sound_cache_outside.tried)
@@ -774,18 +785,37 @@ static void sound_cache_make_outside(void)
 		VirtualFree(block, 0, MEM_RELEASE);
 		return;
 	}
+	first = MmGetPhysicalAddress(block);
 	for (page = 0; page < memory.sound_cache_size; page += 0x1000)
 	{
-		if (MmGetPhysicalAddress((char *)block + page) < _low_memory_top)
+		ULONG_PTR physical = MmGetPhysicalAddress((char *)block + page);
+
+		if (physical != first + page)
+		{
+			/* (the first break, and the pages up to it) */
+			if (!breaks)
+				break_at = page;
+			breaks++;
+		}
+		if (physical < _low_memory_top)
 			low += 0x1000;
+	}
+	if (breaks)
+	{
+		xbox_boot_log("memory: sound cache %lu KB outside the low 64 MB is in pieces (physical 0x%08lX, the first "
+			"break after %lu KB, %lu pages out of line; %lu KB below 64 MB): given back, made after the texture "
+			"cache, as on a 64 MB console", memory.sound_cache_size >> 10, (unsigned long)first, break_at >> 10,
+			breaks, low >> 10);
+		VirtualFree(block, 0, MEM_RELEASE);
+		return;
 	}
 	sound_cache_outside.address = block;
 	sound_cache_outside.size = memory.sound_cache_size;
 	/* (its size is its own: not fitted to the texture cache's piece) */
 	sound_cache_fitted = 1;
-	xbox_boot_log("memory: sound cache %lu KB made at %p, before the texture cache and outside the low 64 MB "
-		"(%lu KB of its pages below 64 MB), %lu KB free", memory.sound_cache_size >> 10, block, low >> 10,
-		xbox_memory_free() >> 10);
+	xbox_boot_log("memory: sound cache %lu KB made at %p (physical 0x%08lX, in one piece), before the texture "
+		"cache and outside the low 64 MB (%lu KB of its pages below 64 MB), %lu KB free",
+		memory.sound_cache_size >> 10, block, (unsigned long)first, low >> 10, xbox_memory_free() >> 10);
 }
 
 void *xbox_memory_sound_cache_allocate(unsigned long size, unsigned long address)
