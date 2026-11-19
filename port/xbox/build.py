@@ -167,6 +167,14 @@ COLD_SOURCES = (
     "console_reports.c", "game_report.c",
     "monocypher.c", "monocypher-ed25519.c", "p2p_crypto.c", "port_config.c", "tomlc17.c",
 )
+# the port's game code that runs at a map's load or in the menus, built for
+# size like COLD_SOURCES: Custom Edition maps' loader (not ce_vorbis.c,
+# which decodes as a sound plays), the map families and packs, the PAL tags,
+# the menus' map list and the statistics recorder. About 35 KB
+COLD_PORT_GAME_SOURCES = (
+    "ce_bsp.c", "ce_functions.c", "ce_hud.c", "ce_map_checks.c", "ce_models.c", "ce_repairs.c", "ce_resources.c",
+    "game_stats.c", "map_families.c", "map_packs.c", "pal_tags.c", "ui_map_list.c",
+)
 SUPPORT_CXX_FLAGS = ["-fno-exceptions", "-fno-rtti", "-fno-threadsafe-statics"]
 
 LINK_FLAGS = [
@@ -177,10 +185,12 @@ LINK_FLAGS = [
     # when the PE's base is the XBE's 0x10000; the section took 119 KB)
     "/nologo", "/subsystem:windows", "/fixed", "/base:0x00010000", "/stack:524288",
     "/machine:x86", "/entry:mainCRTStartup",
-    # the functions nothing calls are left out (-ffunction-sections), and no
-    # two that compile the same are folded into one: the game compares
-    # function pointers (hs.c tells a script macro by its parser's)
-    "/opt:ref,noicf", "/nodefaultlib", "/safeseh:no",
+    # the functions nothing calls are left out (-ffunction-sections), and two
+    # that compile the same are folded into one only if nothing takes either's
+    # address (safeicf: clang's .llvm_addrsig marks those), since the game
+    # compares function pointers (hs.c tells a script macro by its parser's).
+    # About 12 KB of code and constants
+    "/opt:ref,safeicf", "/nodefaultlib", "/safeseh:no",
     "/merge:.edata=.edataxb", "/errorlimit:0", "--rsp-quoting=posix",
 ]
 # (the SDK's D3DX is built on its own Direct3D; port/xbox/src/xbox_d3dx.c has
@@ -249,6 +259,9 @@ XBOX_PORT_GAME_SOURCES = [
     # Xbox's memory at their own addresses (src/xbox_memory.c, src/xbox_ce_files.c)
     "ce_bsp.c", "ce_functions.c", "ce_hud.c", "ce_map_checks.c", "ce_models.c", "ce_repairs.c", "ce_resources.c",
     "ce_vorbis.c",
+    # (the SHA-256 that ce_map_checks.c, ce_models.c and ce_resources.c name:
+    # the Xbox hashes no map, CE_MAP_HASHED is 0 there, and the linker drops it)
+    "mcc_sha256.c",
     # Stubbs the Zombie's mode (stubbs_mode_active, which the scripts' compiler
     # asks): the game's since chupathingyce 95871e3a
     "stubbs_mode.c",
@@ -529,7 +542,8 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
         if name == "ce_vorbis.c":
             vertex_flags = ["-Dmalloc=platform_ce_scratch_malloc", "-Drealloc=platform_ce_scratch_realloc",
                             "-Dfree=platform_ce_scratch_free"]
-        add_object(game / PORT_LINUX_GAME / name, " ".join(["-std=gnu89", game_cflags, *PORT_DATA_FLAGS, *vertex_flags]),
+        cold = COLD_FLAGS if name in COLD_PORT_GAME_SOURCES else []
+        add_object(game / PORT_LINUX_GAME / name, " ".join(["-std=gnu89", game_cflags, *PORT_DATA_FLAGS, *vertex_flags, *cold]),
                    [semantics_header, prefix_header])
 
     # the map lists' names fitted to their boxes (menu_text_fit.c: C and the
@@ -633,9 +647,11 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
     config_cflags = " ".join([p2p_cflags, *COLD_FLAGS, "-DHALO_XBOX_CONSOLE", *debug_tools_flags,
                               f"-include {_quote(PORT_DIR / 'include' / 'halo_xbox_features.h')}",
                               f"-I{_quote(game / TOMLC17_DIR)}"])
+    # (without the help text of the settings the Xbox doesn't write, about
+    # 40 KB: tools/xbox_sources.py's config)
     generated = gen_dir / "p2p" / CONFIG_SOURCE.name
     n.build(outputs=generated, rule="xbox_source", inputs=game / CONFIG_SOURCE, implicit=[TOOLS_DIR / "xbox_sources.py"],
-            variables={"kind": "copy"})
+            variables={"kind": "config"})
     add_object(generated, config_cflags, [*sorted((PORT_DIR / "p2p").glob("*.h")),
                                           PORT_DIR / "include" / "halo_xbox_features.h"])
     add_object(game / TOMLC17_DIR / "tomlc17.c", " ".join([*SUPPORT_FLAGS, *PORT_DATA_FLAGS, *COLD_FLAGS, "-std=gnu11", "-w", "-include",

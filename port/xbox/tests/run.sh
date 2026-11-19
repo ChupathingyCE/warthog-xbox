@@ -80,10 +80,15 @@ python3 port/xbox/tests/package_test.py
 python3 port/xbox/tests/easy_build_test.py
 # D:\config.toml: port_config.c as the console builds it, beside a stand-in
 # for its platform.h, run in a folder where "d:\config.toml" is a name
+# (and the help of the settings the Xbox doesn't write left out, as
+# tools/xbox_sources.py's config makes it for the build: the file it writes
+# is the same as the whole source's, checked below)
 rm -rf "$OUT/config"
-mkdir -p "$OUT/config/run"
-cp $G/port/linux/src/port_config.c "$OUT/config/port_config.c"
+mkdir -p "$OUT/config/run" "$OUT/config/whole/run"
+python3 tools/xbox_sources.py config $G/port/linux/src/port_config.c "$OUT/config/port_config.c"
+cp $G/port/linux/src/port_config.c "$OUT/config/whole/port_config.c"
 cp port/xbox/tests/config_platform.h "$OUT/config/platform.h"
+cp port/xbox/tests/config_platform.h "$OUT/config/whole/platform.h"
 cp $G/port/linux/include/halo_port_limits.h $G/port/linux/include/halo_port_capacity.h \
 	$G/port/linux/include/halo_port_features.h $G/port/linux/include/halo_console_memory.h \
 	$G/port/linux/include/halo_console_features.h "$OUT/config/"
@@ -96,6 +101,18 @@ $CC -std=gnu11 -Wall -Wextra -Werror $SAN -DHALO_XBOX_CONSOLE -DHALO_CONSOLE_PLA
 	-I$G/port/linux/src -I$G/port/third_party/tomlc17 \
 	port/xbox/tests/config_test.c "$OUT/config/port_config.c" "$OUT/config/tomlc17.o" -o "$OUT/config/config_test"
 (cd "$OUT/config/run" && ../config_test new && ../config_test given)
+cp "$OUT"/config/halo_*.h "$OUT/config/whole/"
+$CC -std=gnu11 -w -DHALO_XBOX_CONSOLE -DHALO_CONSOLE_PLAYERS=16 \
+	-include port/xbox/include/halo_xbox_features.h \
+	-I$G/port/linux/src -I$G/port/third_party/tomlc17 \
+	port/xbox/tests/config_test.c "$OUT/config/whole/port_config.c" "$OUT/config/tomlc17.o" \
+	-o "$OUT/config/whole/config_test"
+(cd "$OUT/config/whole/run" && ../config_test new > /dev/null && ../config_test given > /dev/null)
+cmp "$OUT/config/run/d:\config.toml" "$OUT/config/whole/run/d:\config.toml" ||
+	{ echo "config: the console's config.toml differs without the help it leaves out"; exit 1; }
+echo "config: the console's config.toml is the same without the help it leaves out"
+# (after the compare: these write their own config.toml)
+(cd "$OUT/config/run" && ../config_test wide_named && ../config_test wide_commented)
 # the console's player identity (D:\game_list_player.key)
 $CC -std=c89 -pedantic -Wall -Wextra -Werror $SAN -c $SRC/xbox_player_key.c -o "$OUT/player_key.o"
 $CC -std=gnu11 -Wall -Wextra -Werror $SAN port/xbox/tests/player_key_test.c "$OUT/player_key.o" \
