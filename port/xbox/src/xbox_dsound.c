@@ -21,8 +21,10 @@ channels are kept here so their masks are dealt out per channel
 in debug.txt, and the speaker setting and the game's layouts for it at the
 start (sound: speakers ...), so a report's log shows where 2D sounds went.
 
-DirectSoundStopStream and DirectSoundGetStreamVoiceStatus came from a
-stream helper linked with the January game (dsstrmh), not the library.
+DirectSoundStopStream and DirectSoundGetStreamVoiceStatus stand for the
+retail game's stream stop and voice status (its library's stream flush,
+CMcpxStream_Flush in the retail XBE), which the later library has no names
+for.
 
 This file is compiled with the later SDK's headers, not the game's.
 */
@@ -424,10 +426,19 @@ HRESULT WINAPI halo_xbox_IDirectSound_DownloadEffectsImage(
 
 /* ---------- the stream helper */
 
+/* The stream stopped at once and its packets let go before this returns,
+as the retail game's stop did: it turned the voice off with no release
+envelope, and from the main loop (below DPC level) completed every packet,
+in the hardware and queued, before returning. An asynchronous flush
+completed them later, in DirectSoundDoWork, after the game had seen the
+voice stop and taken the channel back; a channel started again meanwhile
+then counted those late completions against its new sound's packets, which
+took its count below 0 and could end the new sound early or leave a
+queued sound behind (warthog-xbox #154). */
 void WINAPI DirectSoundStopStream(
 	LPDIRECTSOUNDSTREAM stream)
 {
-	IDirectSoundStream_FlushEx(stream, 0, DSSTREAMFLUSHEX_ASYNC);
+	IDirectSoundStream_FlushEx(stream, 0, DSSTREAMFLUSHEX_IMMEDIATE);
 }
 
 DWORD WINAPI DirectSoundGetStreamVoiceStatus(
