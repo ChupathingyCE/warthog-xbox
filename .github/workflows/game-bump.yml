@@ -7,7 +7,9 @@ name: Game bump
 # is updated, and when the game is not ahead any more it is closed. A person
 # merges it. The pull request's checks are started here by hand, because
 # pushes and pull requests made with the workflow's own token do not start
-# workflows. The checks are the ones that need no console SDK (port-tests.yml);
+# workflows (the pull request's own runs wait for an approval that never comes),
+# and each one's result is posted on the pull request as a commit status named
+# after the workflow, e.g. "Build (dispatch)", so a green bump shows green. The checks are the ones that need no console SDK (port-tests.yml);
 # the console build itself runs on the xbox-sdk runner once the bump is on
 # main (build.yml), and the nightly (nightly.yml) builds the game's main
 # every night without waiting for a bump.
@@ -29,6 +31,9 @@ jobs:
   bump:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    outputs:
+      head: ${{ steps.bump.outputs.head }}
+      runs: ${{ steps.bump.outputs.runs }}
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
@@ -42,6 +47,7 @@ jobs:
           ref: main
 
       - name: Bump
+        id: bump
         run: |
           current="$(git rev-parse HEAD:chupathingyce)"
           game="$(gh api "repos/$GAME_REPO/commits/main" --jq .sha)"
@@ -98,6 +104,56 @@ jobs:
             gh pr create --base main --head "$BRANCH" --title "$title" --body-file body.txt
           fi
 
+          head="$(git rev-parse HEAD)"
+          runs=""
           for workflow in $CHECKS; do
-            gh workflow run "$workflow" --ref "$BRANCH"
+            started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            id="$(gh api -X POST "repos/$GH_REPO/actions/workflows/$workflow/dispatches" \
+                    -f ref="$BRANCH" -F return_run_details=true --jq '.workflow_run_id // empty')"
+            # (older API answers without the run's id: find it by commit)
+            for _ in $(seq 1 12); do
+              [ -n "$id" ] && break
+              sleep 5
+              id="$(gh api "repos/$GH_REPO/actions/workflows/$workflow/runs?event=workflow_dispatch&head_sha=$head&per_page=5" \
+                      --jq "[.workflow_runs[] | select(.created_at >= \"$started\")][0].id // empty")"
+            done
+            if [ -n "$id" ]; then runs="$runs $id"; else echo "::warning::No run found for $workflow"; fi
+          done
+          echo "head=$head" >> "$GITHUB_OUTPUT"
+          echo "runs=${runs# }" >> "$GITHUB_OUTPUT"
+
+  # Waits for the checks started above and posts each one's result on the
+  # bump's head commit, so it shows on the pull request.
+  report:
+    needs: bump
+    if: needs.bump.outputs.runs != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    permissions:
+      actions: read
+      statuses: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      HEAD_SHA: ${{ needs.bump.outputs.head }}
+      RUNS: ${{ needs.bump.outputs.runs }}
+    steps:
+      - name: Report
+        run: |
+          status() {
+            gh api -X POST "repos/$GH_REPO/statuses/$HEAD_SHA" -f state="$1" \
+              -f context="$2 (dispatch)" -f target_url="$3" -f description="$4" > /dev/null
+          }
+          for id in $RUNS; do
+            IFS=$'\t' read -r name url < <(gh api "repos/$GH_REPO/actions/runs/$id" --jq '[.name, .html_url] | @tsv')
+            status pending "$name" "$url" "Running"
+          done
+          for id in $RUNS; do
+            while [ "$(gh api "repos/$GH_REPO/actions/runs/$id" --jq .status)" != completed ]; do sleep 30; done
+            IFS=$'\t' read -r name url conclusion < <(gh api "repos/$GH_REPO/actions/runs/$id" --jq '[.name, .html_url, .conclusion] | @tsv')
+            case "$conclusion" in
+              success|neutral|skipped) status success "$name" "$url" "Passed" ;;
+              *) status failure "$name" "$url" "Finished: $conclusion" ;;
+            esac
+            echo "$name: $conclusion"
           done
