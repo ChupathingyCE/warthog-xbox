@@ -18,6 +18,15 @@ the game passes on as D3DPRESENTFLAG_WIDESCREEN: the table has 16:9 rows at
 television's 16:9; the shared code draws the 3D view wider and lays the
 interface out in XBOX_SCREEN_WIDE_WIDTH units (xbox_screen.h), which take
 no memory: the buffers stay 640x480.
+
+The refresh rate is Direct3D's too. The retail game, NTSC and PAL alike,
+asked for 640x480 at no particular rate, and so does this one: on a PAL
+console the mode table gives 50 Hz, or 60 with PAL60 on in the dashboard
+(the back buffer stays 640x480, which the TV encoder fits to the 576-line
+picture). The PAL game then ran its clock a sixth slow on every display;
+this one keeps the 30 ticks a second of every other build, so that it
+plays the same online, and paces its frames to the display's own blanks
+(halo_console_refresh_rate, main.c's main_update_time).
 */
 
 #include <xtl.h>
@@ -32,7 +41,11 @@ void platform_log(const char *format, ...);
 typedef char xbox_screen_flags_match[
 	(XC_VIDEO_FLAGS_WIDESCREEN == XBOX_SCREEN_VIDEO_FLAGS_WIDESCREEN &&
 		D3DPRESENTFLAG_WIDESCREEN == XBOX_SCREEN_PRESENT_FLAG_WIDESCREEN &&
-		D3DPRESENTFLAG_PROGRESSIVE == 0x40 && XC_AV_PACK_HDTV == 1 && XC_AV_PACK_STANDARD == 6) ? 1 : -1];
+		D3DPRESENTFLAG_PROGRESSIVE == 0x40 && XC_AV_PACK_HDTV == 1 && XC_AV_PACK_STANDARD == 6 &&
+		XC_VIDEO_FLAGS_PAL_60Hz == XBOX_SCREEN_VIDEO_FLAGS_PAL_60HZ &&
+		XC_VIDEO_STANDARD_NTSC_M == XBOX_SCREEN_STANDARD_NTSC_M &&
+		XC_VIDEO_STANDARD_NTSC_J == XBOX_SCREEN_STANDARD_NTSC_J &&
+		XC_VIDEO_STANDARD_PAL_I == XBOX_SCREEN_STANDARD_PAL_I) ? 1 : -1];
 
 /* 0 until first asked; fixed from then on (the device is made once) */
 static long screen_width;
@@ -54,8 +67,9 @@ void halo_screen_ui_offset(unsigned char centered)
 	(void)centered;
 }
 
-/* 60 frames a second over the 30 Hz ticks (display.frame_rate), or the
-game's one a tick: read once, as the device is made once (rasterizer_xbox.c,
+/* a frame every refresh over the 30 Hz ticks (display.frame_rate = 60: 60
+frames a second, 50 on a 50 Hz PAL television), or the game's one a tick:
+read once, as the device is made once (rasterizer_xbox.c,
 HALO_CONSOLE_FRAME_RATE). Between the ticks only the view moves, which takes
 no memory (render_interpolation.c, HALO_CONSOLE_VIEW_INTERPOLATION) */
 static short frame_rate;
@@ -70,6 +84,17 @@ short halo_console_frame_rate(void)
 int halo_interpolation_enabled(void)
 {
 	return halo_console_frame_rate() == 60;
+}
+
+/* the display's refresh rate, 50 or 60: the mode's once the device is made
+(halo_screen_device_report), the standard's and PAL60's before */
+static short refresh_rate;
+
+short halo_console_refresh_rate(void)
+{
+	if (!refresh_rate)
+		return xbox_screen_choose_refresh_rate(XGetVideoStandard(), XGetVideoFlags(), 0);
+	return refresh_rate;
 }
 
 /* the TV encoder's flicker filter (display.flicker_filter, the game's 5) */
@@ -96,17 +121,19 @@ long halo_screen_physical_x(long interface_x)
 void halo_screen_device_report(void)
 {
 	D3DDISPLAYMODE mode;
-	char text[96];
+	char text[128];
 
 	ZeroMemory(&mode, sizeof(mode));
 	D3DDevice_GetDisplayMode(&mode);
-	xbox_screen_mode_text(text, sizeof(text), halo_screen_width(), mode.Flags, mode.RefreshRate, XGetAVPack());
+	refresh_rate = xbox_screen_choose_refresh_rate(XGetVideoStandard(), XGetVideoFlags(), mode.RefreshRate);
+	xbox_screen_mode_text(text, sizeof(text), halo_screen_width(), mode.Flags, mode.RefreshRate, XGetAVPack(),
+		XGetVideoStandard(), XGetVideoFlags());
 	/* (and the setting as it was read, and the dashboard's: which of them
 	made the picture what it is) */
 	platform_log("%s; display.widescreen \"%.20s\" (%s), the dashboard %s", text,
 		config_string("display.widescreen"),
 		xbox_screen_setting_off(config_string("display.widescreen")) ? "off" : "follows the dashboard",
 		(XGetVideoFlags() & XC_VIDEO_FLAGS_WIDESCREEN) ? "widescreen" : "4:3");
-	platform_log("screen: %d frames a second (display.frame_rate), flicker filter %ld", halo_console_frame_rate(),
-		halo_console_flicker_filter());
+	xbox_screen_rate_text(text, sizeof(text), halo_console_frame_rate(), refresh_rate, halo_console_flicker_filter());
+	platform_log("%s", text);
 }
