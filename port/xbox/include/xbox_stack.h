@@ -3,7 +3,8 @@ XBOX_STACK.H
 
 How much of each thread's stack the game uses at most (src/xbox_stack.c):
 the main thread's, and the port's own threads' (the tunnel, the game list,
-the reports, the claim, the profile link, the Map Browser, the watchdog).
+the reports, the claim, the game claims, the profile link, the Map Browser,
+the watchdog).
 The retail game gave every thread but the main one 16 KB; ours are sized
 by guesses from -fstack-usage, and each KB of a stack is committed memory
 a 64 MB console is short of. These lines in debug.txt are what a smaller
