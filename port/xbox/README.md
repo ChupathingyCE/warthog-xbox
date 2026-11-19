@@ -124,9 +124,12 @@ and flags as the retail game, so the console gets the same modes:
 `debug.txt` says which mode the console got, once the device is made:
 
 ```
-screen: 480p 60 Hz widescreen (component), 852 units across
-screen: 480i 60 Hz 4:3 (composite), 640 units across
+screen: 480p 60 Hz widescreen (component, NTSC-M), 852 units across
+screen: 480i 50 Hz 4:3 (SCART, PAL-I, PAL60 off), 640 units across
 ```
+
+After the cable comes the console's TV standard (NTSC-M, NTSC-J or PAL-I)
+and, on a PAL console, whether PAL60 is on in the dashboard.
 
 To check on a console: set the dashboard's video settings (480p on or off,
 Widescreen or Normal), start the game, and read that line. 480p needs the
@@ -153,11 +156,39 @@ default, 30, draws one frame a tick, as the retail game did. At 60:
 - a scene that can't hold 60 drops to a steady 30 until it can again
   (the game's own frame rate stabilization), rather than judder.
 
-`debug.txt` says which it got, with the flicker filter:
+`debug.txt` says which it got, at what refresh rate, with the flicker filter:
 
 ```
-screen: 60 frames a second (display.frame_rate), flicker filter 5
+screen: 60 frames a second at 60 Hz (display.frame_rate 60), flicker filter 5
 ```
+
+### PAL consoles (50 Hz)
+
+The retail game, NTSC and PAL, draws 640x480 and asks Direct3D for no
+particular refresh rate. A PAL console without PAL60 then runs at 50 Hz
+(the TV encoder fits the 480 lines to the PAL picture); with PAL60 on in
+the dashboard it runs at 60 Hz. This build does the same.
+
+The retail PAL game also ran a sixth slower than the NTSC one. This build
+doesn't: the game ticks 30 times a second on every display, so a PAL
+console plays at the same speed as everyone else online. Only the drawing
+follows the display:
+
+- `display.frame_rate = 60` draws a frame every refresh: 50 frames a second
+  at 50 Hz, with the view eased between ticks as at 60. A busy scene drops
+  to 25.
+- `display.frame_rate = 30` (the default) draws one frame each tick. 30
+  ticks don't divide evenly into 50 refreshes, so each frame waits for the
+  first refresh after its tick: 2, 2 and 1 refreshes in turn. Every tick is
+  shown, a little unevenly; 60 is smoother at 50 Hz.
+- With PAL60 on, everything is as on an NTSC console.
+
+```
+screen: 50 frames a second at 50 Hz (display.frame_rate 60), flicker filter 5
+```
+
+PAL testers: please send `debug.txt` with these two lines, and say whether
+turning looks smooth at both settings.
 
 `display.flicker_filter` (0 to 5) is how much an interlaced (480i) picture
 is softened against flicker. The retail game used 5. The H1 Performance
