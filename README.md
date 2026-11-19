@@ -81,9 +81,10 @@ for you, `config.toml` included (see "Building it yourself").
 - **Link your Delta profile:** on Online Games, press **Start**, then **A**
   for a code. Enter the code at stats.chupathingy.org/connect, signed in on
   your phone or computer, then press **A** on the console. The games you
-  join then count on your service record. After each online game, hosted
-  or joined, the console also claims its own line for the linked profile
-  (or the identity file's), so the game shows on your profile.
+  join then count on your service record. After each online game you
+  join, the console also claims its own line for the linked profile (or
+  the identity file's), so the game shows on your profile even when its
+  report didn't go out.
 - **Maps:** the retail maps, the Halo CE+ map pack, and Halo PC's Custom
   Edition maps ([below](#custom-edition-maps)).
 - **Map Browser:** **Multiplayer > MAP BROWSER** downloads Custom Edition
