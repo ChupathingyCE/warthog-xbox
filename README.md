@@ -190,35 +190,41 @@ console has.
 
 ### Performance presets (`[tuning]`)
 
-The `tuning.preset` setting comes from the PC game, and does little here:
+`tuning.preset` sets several drawing knobs at once. The original Xbox has
+its own presets, below its own drawing:
 
-- `potato` changes nothing on the original Xbox. It is the same as
-  `retail`. `debug.txt` says so at start.
-- `lan-party` changes one thing: the present mode, `adaptive`, which shows
-  a late frame at once, with a tear.
+- `lan-party` is for big online games: 4 dynamic lights instead of 8, 1
+  with shine, no shine or reflections (`effects = "reduced"`), fewer small
+  shadows, small items lying around left out, and a late frame shown at
+  once (`present_mode = "adaptive"`, with a tear).
+- `potato` goes further: 2 lights, no decals, shadows only close up, and,
+  outside online games, 512 particles with every other loose one drawn and
+  no grass, rain, snow, contrails or lens flares.
+- Online, nobody sees less than the Xbox shows them: the particles stay at
+  1024, and the grass, weather, contrails and lens flares stay.
 - No preset changes the game tick. In big games (more than about 24
-  players) the tick is what holds the console back, so a preset won't make
-  those games faster.
+  players) the tick is most of what holds the console back, so a preset
+  helps the drawing's share only.
+- Any key you set yourself wins over the preset. `debug.txt` has a
+  `tuning:` line at start and at each map with every value, and every 10
+  seconds a `tuning: did` line with what the knobs left out.
 
 Every knob, made from the game's code (`tools/tuning_table.py --xbox` in
 the game):
 
 <!-- tuning table: made by tools/tuning_table.py, don't edit by hand -->
 
-| Setting | On the original Xbox | Default and range here | lan-party sets | potato sets | What it costs or saves |
-| --- | --- | --- | --- | --- | --- |
-| `display.dynamic_light_limit` | yes | `8`; 0 to 128 (0: no limit) | nothing | nothing | Drawing. Each dynamic light redraws the level it reaches twice; in a big firefight most of the GPU's time. |
-| `display.specular_light_limit` | yes | `2`; 0 to 128 (0: no limit) | nothing | nothing | Drawing. The shine pass of near lights, the costliest pass in a firefight. |
-| `display.particle_limit` | no: not a console setting | | | | Drawing, and a little CPU a frame for each particle alive. Never under 1024 in a network game. |
-| `display.particle_ticks` | no: not a console setting | | | | CPU a frame: moving loose particles once a tick saves two in three of their collision tests at 60 fps. |
-| `display.shadow_resolution` | no: not a console setting | | | | Drawing and video memory: bigger shadow maps. |
-| `display.anisotropic_filtering` | no: not a console setting | | | | Drawing: texture sampling on the GPU. |
-| `display.anti_aliasing` | no: not a console setting | | | | Drawing and video memory: extra samples or a filter pass. |
-| `display.per_pixel_lighting` | no: not a console setting | | | | Drawing: lighting work for each pixel instead of each vertex. |
-| `display.light_effects` | no: not a console setting | | | | Drawing: the projectile, muzzle and emitter lights, and their wall tests. |
-| `display.resolution_scaling` | no: not a console setting | | | | Drawing: "original" fills 640x480 instead of the window. |
-| `tuning.present_mode` | yes | `vblank`; `vblank` or `adaptive` | `adaptive` | nothing | Waiting, not work: "adaptive" shows a late frame at once, with a tear, instead of a refresh later. |
-| `tuning.texture_cache` | yes | `auto`; "auto", or 19 to 512 MB (and what memory has room for) | nothing | nothing | Memory: a bigger cache loads fewer textures from the disc, and leaves less free. |
+| Setting | Default and range | lan-party sets | potato sets | What it costs or saves |
+| --- | --- | --- | --- | --- |
+| `display.dynamic_light_limit` | `8`; 0 to 128 (0: no limit) | `4` | `2` | Drawing. Each dynamic light redraws the level it reaches twice; in a big firefight most of the GPU's time. |
+| `display.specular_light_limit` | `2`; 0 to 128 (0: no limit) | `1` | `1` | Drawing. The shine pass of near lights, the costliest pass in a firefight. |
+| `display.particle_limit` | `1024`; 0 to 1024 (0: no limit) | nothing | `512` | CPU and drawing: each particle alive is moved, tested against the level and drawn. Never under 1024 in a network game, so on the original Xbox (whose most is 1024) it cuts only outside one. |
+| `tuning.present_mode` | `vblank`; `vblank` or `adaptive` | `adaptive` | `adaptive` | Waiting, not work: "adaptive" shows a late frame at once, with a tear, instead of a refresh later. |
+| `tuning.particle_thinning` | `1`; 1 to 4 | nothing | `2` | Drawing: fewer sprites of loose particles; each is still moved and counted as before. In a network game only past the Xbox's 1024. |
+| `tuning.effects` | `full`; `full` or `reduced` or `minimal` | `reduced` | `minimal` | Drawing: "reduced" skips the shine, reflection and grass passes; "minimal" also decals, weather, contrails and lens flares. A network game keeps the grass, weather, contrails and flares. |
+| `tuning.shadow_pixels` | `30`; 30 to 400 | `60` | `120` | Drawing: each object's shadow redraws the level under it; an object too small for one is not lit for it either. |
+| `tuning.object_cull_pixels` | `0`; 0 to 16 | `4` | `8` | Drawing, and CPU a frame: small objects are neither lit nor drawn. In a network game only items lying around. |
+| `tuning.texture_cache` | `auto`; "auto", or 19 to 512 MB (and what memory has room for) | nothing | nothing | Memory: a bigger cache loads fewer textures from the disc, and leaves less free. |
 
 <!-- end of tuning table -->
 
