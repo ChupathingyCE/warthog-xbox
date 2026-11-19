@@ -173,7 +173,7 @@ COLD_SOURCES = (
 # the menus' map list and the statistics recorder. About 35 KB
 COLD_PORT_GAME_SOURCES = (
     "ce_bsp.c", "ce_functions.c", "ce_hud.c", "ce_map_checks.c", "ce_models.c", "ce_repairs.c", "ce_resources.c",
-    "game_stats.c", "map_families.c", "map_packs.c", "pal_tags.c", "ui_map_list.c",
+    "game_stats.c", "map_families.c", "map_packs.c", "opensauce_map.c", "pal_tags.c", "spv3_mode.c", "ui_map_list.c",
 )
 SUPPORT_CXX_FLAGS = ["-fno-exceptions", "-fno-rtti", "-fno-threadsafe-statics"]
 
@@ -265,6 +265,13 @@ XBOX_PORT_GAME_SOURCES = [
     # Stubbs the Zombie's mode (stubbs_mode_active, which the scripts' compiler
     # asks): the game's since chupathingyce 95871e3a
     "stubbs_mode.c",
+    # SPV3 mode and OpenSauce's maps (spv3_mode_*, opensauce_map_*, which the
+    # Custom Edition loader, the scripts and the HUD ask): the game's since
+    # chupathingyce #1385 and #1490. Both stay off here: SPV3 mode only runs
+    # on the 64-bit desktop builds that map OpenSauce's larger tag window,
+    # and OpenSauce's module only where the tag validator checks its layout,
+    # so the console reads a map as it did before
+    "spv3_mode.c", "opensauce_map.c",
     # the host's checks of its players (line of sight, evidence, conduct
     # rules), which the network code asks: the game's since #689 and #694
     "conduct_rules.c", "host_evidence.c", "line_of_sight.c",
