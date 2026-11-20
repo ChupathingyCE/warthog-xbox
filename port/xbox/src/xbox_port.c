@@ -25,33 +25,9 @@ void error(short priority, const char *format, ...);
 
 /* ---------- the C runtime's newer functions */
 
-int vsnprintf(char *buffer, size_t size, const char *format, va_list arguments)
-{
-	int length;
-
-	if (!size)
-		return _vsnprintf(NULL, 0, format, arguments);
-	length = _vsnprintf(buffer, size, format, arguments);
-	/* _vsnprintf leaves a full buffer unterminated (and says -1, or size
-	when it just fits): terminate it then, and only then. size can be more
-	than the buffer (csprintf passes MAXIMUM_STRING_SIZE for any buffer),
-	so writing buffer[size - 1] every time wrote a zero up to 8 KB past a
-	small buffer */
-	if (length < 0 || (size_t)length >= size)
-		buffer[size - 1] = 0;
-	return length < 0 ? (int)size - 1 : length;
-}
-
-int snprintf(char *buffer, size_t size, const char *format, ...)
-{
-	va_list arguments;
-	int length;
-
-	va_start(arguments, format);
-	length = vsnprintf(buffer, size, format, arguments);
-	va_end(arguments);
-	return length;
-}
+/* (xbox_printf.c's: C99's, which the console's C runtime lacks) */
+int vsnprintf(char *buffer, size_t size, const char *format, va_list arguments);
+int snprintf(char *buffer, size_t size, const char *format, ...);
 
 /* round to the nearest integer, halves to even: adding and taking away 2^52
 leaves the integer part, rounded as the FPU rounds (to nearest) */
