@@ -81,7 +81,10 @@ for you, `config.toml` included (see "Building it yourself").
 - **Link your Delta profile:** on Online Games, press **Start**, then **A**
   for a code. Enter the code at stats.chupathingy.org/connect, signed in on
   your phone or computer, then press **A** on the console. The games you
-  join then count on your service record.
+  join then count on your service record. After each online game you
+  join, the console also claims its own line for the linked profile (or
+  the identity file's), so the game shows on your profile even when its
+  report didn't go out.
 - **Maps:** the retail maps, the Halo CE+ map pack, and Halo PC's Custom
   Edition maps ([below](#custom-edition-maps)).
 - **Map Browser:** **Multiplayer > MAP BROWSER** downloads Custom Edition
@@ -181,7 +184,7 @@ The ones players use most:
 | `display.frame_rate` | `60` turns the view every frame. `30`, the default, draws as the original game did. |
 | `display.flicker_filter` | From 0 to 5. Lower is sharper on a 480i TV, with more flicker. The default is 5. |
 | `display.field_of_view` | From 50 to 120. The default is 70. |
-| `network.report_joined_games` | `false` keeps your games off your service record. |
+| `network.report_joined_games` | `false` keeps your games off your service record, and sends no claims. |
 | `console.trace` | `true` adds a join's network steps to `debug.txt`, for a bug report. |
 
 [docs/settings.md](docs/settings.md) lists every setting the console reads.
