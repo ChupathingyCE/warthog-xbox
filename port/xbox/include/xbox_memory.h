@@ -48,8 +48,9 @@ unsigned long xbox_memory_texture_cache_maximum_address(void);
 4 MB, 8 MB on a console above 64 MB */
 unsigned long xbox_memory_sound_cache_size(void);
 unsigned long xbox_memory_sound_cache_maximum_address(void);
-/* the sound cache itself (physical_memory_map.c): XPhysicalAlloc's and
-XPhysicalFree's, as the Xbox made and freed it */
+/* the sound cache itself (physical_memory_map.c): on a console above 64 MB,
+the block made outside the low 64 MB before the texture cache, if it was;
+else XPhysicalAlloc's, as the Xbox made it. Freed the way it was made */
 void *xbox_memory_sound_cache_allocate(unsigned long size, unsigned long address);
 void xbox_memory_sound_cache_free(void *address);
 /* the screen effect's swizzled target (rasterizer_xbox_screen_effect.c):
