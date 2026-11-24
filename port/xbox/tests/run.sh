@@ -7,7 +7,7 @@
 #                                        layouts', console.join's and the memory
 #                                        class's, XLink's, the log tags', the
 #                                        co-op names', the video modes' and
-#                                        the sound's mix bins'
+#                                        the sound's mix bins' and snprintf's
 #                                        tests, which hosts it joins,
 #                                        tools/xbox_package.py's
 #                                        devkit flag,
@@ -76,6 +76,12 @@ $CC -std=c89 -pedantic -Wall -Wextra -Werror $SAN port/xbox/tests/coop_name_test
 $CC -std=c89 -pedantic -Wall -Wextra -Werror $SAN port/xbox/tests/mix_bins_test.c $SRC/xbox_mix_bins.c \
 	-o "$OUT/mix_bins_test"
 "$OUT/mix_bins_test"
+# (the console's snprintf under its own names, beside the host's)
+$CC -std=c99 -pedantic -Wall -Wextra -Werror $SAN -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 \
+	-Dvsnprintf=xbox_vsnprintf -Dsnprintf=xbox_snprintf -include port/xbox/tests/printf_crt.h \
+	-c $SRC/xbox_printf.c -o "$OUT/printf.o"
+$CC -std=c99 -Wall -Wextra -Werror $SAN port/xbox/tests/printf_test.c "$OUT/printf.o" -o "$OUT/printf_test"
+"$OUT/printf_test"
 python3 port/xbox/tests/package_test.py
 python3 port/xbox/tests/easy_build_test.py
 # D:\config.toml: port_config.c as the console builds it, beside a stand-in
@@ -150,6 +156,11 @@ $CC -std=gnu11 -Wall -Wextra -Werror $SAN -I$G/port/third_party/monocypher port/
 	$SRC/xbox_claim.c $SRC/xbox_player_key.c "$OUT/claim/p2p_crypto.o" $G/port/third_party/monocypher/monocypher.c \
 	$G/port/third_party/monocypher/monocypher-ed25519.c -o "$OUT/claim_test"
 "$OUT/claim_test"
+# (the README's [tuning] table is the game's code's, when the game has the
+# tool that makes it)
+if [ -f "$G/tools/tuning_table.py" ]; then
+	python3 "$G/tools/tuning_table.py" --xbox --check README.md
+fi
 while [ $# -gt 0 ]; do
 	case "$1" in
 	--fuzz)

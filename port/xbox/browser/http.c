@@ -197,6 +197,12 @@ static int get_once(const char *url, char *location, int location_size, http_siz
 		"GET %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: " HTTP_USER_AGENT "\r\n"
 		HTTP_CLIENT_VERSION "Accept-Encoding: identity\r\nConnection: close\r\n\r\n",
 		path, host);
+	/* (a path near its 1 KB doesn't fit: never send past the request) */
+	if (length <= 0 || length >= (int)sizeof(request))
+	{
+		snprintf(error, error_size, "the address is too long: %.80s", url);
+		goto done;
+	}
 	if (plat_send(s->socket, request, length) != length)
 	{
 		snprintf(error, error_size, "send to %s failed", host);
