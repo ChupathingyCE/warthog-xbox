@@ -7,7 +7,7 @@
 #                                        layouts', console.join's and the memory
 #                                        class's, XLink's, the log tags', the
 #                                        co-op names', the video modes' and
-#                                        the sound's mix bins'
+#                                        the sound's mix bins' and snprintf's
 #                                        tests, which hosts it joins,
 #                                        tools/xbox_package.py's
 #                                        devkit flag,
@@ -76,6 +76,12 @@ $CC -std=c89 -pedantic -Wall -Wextra -Werror $SAN port/xbox/tests/coop_name_test
 $CC -std=c89 -pedantic -Wall -Wextra -Werror $SAN port/xbox/tests/mix_bins_test.c $SRC/xbox_mix_bins.c \
 	-o "$OUT/mix_bins_test"
 "$OUT/mix_bins_test"
+# (the console's snprintf under its own names, beside the host's)
+$CC -std=c99 -pedantic -Wall -Wextra -Werror $SAN -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 \
+	-Dvsnprintf=xbox_vsnprintf -Dsnprintf=xbox_snprintf -include port/xbox/tests/printf_crt.h \
+	-c $SRC/xbox_printf.c -o "$OUT/printf.o"
+$CC -std=c99 -Wall -Wextra -Werror $SAN port/xbox/tests/printf_test.c "$OUT/printf.o" -o "$OUT/printf_test"
+"$OUT/printf_test"
 python3 port/xbox/tests/package_test.py
 python3 port/xbox/tests/easy_build_test.py
 # D:\config.toml: port_config.c as the console builds it, beside a stand-in

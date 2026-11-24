@@ -57,17 +57,29 @@ them. Put the same settings in `config.toml`.
 | `display.viewmodel_field_of_view` | `0.0` | The weapon's field of view, from 50 to 120. `0` uses `display.field_of_view`. |
 | `display.reticle_scales_with_fov` | `true` | Sizes the reticle to the field of view. It makes no difference at 70. |
 | `display.direct_camera` | `true` | Turns the view in the same frame the stick moves. |
-| `display.dynamic_light_limit` | `8` | The most dynamic lights, such as muzzle flashes and explosions, that light the level at once. `0` is no limit. |
-| `display.specular_light_limit` | `2` | Of those lights, the most that also add their shine. `0` is no limit. |
+| `display.dynamic_light_limit` | `8` | The most dynamic lights, such as muzzle flashes and explosions, that light the level at once. `0` is no limit. Online it never goes under 8. |
+| `display.specular_light_limit` | `2` | Of those lights, the most that also add their shine. `0` is no limit. Online it never goes under 2. |
+| `display.particle_limit` | `1024` | The most particles alive at once: sparks, smoke, casings and debris. 1024 is the console's most, as the original game had. Lower makes room by letting the oldest go. Online it stays at 1024. |
 
 ## Performance presets (`[tuning]`)
 
+Every setting here changes only what is drawn, never how the game plays.
+Leave them alone and the game draws as it always has. A key you set
+yourself wins over the preset.
+
 | Setting | Default | What it does |
 | --- | --- | --- |
-| `tuning.preset` | `"retail"` | The PC game's presets. On this console `"potato"` changes nothing (it is the same as `"retail"`, and `debug.txt` says so at start), and `"lan-party"` changes only `present_mode` to `"adaptive"`. The console's own light limits are already where the presets would put them, and the PC's other knobs aren't console settings. No preset changes the game tick. |
+| `tuning.preset` | `"retail"` | `"retail"` changes nothing. `"lan-party"`, for big online games: `effects = "reduced"`, `shadow_pixels = 60`, `object_cull_pixels = 4`, `present_mode = "adaptive"`, and no change to the lights. `"potato"`: 2 lights, 1 with shine, 512 particles, `particle_thinning = 2`, `effects = "minimal"`, `shadow_pixels = 120`, `object_cull_pixels = 8`, `present_mode = "adaptive"`. Online the lights stay at 8 and 2 with shine, the particles at 1024, and the grass and weather stay. |
 | `tuning.present_mode` | `"vblank"` | `"vblank"` waits for the TV before every frame. `"adaptive"` shows a frame that missed it at once, with a tear. Read at start. |
+| `tuning.effects` | `"full"` | `"reduced"` leaves out the shine of lights, metal and water, the reflections and the grass. `"minimal"` also leaves out decals, rain and snow. Contrails and lens flares are always drawn. Online the grass, rain and snow stay. |
+| `tuning.shadow_pixels` | `30` | How big an object must look, in pixels across, to cast a shadow, from 30 to 400. 30 is the original game's. Higher keeps only near shadows. |
+| `tuning.object_cull_pixels` | `0` | Leaves out objects that look smaller than this many pixels, from 0 to 16. Never players, AI, vehicles, shots or grenades. Online only debris: never weapons, equipment or cover. |
+| `tuning.particle_thinning` | `1` | Draws one in this many of the loose particles (sparks, debris, dust), from 1 to 4. Online it does nothing on this console, which never has more than 1024. |
 | `tuning.texture_cache` | `"auto"` | The texture cache's size in MB, like `"20"`, or `"auto"` for the console's own. It's held between 19 MB and what memory has room for. Read at start. |
 
+`debug.txt` says what every knob was at start (`tuning: at=boot`) and at
+each map (`tuning: at=map`), and every 10 seconds of play what they left
+out, as an average a frame (`tuning: did lights=-2.1 sprites=-35.2 ...`).
 The README has every knob, with what it costs.
 
 ## HUD and scoreboard
