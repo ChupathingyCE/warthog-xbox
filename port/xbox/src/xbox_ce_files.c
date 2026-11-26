@@ -405,7 +405,7 @@ console has free (a model data block of 9 MB, a level's BSP read whole to check 
 an Ogg Vorbis stream decoded). While a Custom Edition map loads, those come out of the
 texture cache's own memory, lent as the game lends it for a movie
 (texture_cache_steal_memory), and go back once the map is loaded, before anything is
-drawn of it. ce_map_checks.c, ce_resources.c and ce_vorbis.c's malloc, realloc and free
+drawn of it. ce_map_checks.c, ce_resources.c and content_vorbis.c's malloc, realloc and free
 are these (port/xbox/build.py); outside a load, the heap's. */
 
 void *texture_cache_steal_memory(long size);

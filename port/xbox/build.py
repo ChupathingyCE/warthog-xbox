@@ -172,7 +172,7 @@ COLD_SOURCES = (
     "monocypher.c", "monocypher-ed25519.c", "p2p_crypto.c", "port_config.c", "tomlc17.c",
 )
 # the port's game code that runs at a map's load or in the menus, built for
-# size like COLD_SOURCES: Custom Edition maps' loader (not ce_vorbis.c,
+# size like COLD_SOURCES: Custom Edition maps' loader (not content_vorbis.c,
 # which decodes as a sound plays), the map families and packs, the PAL tags,
 # the menus' map list and the statistics recorder. About 35 KB
 COLD_PORT_GAME_SOURCES = (
@@ -264,10 +264,11 @@ XBOX_PORT_GAME_SOURCES = [
     # Custom Edition maps (HALO_CUSTOM_EDITION, below): their tag cache is the
     # Xbox's memory at their own addresses (src/xbox_memory.c, src/xbox_ce_files.c)
     "ce_bsp.c", "ce_functions.c", "ce_hud.c", "ce_map_checks.c", "ce_models.c", "ce_repairs.c", "ce_resources.c",
-    "ce_vorbis.c",
-    # (the SHA-256 that ce_map_checks.c, ce_models.c and ce_resources.c name:
-    # the Xbox hashes no map, CE_MAP_HASHED is 0 there, and the linker drops it)
-    "mcc_sha256.c",
+    "content_vorbis.c",
+    # (the game's one SHA-256: p2p_crypto.c's, and the one ce_map_checks.c,
+    # ce_models.c and ce_resources.c name: the Xbox hashes no map,
+    # CE_MAP_HASHED is 0 there)
+    "content_sha256.c",
     # Stubbs the Zombie's mode (stubbs_mode_active, which the scripts' compiler
     # asks): the game's since chupathingyce 95871e3a
     "stubbs_mode.c",
@@ -552,7 +553,7 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
         if name in ("ce_map_checks.c", "ce_resources.c"):
             vertex_flags = ["-Ddebug_malloc=xbox_ce_debug_malloc", "-Ddebug_realloc=xbox_ce_debug_realloc",
                             "-Ddebug_free=xbox_ce_debug_free"]
-        if name == "ce_vorbis.c":
+        if name == "content_vorbis.c":
             vertex_flags = ["-Dmalloc=platform_ce_scratch_malloc", "-Drealloc=platform_ce_scratch_realloc",
                             "-Dfree=platform_ce_scratch_free"]
         cold = COLD_FLAGS if name in COLD_PORT_GAME_SOURCES else []
