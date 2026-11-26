@@ -367,13 +367,22 @@ anything is allocated:
 
 | | 64 MB class | 128 MB class (256 MB) |
 |---|---|---|
-| texture cache | 22 MB, the Xbox's (down to 19 MB if the console is short) | 44 MB (64 MB) |
+| texture cache | 22 MB, the Xbox's (down to 19 MB if the console is short) | 44 MB asked (64 MB), what fits below 64 MB made: about 24 MB |
 | sound cache | 4 MB, 512 sounds | 8 MB, 1024 sounds |
 | dynamic triangles a frame | 32768 (192 KB index buffer) | 65536 (384 KB) |
 | transparent geometry groups a frame | 384 | 1024 (100 KB more heap) |
 | network connection queues | 64 KB reliable, 32 KB unreliable, 16 KB a joined machine (16 players) | four times (the desktop builds': 256 KB, 128 KB), 32 KB a machine |
 
-That is about 30 MB of a 128 MB console's upper 64 MB; the rest stays free.
+The texture cache, like every block the graphics chip reads, must be one
+piece of memory, and the kernel makes those only below 64 MB, even on a
+128 MB console. The game state and the tag cache sit there too, at the
+Xbox's own addresses (25 MB), so the texture cache gets what is left after
+them, the screen effect's target, the sound cache and Direct3D: about 24 MB
+on a 128 MB console (test-20261126), not 44. `debug.txt` says so: `boot:
+memory: texture cache 45056 KB does not fit below 64 MB, where it must be in
+one piece (the largest free piece there: 37056 KB, 12288 KB of it kept for
+what is made after): 24768 KB`. The heap and the rest take pages anywhere,
+and most of the upper 64 MB stays free.
 The 64 MB class's sizes are the ones it had before the classes (the image
 grows by 40 bytes). Only what is drawn, heard and buffered on the console
 changes: the game's limits (players, machines, objects, particles, the game

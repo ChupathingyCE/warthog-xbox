@@ -26,9 +26,11 @@ What follows from the class (console_memory_extras, halo_console_memory.h:
 a console above 64 MB has the extras). Nothing of the simulation or the
 network changes with it: the game state, the objects and what goes on the
 wire stay the Xbox's, so every console and PC plays the same game.
-- the texture cache: the Xbox's 22 MB on a 64 MB console; 44 MB on a 128
-MB one, 64 MB on a 256 MB one, or as much of it as the low 64 MB has room
-for (below, "The low 64 MB"). A 64 MB console whose free memory cannot hold the Xbox's caches
+- the texture cache: the Xbox's 22 MB on a 64 MB console; on a 128 MB one
+44 MB asked (64 MB on a 256 MB one), and as much of it as the low 64 MB has
+room for in one piece made (below, "The low 64 MB"): about 24 MB, as the
+game state and the tag cache are there at the Xbox's own addresses and take
+25 MB of it (test-20261126). A 64 MB console whose free memory cannot hold the Xbox's caches
 and still leave Direct3D and the heap theirs gets a smaller texture cache
 (down to 19 MB) rather than a failed start, a megabyte larger only while
 _main_loop_reserve is still expected free at the main loop.
@@ -76,10 +78,13 @@ address, converted to whole blocks of samples: ADPCM's blocks are 36 bytes
 next page is not physically the next one the run holds less than a block,
 maps as no samples, and the packet is retried forever (the channel stuck
 playing, its sound silent). So on a console above 64 MB the sound cache is
-made with VirtualAlloc, from the upper 64 MB, before the texture cache
-(sound_cache_make_outside), at its full 8 MB, and kept only if every page
-of it is physically the one after the page before; otherwise it is given
-back and made as before. When it is kept, the texture cache is fitted to
+made with VirtualAlloc, whose pages may be anywhere, before the texture
+cache (sound_cache_make_outside), at its full 8 MB, and kept only if every
+page of it is physically the one after the page before; otherwise it is
+given back and made as before. VirtualAlloc does not take the upper 64 MB
+first: on test-20261126 (a18f7e48, a 128 MB 1.0 console) all 8 MB of it
+came from below 64 MB, 1925 of its 2048 pages out of line, so it was given
+back. When it is kept, the texture cache is fitted to
 the piece keeping only Direct3D's share (9 MB): about 27 MB on that
 console instead of 24, and twice the sound cache. Either way debug.txt
 says which, so a 128 MB console's log shows whether the kernel gives
@@ -703,7 +708,7 @@ static unsigned long largest_block_below(unsigned long limit, unsigned long ceil
 }
 
 /* a cache larger than the Xbox's (the 128 MB extras) as large as the
-memory free in one piece allows when the game makes it, keeping 1 MB of
+memory free in one piece allows when the game makes it, to 64 KB, keeping
 the room the rest needs free in that piece and never less than the Xbox's own size: a 128 MB console's
 free memory is in pieces (a devkit, 2026-10-21: 97 MB free, the largest
 piece 24 MB), and a 44 MB texture cache that could not be made left the
@@ -728,11 +733,17 @@ static void fit_extras_cache(const char *name, unsigned long *size, unsigned lon
 	largest = largest_block_below(MAXULONG_PTR, *size + keep);
 	if (largest >= *size + keep)
 		return;
-	fit = largest > keep ? (largest - keep) & ~0xFFFFFUL : 0;
+	/* (to 64 KB, as largest_block_below measures: rounded to 1 MB, the
+	texture cache lost 192 KB of the piece on test-20261126) */
+	fit = largest > keep ? (largest - keep) & ~0xFFFFUL : 0;
 	if (fit < stock)
 		fit = stock;
-	xbox_boot_log("memory: %s %lu KB is more than the largest free piece (%lu KB): %lu KB instead",
-		name, *size >> 10, largest >> 10, fit >> 10);
+	/* (not memory broken up: the low 64 MB, where every block in one piece
+	is made, has no more room once the game state and the tag cache are in
+	it. The heap and the rest take pages anywhere) */
+	xbox_boot_log("memory: %s %lu KB does not fit below 64 MB, where it must be in one piece (the largest free "
+		"piece there: %lu KB, %lu KB of it kept for what is made after): %lu KB",
+		name, *size >> 10, largest >> 10, keep >> 10, fit >> 10);
 	*size = fit;
 }
 
@@ -743,7 +754,8 @@ ULONG_PTR __stdcall MmGetPhysicalAddress(PVOID address);
 
 /* the sound cache made outside the low 64 MB (above, "The low 64 MB"), on
 a console above 64 MB, before the texture cache is fitted: at its full size,
-from VirtualAlloc, whose pages the kernel takes from the upper 64 MB first.
+from VirtualAlloc, whose pages the kernel may take from anywhere (on
+test-20261126 all of them came from below 64 MB, above).
 It is kept only if its pages are physically consecutive (DirectSound maps
 an ADPCM packet by its physically contiguous run: above); how much of it
 landed below 64 MB anyway is said, and the texture cache is fitted after
