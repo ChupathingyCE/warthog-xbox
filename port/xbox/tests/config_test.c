@@ -13,8 +13,13 @@ where "d:\config.toml" is a file's name: port/xbox/tests/run.sh.
                         names display.widescreen = "dashboard": it keeps it
     config_test wide_commented  one that left it commented out at
                         "dashboard": it follows the new default, "off"
+    config_test keys    no file: every setting the new one has, set or
+                        commented out at its default, is one the console
+                        reads (warthog-xbox #193), and so are the two
+                        tools/xbox_package.py writes
 */
 
+#include <ctype.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -63,6 +68,49 @@ static void expect_shared(void)
 	expect(config_boolean("display.interpolation") == 0, "display.interpolation is not false");
 	expect(config_boolean("network.allow_upnp") == 0, "network.allow_upnp is not false");
 	expect(!strcmp(config_string("display.player_names"), ""), "display.player_names is not empty");
+}
+
+/* every "key = value" line of a config.toml, and its commented-out
+"# key = value" ones (a setting at its default), under its [section]: each
+one of the console's settings. The number of them checked, or -1 */
+static int keys_checked(const char *text)
+{
+	char section[64] = "";
+	const char *line;
+	int count = 0;
+
+	for (line = text; *line; line += strcspn(line, "\n") + (line[strcspn(line, "\n")] ? 1 : 0))
+	{
+		const char *key = line;
+		size_t length;
+		char name[160];
+
+		if (*line == '[')
+		{
+			length = strcspn(line + 1, "]\n");
+			if (line[1 + length] != ']' || length >= sizeof(section))
+				return -1;
+			memcpy(section, line + 1, length);
+			section[length] = 0;
+			continue;
+		}
+		if (key[0] == '#' && key[1] == ' ')
+			key += 2;
+		for (length = 0; islower((unsigned char)key[length]) || isdigit((unsigned char)key[length]) ||
+			key[length] == '_'; length++)
+			;
+		/* (help text and the layout's own line are not settings) */
+		if (!length || strncmp(key + length, " = ", 3) || !section[0])
+			continue;
+		snprintf(name, sizeof(name), "%s.%.*s", section, (int)length, key);
+		if (config_setting_kind(name) < 0)
+		{
+			failures++;
+			fprintf(stderr, "config_test: %s is in the new config.toml but not one of the console's\n", name);
+		}
+		count++;
+	}
+	return count;
 }
 
 int main(int argc, char **argv)
@@ -151,9 +199,29 @@ int main(int argc, char **argv)
 		expect(!strcmp(config_string("display.widescreen"), named ? "dashboard" : "off"),
 			named ? "a named \"dashboard\" was not kept" : "a commented-out \"dashboard\" did not follow \"off\"");
 	}
+	else if (!strcmp(mode, "keys"))
+	{
+		int count;
+
+		remove(CONFIG_FILE);
+		expect(config_boolean("console.bypass_security") == 0, "console.bypass_security is not false");
+		text = file_text();
+		expect(text != NULL, "no config.toml written");
+		count = text ? keys_checked(text) : -1;
+		/* (a parse that found next to nothing would pass for nothing) */
+		expect(count >= 20, "next to no settings found in the new config.toml");
+		/* (the ones tools/xbox_package.py sets) */
+		expect(config_setting_kind("console.bypass_security") == CONFIG_KIND_BOOLEAN, "no console.bypass_security");
+		expect(config_setting_kind("console.game_list_server") == CONFIG_KIND_STRING, "no console.game_list_server");
+		/* (and a desktop one is not, or the check checks nothing) */
+		expect(config_setting_kind("display.fullscreen") < 0, "display.fullscreen is one of the console's");
+		if (count >= 0 && !failures)
+			printf("config_test keys: %d settings in the new config.toml, all the console's\n", count);
+		free(text);
+	}
 	else
 	{
-		fprintf(stderr, "usage: config_test new|given|wide_named|wide_commented\n");
+		fprintf(stderr, "usage: config_test new|given|wide_named|wide_commented|keys\n");
 		return 2;
 	}
 	if (failures)
