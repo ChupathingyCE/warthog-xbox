@@ -179,7 +179,16 @@ int xbox_trace_enabled(void)
 
 /* ---------- the bring-up watchdog: the main loop's progress (main.c's
 MAIN_STAGE), to the debug output once a second, and where it is when a
-pass takes more than three seconds */
+pass takes more than three seconds.
+
+A map's load is one pass too: the copy of a map into its cache file the
+first time it is played (game.c's game_precache_new_map and game_unload)
+draws the loading screen from inside the pass, so the stage it shows is the
+last frame's Present. b30's first copy on a 1.0 console took 20 s of that
+(test-20261126), which read as a 17 s freeze at Present. While the game
+says a map is loading, the watchdog says nothing until it is done, then one
+line with how long the load held the loop; a load still going at 30 s is
+said then and each half minute after */
 
 typedef void *HANDLE_TYPE;
 __declspec(dllimport) HANDLE_TYPE __stdcall CreateThread(void *attributes, unsigned long stack_size,
@@ -189,9 +198,15 @@ __declspec(dllimport) void __stdcall Sleep(unsigned long milliseconds);
 volatile unsigned long xbox_main_loops;
 const char *volatile xbox_main_stage = "start";
 
+/* (game.c's: a map's load under the loading screen. The game's globals are
+there once the main loop has run, before the watchdog starts) */
+unsigned char game_map_loading_in_progress(float *progress);
+
 static unsigned long __stdcall xbox_watchdog_body(void *parameter)
 {
-	unsigned long last_loops = 0, still = 0;
+	/* (the seconds the loop has been held: by a map's load, and by
+	anything else) */
+	unsigned long last_loops = 0, loading = 0, still = 0;
 
 	(void)parameter;
 	for (;;)
@@ -201,17 +216,30 @@ static unsigned long __stdcall xbox_watchdog_body(void *parameter)
 		Sleep(1000);
 		if (xbox_main_loops == loops)
 		{
+			if (game_map_loading_in_progress(NULL))
+			{
+				/* (a load, the loading screen drawn: not a stall. One that
+				goes on is said in debug.txt at 30 s and each half minute
+				after, in case it never ends) */
+				if (++loading % 30 == 0)
+					platform_log("main loop held %lus by a map's load so far (loop %lu)", loading, loops);
+				else if (loading % 3 == 0)
+					DbgPrint("halo: main loop held %lus by a map's load (loop %lu)\n", loading, loops);
+			}
 			/* (into debug.txt too, at 3 s and each half minute: the lines
 			wait in the queue until the loop runs again) */
-			if (++still == 3 || still % 30 == 0)
+			else if (++still == 3 || still % 30 == 0)
 				platform_log("main loop stalled %lus at '%s' (loop %lu)", still, xbox_main_stage, loops);
 			else if (still % 3 == 0)
 				DbgPrint("halo: main loop stalled %lus at '%s' (loop %lu)\n", still, xbox_main_stage, loops);
 		}
 		else
 		{
+			if (loading >= 3)
+				platform_log("main loop held %lus by a map's load (the loading screen up)", loading);
 			if (still >= 3)
 				platform_log("main loop ran again after %lus", still);
+			loading = 0;
 			still = 0;
 			if (xbox_trace_enabled())
 				DbgPrint("halo: main loop %lu (%lu a second), at '%s'\n", xbox_main_loops, xbox_main_loops - last_loops,
