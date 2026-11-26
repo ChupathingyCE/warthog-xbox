@@ -485,6 +485,26 @@ const char *log_address(const unsigned char *bytes, int length, int port, char *
 	return text;
 }
 
+/* a host name (network.public_address's, or one typed to join by), as the
+desktop builds' log_address_name writes it: "localhost" as it is, any other
+only as a tag with the same salt */
+const char *log_address_name(const char *name, char *text, int size)
+{
+	if (!text || size <= 0)
+		return "";
+	if (!name || !*name)
+	{
+		snprintf(text, (size_t)size, "unknown");
+		return text;
+	}
+	if (!strcmp(name, "localhost"))
+	{
+		snprintf(text, (size_t)size, "%s", name);
+		return text;
+	}
+	return xbox_log_tag("name", (const unsigned char *)name, (int)strlen(name), log_salt(), text, size);
+}
+
 /* another machine's Ethernet address (6 bytes: an XNADDR's abEnet, or a
 tunnel peer's identifier), only ever as a tag */
 const char *log_ethernet(const unsigned char *bytes, char *text, int size)
