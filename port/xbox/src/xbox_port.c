@@ -187,7 +187,8 @@ draws the loading screen from inside the pass, so the stage it shows is the
 last frame's Present. b30's first copy on a 1.0 console took 20 s of that
 (test-20261126), which read as a 17 s freeze at Present. While the game
 says a map is loading, the watchdog says nothing until it is done, then one
-line with how long the load held the loop */
+line with how long the load held the loop; a load still going at 30 s is
+said then and each half minute after */
 
 typedef void *HANDLE_TYPE;
 __declspec(dllimport) HANDLE_TYPE __stdcall CreateThread(void *attributes, unsigned long stack_size,
@@ -217,8 +218,12 @@ static unsigned long __stdcall xbox_watchdog_body(void *parameter)
 		{
 			if (game_map_loading_in_progress(NULL))
 			{
-				/* (a load, the loading screen drawn: not a stall) */
-				if (++loading % 3 == 0)
+				/* (a load, the loading screen drawn: not a stall. One that
+				goes on is said in debug.txt at 30 s and each half minute
+				after, in case it never ends) */
+				if (++loading % 30 == 0)
+					platform_log("main loop held %lus by a map's load so far (loop %lu)", loading, loops);
+				else if (loading % 3 == 0)
 					DbgPrint("halo: main loop held %lus by a map's load (loop %lu)\n", loading, loops);
 			}
 			/* (into debug.txt too, at 3 s and each half minute: the lines
