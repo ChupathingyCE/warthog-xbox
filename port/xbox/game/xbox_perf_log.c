@@ -14,6 +14,15 @@ splits the render finer (its start, each view's setup, the lens flares, the
 HUD's screen effect, its end, and what is left), with the waits on the
 graphics chip and the disc. With console.perf_gpu_sync the game waits for the
 graphics chip at each part's end, so a part's time includes the chip's.
+
+With the setting off too, in every build, a "frames:" line every ten
+seconds while a game is being played (campaign, multiplayer, not the main
+menu): the frames' average and worst time and how many took over 34 ms
+(slower than 30 a second), so a report of lag can be measured. Its cost is
+a time stamp and a few sums a frame. A frame that a map's load ended in is
+not counted (the loading screen is drawn inside it), nor one of more than
+five seconds, a load inside a game (the next level's): those are only
+counted.
 */
 
 #include "cseries.h"
@@ -26,6 +35,8 @@ graphics chip at each part's end, so a part's time includes the chip's.
 #include "halo_perf_log.h"
 
 int config_boolean(const char *name);
+void platform_log(const char *format, ...);
+boolean main_menu_is_active(void);
 
 /* the Xbox Direct3D library's (d3d8.lib): returns once the graphics chip
 has done everything it was given */
@@ -328,12 +339,101 @@ static void perf_second_start(unsigned long milliseconds, __int64 now)
 	csmemset(halo_perf_counters, 0, sizeof(halo_perf_counters));
 }
 
+/* ---------- the frame times every ten seconds, the setting on or off */
+
+enum
+{
+	_frame_log_milliseconds = 10000
+};
+
+static struct
+{
+	boolean playing;
+	unsigned long start_milliseconds;
+	__int64 start;
+	__int64 last_frame;
+	/* (counter ticks a millisecond: the last ten seconds', 733 MHz at
+	first, and the 34 ms in them) */
+	double ticks_per_millisecond;
+	__int64 slow_ticks;
+
+	long frames;
+	__int64 total;
+	__int64 worst;
+	long slow;
+	long loads;
+} frame_log;
+
+static void frame_log_start(unsigned long milliseconds, __int64 now)
+{
+	frame_log.start_milliseconds = milliseconds;
+	frame_log.start = now;
+	frame_log.last_frame = now;
+	frame_log.frames = 0;
+	frame_log.total = 0;
+	frame_log.worst = 0;
+	frame_log.slow = 0;
+	frame_log.loads = 0;
+}
+
+static void frame_log_frame(__int64 now, unsigned long milliseconds)
+{
+	boolean playing = game_in_progress() && !main_menu_is_active();
+	unsigned long elapsed;
+
+	if (!frame_log.ticks_per_millisecond)
+	{
+		frame_log.ticks_per_millisecond = 733333.0;
+		frame_log.slow_ticks = (__int64)(frame_log.ticks_per_millisecond * 34.0);
+	}
+	/* (a game started, a map loaded or the menus left: the frame it ended
+	in is not one of the game's) */
+	if (!playing || !frame_log.playing)
+	{
+		frame_log.playing = playing;
+		frame_log_start(milliseconds, now);
+		return;
+	}
+	{
+		__int64 frame = now - frame_log.last_frame;
+
+		frame_log.last_frame = now;
+		if ((double)frame > frame_log.ticks_per_millisecond * 5000.0)
+		{
+			frame_log.loads++;
+			return;
+		}
+		frame_log.frames++;
+		frame_log.total += frame;
+		if (frame > frame_log.worst)
+			frame_log.worst = frame;
+		if (frame > frame_log.slow_ticks)
+			frame_log.slow++;
+	}
+	elapsed = milliseconds - frame_log.start_milliseconds;
+	if (elapsed < _frame_log_milliseconds || !frame_log.frames)
+		return;
+	/* (the counter's rate, from the system's clock over these seconds) */
+	frame_log.ticks_per_millisecond = (double)(now - frame_log.start) / (double)elapsed;
+	if (frame_log.ticks_per_millisecond < 100000.0)
+		frame_log.ticks_per_millisecond = 733333.0;
+	platform_log("frames: %ld in %.1f s, %.1f ms average, %.1f ms worst, %ld over 34 ms%s", frame_log.frames,
+		(double)elapsed / 1000.0, (double)frame_log.total / frame_log.ticks_per_millisecond / (double)frame_log.frames,
+		(double)frame_log.worst / frame_log.ticks_per_millisecond, frame_log.slow,
+		frame_log.loads ? " (and a load, not counted)" : "");
+	frame_log.slow_ticks = (__int64)(frame_log.ticks_per_millisecond * 34.0);
+	frame_log_start(milliseconds, now);
+}
+
 void halo_perf_frame(void)
 {
 	static int known = -1;
 	unsigned long milliseconds;
 	__int64 now;
 
+	now = perf_now();
+	milliseconds = system_milliseconds();
+	frame_log_frame(now, milliseconds);
 	if (known < 0)
 	{
 		known = config_boolean("console.perf_log") ? 1 : 0;
@@ -346,8 +446,6 @@ void halo_perf_frame(void)
 	if (!halo_perf_log_on)
 		return;
 
-	now = perf_now();
-	milliseconds = system_milliseconds();
 	if (!perf.started)
 	{
 		perf.started = TRUE;
