@@ -78,10 +78,13 @@ address, converted to whole blocks of samples: ADPCM's blocks are 36 bytes
 next page is not physically the next one the run holds less than a block,
 maps as no samples, and the packet is retried forever (the channel stuck
 playing, its sound silent). So on a console above 64 MB the sound cache is
-made with VirtualAlloc, from the upper 64 MB, before the texture cache
-(sound_cache_make_outside), at its full 8 MB, and kept only if every page
-of it is physically the one after the page before; otherwise it is given
-back and made as before. When it is kept, the texture cache is fitted to
+made with VirtualAlloc, whose pages may be anywhere, before the texture
+cache (sound_cache_make_outside), at its full 8 MB, and kept only if every
+page of it is physically the one after the page before; otherwise it is
+given back and made as before. VirtualAlloc does not take the upper 64 MB
+first: on test-20261126 (a18f7e48, a 128 MB 1.0 console) all 8 MB of it
+came from below 64 MB, 1925 of its 2048 pages out of line, so it was given
+back. When it is kept, the texture cache is fitted to
 the piece keeping only Direct3D's share (9 MB): about 27 MB on that
 console instead of 24, and twice the sound cache. Either way debug.txt
 says which, so a 128 MB console's log shows whether the kernel gives
@@ -743,7 +746,7 @@ static void fit_extras_cache(const char *name, unsigned long *size, unsigned lon
 		fit = stock;
 	/* (not memory broken up: the low 64 MB, where every block in one piece
 	is made, has no more room once the game state and the tag cache are in
-	it. The upper 64 MB serves the heap and the rest) */
+	it. The heap and the rest take pages anywhere) */
 	xbox_boot_log("memory: %s %lu KB does not fit below 64 MB, where it must be in one piece (the largest free "
 		"piece there: %lu KB, %lu KB of it kept for what is made after): %lu KB",
 		name, *size >> 10, largest >> 10, keep >> 10, fit >> 10);
@@ -757,7 +760,8 @@ ULONG_PTR __stdcall MmGetPhysicalAddress(PVOID address);
 
 /* the sound cache made outside the low 64 MB (above, "The low 64 MB"), on
 a console above 64 MB, before the texture cache is fitted: at its full size,
-from VirtualAlloc, whose pages the kernel takes from the upper 64 MB first.
+from VirtualAlloc, whose pages the kernel may take from anywhere (on
+test-20261126 all of them came from below 64 MB, above).
 It is kept only if its pages are physically consecutive (DirectSound maps
 an ADPCM packet by its physically contiguous run: above); how much of it
 landed below 64 MB anyway is said, and the texture cache is fitted after

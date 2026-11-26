@@ -380,8 +380,8 @@ them, the screen effect's target, the sound cache and Direct3D: about 24 MB
 on a 128 MB console (test-20261126), not 44. `debug.txt` says so: `boot:
 memory: texture cache 45056 KB does not fit below 64 MB, where it must be in
 one piece (the largest free piece there: 37056 KB, 12288 KB of it kept for
-what is made after): 24768 KB`. The upper 64 MB holds the heap and the rest,
-and most of it stays free.
+what is made after): 24768 KB`. The heap and the rest take pages anywhere,
+and most of the upper 64 MB stays free.
 The 64 MB class's sizes are the ones it had before the classes (the image
 grows by 40 bytes). Only what is drawn, heard and buffered on the console
 changes: the game's limits (players, machines, objects, particles, the game
