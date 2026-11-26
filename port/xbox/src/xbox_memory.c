@@ -45,7 +45,7 @@ or xbox_memory_require for a message at the main menu when it cannot run.
 A devkit tests the 64 MB path with the XBE's own flag (tools/xbox_package.py
 --devkit-64mb: XINIT_LIMIT_DEVKIT_MEMORY), which makes its kernel give the
 game 64 MB, as a stock console has. console.simulate_64mb, which held the
-memory above 64 MB from inside the game, is replaced by it.
+memory above 64 MB from inside the game, was replaced by it and is retired.
 
 From the first line of main (xbox_memory_startup), each step of the start
 is written to D:\debug.txt at once ("boot:" lines: the memory, each cache
@@ -368,12 +368,6 @@ static void memory_read(void)
 	memory.message = L"Test build: up to " XBOX_MEMORY_PLAYERS_TEXT L" players.\r\nExperimental: please send D:\\debug.txt.";
 #endif
 	status_read(&memory.total, &memory.available, &memory.source);
-	if (config_boolean("console.simulate_64mb"))
-		xbox_boot_log("console.simulate_64mb is deprecated and ignored: a devkit gets 64 MB from the XBE's flag "
-			"(tools/xbox_package.py --devkit-64mb)");
-	if (config_boolean("console.large_caches"))
-		xbox_boot_log("console.large_caches is deprecated and ignored: a console of 128 MB or more has the larger "
-			"caches on its own (console.memory_class = \"64\" keeps the Xbox's)");
 	memory.hardware_class = xbox_memory_class_of(memory.total);
 	memory.memory_class = memory.hardware_class;
 	/* a devkit started with XINIT_LIMIT_DEVKIT_MEMORY (the XBE's init flags,

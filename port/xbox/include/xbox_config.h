@@ -7,10 +7,12 @@ _platform_xbox, the console's own in [console]). config_boolean and the
 rest are port_config.h's.
 
 The empty files beside default.xbe that were the console's switches before
-it (D:\bypass_security.txt, memory_64.txt, large_caches.txt, trace.txt),
-and join.txt and game_list.txt, are read only by a build configured with
---xbox-old-flag-files (XBOX_OLD_FLAG_FILES), each said in debug.txt to be
-deprecated. Their release of grace is over.
+it (D:\bypass_security.txt, trace.txt), and join.txt and game_list.txt,
+are read only by a build configured with --xbox-old-flag-files
+(XBOX_OLD_FLAG_FILES), each said in debug.txt to be deprecated. Their
+release of grace is over. memory_64.txt and large_caches.txt are not read
+at all: their settings, console.simulate_64mb and console.large_caches, are
+retired.
 */
 
 #ifndef __XBOX_CONFIG_H

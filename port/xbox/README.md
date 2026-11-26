@@ -347,8 +347,9 @@ are no longer read, as the retail game read none: `bypass_security.txt`,
 `memory_64.txt`, `large_caches.txt` and `trace.txt` (an empty file turned
 the setting on), and `join.txt` and `game_list.txt` (one line, used when
 the setting was empty). A build configured with `--xbox-old-flag-files`
-still reads them, each logged as deprecated in `debug.txt` ("D:\memory_64.txt
-is deprecated, use console.simulate_64mb in config.toml").
+still reads them, each logged as deprecated in `debug.txt` ("D:\trace.txt
+is deprecated, use console.trace in config.toml"), except `memory_64.txt`
+and `large_caches.txt`, whose settings are retired.
 
 ## Memory
 
@@ -393,7 +394,8 @@ bigger console held to the baseline, `boot: memory: 128 MB console held to
 the console's own class; `"64"` holds any console to the 64 MB class, for a
 test of the baseline on a bigger console or if an extra misbehaves.
 `console.large_caches`, which raised the texture cache on request, is
-deprecated and ignored: the class does it.
+retired: the class does it. An older `config.toml` that has it still loads,
+and the game takes its lines out.
 
 For code: `console_memory_extras()` (port/linux/include/halo_console_memory.h,
 console-neutral, answered here by `src/xbox_memory.c`) says whether this
@@ -447,7 +449,8 @@ in the XBE's init flags (`0x4`, in the header at `0x124`; `cxbe`'s `Xbe.h`
 has them), and the devkit's kernel gives the game 64 MB, as a stock console
 has. A stock console ignores the flag. (`console.simulate_64mb`, which tried
 to hold the memory above 64 MB from inside the game, cannot take a devkit's
-upper 64 MB and starved the debug kernel; it is replaced by the flag.)
+upper 64 MB and starved the debug kernel; it was replaced by the flag and is
+retired.)
 
 The build leaves out every function nothing calls (each is compiled in a
 section of its own, `-ffunction-sections`, and linked with `/opt:ref`):

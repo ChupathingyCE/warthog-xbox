@@ -152,8 +152,9 @@ cp $G/port/linux/src/p2p_crypto.c "$OUT/claim/p2p_crypto.c"
 printf 'void platform_log(const char *format, ...);\n' > "$OUT/claim/platform.h"
 printf 'void posix_random_bytes(void *bytes, unsigned long size);\n' > "$OUT/claim/posix.h"
 $CC -std=gnu11 -O1 -w -I$G/port/linux/src -I$G/port/third_party/monocypher -c "$OUT/claim/p2p_crypto.c" -o "$OUT/claim/p2p_crypto.o"
+$CC -std=gnu11 -O1 -w -c $G/port/linux/game/content_sha256.c -o "$OUT/claim/content_sha256.o"
 $CC -std=gnu11 -Wall -Wextra -Werror $SAN -I$G/port/third_party/monocypher port/xbox/tests/claim_test.c \
-	$SRC/xbox_claim.c $SRC/xbox_player_key.c "$OUT/claim/p2p_crypto.o" $G/port/third_party/monocypher/monocypher.c \
+	$SRC/xbox_claim.c $SRC/xbox_player_key.c "$OUT/claim/p2p_crypto.o" "$OUT/claim/content_sha256.o" $G/port/third_party/monocypher/monocypher.c \
 	$G/port/third_party/monocypher/monocypher-ed25519.c -o "$OUT/claim_test"
 "$OUT/claim_test"
 # (the README's [tuning] table is the game's code's, when the game has the
