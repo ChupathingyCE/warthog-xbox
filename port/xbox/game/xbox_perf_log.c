@@ -17,8 +17,9 @@ graphics chip at each part's end, so a part's time includes the chip's.
 
 With the setting off too, in every build, a "frames:" line every ten
 seconds while a game is being played (campaign, multiplayer, not the main
-menu): the frames' average and worst time and how many took over 34 ms
-(slower than 30 a second), so a report of lag can be measured. Its cost is
+menu): the frames' average and worst time and how many took longer than
+the display's pace (two refreshes at display.frame_rate 30, one at 60, and
+a millisecond: 34 ms on a 60 Hz television, 41 ms on a 50 Hz PAL one), so a report of lag can be measured. Its cost is
 a time stamp and a few sums a frame. A frame that a map's load ended in is
 not counted (the loading screen is drawn inside it), nor one of more than
 five seconds, a load inside a game (the next level's): those are only
@@ -37,6 +38,8 @@ counted.
 int config_boolean(const char *name);
 void platform_log(const char *format, ...);
 boolean main_menu_is_active(void);
+short halo_console_frame_rate(void);
+short halo_console_refresh_rate(void);
 
 /* the Xbox Direct3D library's (d3d8.lib): returns once the graphics chip
 has done everything it was given */
@@ -353,9 +356,10 @@ static struct
 	__int64 start;
 	__int64 last_frame;
 	/* (counter ticks a millisecond: the last ten seconds', 733 MHz at
-	first, and the 34 ms in them) */
+	first, and the slow frame's time in them) */
 	double ticks_per_millisecond;
 	__int64 slow_ticks;
+	double slow_milliseconds;
 
 	long frames;
 	__int64 total;
@@ -363,6 +367,17 @@ static struct
 	long slow;
 	long loads;
 } frame_log;
+
+/* a frame slower than the display's pace: the refreshes a frame waits for
+(vblank: two at display.frame_rate 30, one at 60) and a millisecond */
+static double frame_log_slow_milliseconds(void)
+{
+	short refresh = halo_console_refresh_rate();
+
+	if (refresh != 50 && refresh != 60)
+		refresh = 60;
+	return (halo_console_frame_rate() == 60 ? 1.0 : 2.0) * 1000.0 / (double)refresh + 1.0;
+}
 
 static void frame_log_start(unsigned long milliseconds, __int64 now)
 {
@@ -384,7 +399,8 @@ static void frame_log_frame(__int64 now, unsigned long milliseconds)
 	if (!frame_log.ticks_per_millisecond)
 	{
 		frame_log.ticks_per_millisecond = 733333.0;
-		frame_log.slow_ticks = (__int64)(frame_log.ticks_per_millisecond * 34.0);
+		frame_log.slow_milliseconds = frame_log_slow_milliseconds();
+		frame_log.slow_ticks = (__int64)(frame_log.ticks_per_millisecond * frame_log.slow_milliseconds);
 	}
 	/* (a game started, a map loaded or the menus left: the frame it ended
 	in is not one of the game's) */
@@ -417,11 +433,13 @@ static void frame_log_frame(__int64 now, unsigned long milliseconds)
 	frame_log.ticks_per_millisecond = (double)(now - frame_log.start) / (double)elapsed;
 	if (frame_log.ticks_per_millisecond < 100000.0)
 		frame_log.ticks_per_millisecond = 733333.0;
-	platform_log("frames: %ld in %.1f s, %.1f ms average, %.1f ms worst, %ld over 34 ms%s", frame_log.frames,
+	platform_log("frames: %ld in %.1f s, %.1f ms average, %.1f ms worst, %ld over %.0f ms%s", frame_log.frames,
 		(double)elapsed / 1000.0, (double)frame_log.total / frame_log.ticks_per_millisecond / (double)frame_log.frames,
-		(double)frame_log.worst / frame_log.ticks_per_millisecond, frame_log.slow,
+		(double)frame_log.worst / frame_log.ticks_per_millisecond, frame_log.slow, frame_log.slow_milliseconds,
 		frame_log.loads ? " (and a load, not counted)" : "");
-	frame_log.slow_ticks = (__int64)(frame_log.ticks_per_millisecond * 34.0);
+	/* (the refresh rate is the mode's once the device is made) */
+	frame_log.slow_milliseconds = frame_log_slow_milliseconds();
+	frame_log.slow_ticks = (__int64)(frame_log.ticks_per_millisecond * frame_log.slow_milliseconds);
 	frame_log_start(milliseconds, now);
 }
 
