@@ -27,8 +27,6 @@ static const struct
 } old_switches[] =
 {
 	{ "D:\\bypass_security.txt", "console.bypass_security" },
-	{ "D:\\memory_64.txt", "console.simulate_64mb" },
-	{ "D:\\large_caches.txt", "console.large_caches" },
 	{ "D:\\trace.txt", "console.trace" },
 };
 

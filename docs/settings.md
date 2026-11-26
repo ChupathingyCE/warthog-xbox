@@ -43,8 +43,6 @@ them. Put the same settings in `config.toml`.
 | `perf_gpu_sync` | `false` | With `perf_log`: wait for the graphics chip at each timed part. The times are then the chip's own. It slows the game down. |
 | `widget_pool_log` | `false` | For sizing the menus' memory. Writes a line to `debug.txt` each time the menus use more of it. |
 | `debug_geometry` | `false` | For development. Brings back the debug build's lines and triangles. They take 1.4 MB, so use it on a console with room. |
-| `large_caches` | `false` | No longer used. `memory_class` decides now. |
-| `simulate_64mb` | `false` | No longer used. To give a devkit 64 MB, package with `tools/xbox_package.py --devkit-64mb`. |
 
 ## Picture
 

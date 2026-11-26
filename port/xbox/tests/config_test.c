@@ -120,14 +120,11 @@ int main(int argc, char **argv)
 			return 1;
 		fputs("# The layout of this file, for the game: leave it.\nconfig_version = 2\n\n[console]\n"
 			"bypass_security = true\ndebug_geometry = true\nlog_flush = \"every_line\"\n"
-			"simulate_64mb = true\njoin = \"192.168.1.20\"\ndelta = \"off\"\nmemory_class = \"64\"\n", file);
+			"join = \"192.168.1.20\"\ndelta = \"off\"\nmemory_class = \"64\"\n", file);
 		fclose(file);
 		expect(config_boolean("console.bypass_security") == 1, "console.bypass_security is not true");
 		expect(config_boolean("console.debug_geometry") == 1, "console.debug_geometry is not true");
 		expect(!strcmp(config_string("console.log_flush"), "every_line"), "console.log_flush is not every_line");
-		/* (deprecated, ignored by the game, still a setting that reads) */
-		expect(config_boolean("console.simulate_64mb") == 1, "console.simulate_64mb is not true");
-		expect(config_boolean("console.large_caches") == 0, "console.large_caches is not false");
 		/* (xbox_memory.c: "64" holds the console to the 64 MB baseline) */
 		expect(!strcmp(config_string("console.memory_class"), "64"), "console.memory_class is not 64");
 		expect(!strcmp(config_string("console.join"), "192.168.1.20"), "console.join is not the address");
@@ -136,7 +133,7 @@ int main(int argc, char **argv)
 		expect_shared();
 		text = file_text();
 		expect(text && strstr(text, "debug_geometry = true\n") != NULL, "the value written is gone");
-		expect(text && strstr(text, "# large_caches = false\n") != NULL, "the missing settings were not added");
+		expect(text && strstr(text, "# trace = false\n") != NULL, "the missing settings were not added");
 		free(text);
 	}
 	else if (!strcmp(mode, "wide_named") || !strcmp(mode, "wide_commented"))
