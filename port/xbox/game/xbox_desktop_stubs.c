@@ -11,6 +11,9 @@ timers are built: port/linux/game.)
 */
 
 #include "cseries.h"
+
+#include <stdio.h>
+#include <string.h>
 #include "math/real_math.h"
 
 #include "network_rules.h"
@@ -105,10 +108,32 @@ void menu_style_gametype_rules(
 		text[0] = 0;
 }
 
+/* the build's version, as the desktop builds show it (port/linux/src/
+build_identity.c): "0.9.2-dev (1a2b3c4)", the commit the build's stamp's
+(tools/xbox_stamp.py). The main menu's corner shows it, and a game does with
+display.version_watermark */
+extern const char xbox_build_stamp[];
+
 char const *build_identity_watermark(
 	void)
 {
-	return "";
+	static char watermark[64];
+
+	if (!watermark[0])
+	{
+		int commit_length = 0;
+
+		while (commit_length < 7 && xbox_build_stamp[commit_length] &&
+			xbox_build_stamp[commit_length] != '+' && xbox_build_stamp[commit_length] != ' ')
+		{
+			commit_length++;
+		}
+		if (commit_length > 0 && strncmp(xbox_build_stamp, "unknown", 7) != 0)
+			snprintf(watermark, sizeof(watermark), "%s (%.*s)", HALO_VERSION, commit_length, xbox_build_stamp);
+		else
+			snprintf(watermark, sizeof(watermark), "%s", HALO_VERSION);
+	}
+	return watermark;
 }
 
 /* ---------- team changes (a host's offer over Delta Peer) */
