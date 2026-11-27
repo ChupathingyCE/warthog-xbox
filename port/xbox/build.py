@@ -570,7 +570,9 @@ def generate(n: Writer, sln: Any, port: ConsolePort) -> None:
     # profile panel over it
     link_include = f"-I{_quote(game / CONSOLE_LINK_DIR)}"
     for source in sorted((PORT_DIR / "game").glob("*.c")):
-        add_object(source, " ".join(["-std=gnu89", game_cflags, link_include, *PORT_DATA_FLAGS]),
+        # (the version watermark names the build: "0.9.2-dev (1a2b3c4)")
+        version_flags = [f'-DHALO_VERSION=\\"{version()}\\"'] if source.name == "xbox_desktop_stubs.c" else []
+        add_object(source, " ".join(["-std=gnu89", game_cflags, link_include, *PORT_DATA_FLAGS, *version_flags]),
                    [semantics_header, prefix_header])
     add_object(game / CONSOLE_LINK_DIR / "console_link_panel.c",
                " ".join(["-std=gnu89", game_cflags, link_include, *PORT_DATA_FLAGS]), [semantics_header, prefix_header])
