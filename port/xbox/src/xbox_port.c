@@ -334,6 +334,14 @@ const char *log_address_ipv4(unsigned long network_address, unsigned short netwo
 	return log_address(bytes, 4, network_port ? (port[0] << 8 | port[1]) : -1, text, size);
 }
 
+/* (log_address.h's, for an internet play peer's address: p2p.c's connected
+line. The console's log_address already writes a LAN's as a tag and only
+its own and loopback whole, which is what the desktop builds' does here) */
+const char *log_address_ipv4_peer(unsigned long network_address, unsigned short network_port, char *text, int size)
+{
+	return log_address_ipv4(network_address, network_port, text, size);
+}
+
 /* ---------- the menus: the Xbox's own (ui.map); the PC version's menus
 (port/linux/game/menu_tags.c) are the desktop builds' */
 
